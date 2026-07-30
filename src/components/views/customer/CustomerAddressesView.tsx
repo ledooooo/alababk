@@ -1,0 +1,231 @@
+import React, { useState, useEffect } from 'react';
+import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
+import { CustomerAddress } from '../../../types/domain';
+import { LeafletMap } from '../../shared/LeafletMap';
+import { DEFAULT_LAT, DEFAULT_LNG } from '../../../lib/constants';
+import { MapPin, Plus, Trash2, Check, Home, Building, PlusCircle } from 'lucide-react';
+
+export const CustomerAddressesView: React.FC = () => {
+  const currentUser = StorageRepo.getCurrentUser();
+  const [addresses, setAddresses] = useState<CustomerAddress[]>(
+    StorageRepo.getAddresses(currentUser?.id)
+  );
+
+  const [isAdding, setIsAdding] = useState(false);
+  const [title, setTitle] = useState('شقة الشارع');
+  const [addressLine, setAddressLine] = useState('');
+  const [building, setBuilding] = useState('');
+  const [floor, setFloor] = useState('');
+  const [apartment, setApartment] = useState('');
+  const [lat, setLat] = useState(DEFAULT_LAT);
+  const [lng, setLng] = useState(DEFAULT_LNG);
+  const [isDefault, setIsDefault] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToStorageChange(() => {
+      setAddresses(StorageRepo.getAddresses(currentUser?.id));
+    });
+    return unsubscribe;
+  }, [currentUser?.id]);
+
+  const handleSave = () => {
+    if (!addressLine.trim()) {
+      alert('يرجى إدخال تفاصيل الشارع والعنوان');
+      return;
+    }
+
+    const newAddr: CustomerAddress = {
+      id: `addr-${Date.now()}`,
+      user_id: currentUser?.id || 'usr-guest',
+      title,
+      address_line: addressLine,
+      building,
+      floor,
+      apartment,
+      lat,
+      lng,
+      is_default: isDefault || addresses.length === 0,
+    };
+
+    StorageRepo.saveAddress(newAddr);
+    setIsAdding(false);
+    setAddressLine('');
+    setBuilding('');
+    setFloor('');
+    setApartment('');
+  };
+
+  const handleDelete = (id: string) => {
+    if (window.confirm('هل ترغب في حذف هذا العنوان؟')) {
+      StorageRepo.deleteAddress(id);
+    }
+  };
+
+  return (
+    <div className="max-w-3xl mx-auto space-y-6 dir-rtl pb-16">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-black text-slate-900 flex items-center gap-2">
+            <MapPin className="w-6 h-6 text-emerald-600" />
+            <span>دفتر العناوين المعتمدة للتوصيل</span>
+          </h1>
+          <p className="text-xs text-slate-500 mt-1">
+            إدارة وتحديد عناوينك للتوصيل السريع بنقرة واحدة
+          </p>
+        </div>
+
+        <button
+          onClick={() => setIsAdding(!isAdding)}
+          className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-1.5"
+        >
+          <Plus className="w-4 h-4" />
+          <span>إضافة عنوان جديد</span>
+        </button>
+      </div>
+
+      {/* Add New Address Form */}
+      {isAdding && (
+        <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-lg space-y-4 animate-in fade-in duration-200">
+          <h3 className="font-bold text-slate-900 text-sm border-b border-slate-100 pb-2">
+            إضافة عنوان توصيل جديد على الخريطة
+          </h3>
+
+          <LeafletMap
+            interactiveSelect={true}
+            onLocationSelect={(lLat, lLng) => {
+              setLat(lLat);
+              setLng(lLng);
+            }}
+            height="220px"
+          />
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                اسم العنوان / التسمية
+              </label>
+              <input
+                type="text"
+                placeholder="مثال: المنزل، المكتب، بيت العائلة..."
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                تفاصيل الشارع والمنطقة *
+              </label>
+              <input
+                type="text"
+                placeholder="مثال: 23 شارع 9 - المعادي..."
+                value={addressLine}
+                onChange={(e) => setAddressLine(e.target.value)}
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                المبنى / رقم العمارة
+              </label>
+              <input
+                type="text"
+                placeholder="عمارة 15..."
+                value={building}
+                onChange={(e) => setBuilding(e.target.value)}
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                رقم الدور والشقة
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="دور 4..."
+                  value={floor}
+                  onChange={(e) => setFloor(e.target.value)}
+                  className="w-1/2 p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                />
+                <input
+                  type="text"
+                  placeholder="شقة 12..."
+                  value={apartment}
+                  onChange={(e) => setApartment(e.target.value)}
+                  className="w-1/2 p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                />
+              </div>
+            </div>
+          </div>
+
+          <label className="flex items-center gap-2 pt-1 text-xs text-slate-700 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={isDefault}
+              onChange={(e) => setIsDefault(e.target.checked)}
+              className="rounded text-emerald-600 focus:ring-emerald-500"
+            />
+            <span>تعيين كعنوان افتراضي للتوصيل</span>
+          </label>
+
+          <div className="flex gap-2 pt-2">
+            <button
+              onClick={handleSave}
+              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-colors"
+            >
+              حفظ العنوان
+            </button>
+            <button
+              onClick={() => setIsAdding(false)}
+              className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors"
+            >
+              إلغاء
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Saved Addresses List */}
+      <div className="space-y-3">
+        {addresses.map((addr) => (
+          <div
+            key={addr.id}
+            className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex items-center justify-between gap-3"
+          >
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 bg-emerald-50 text-emerald-700 rounded-xl mt-1">
+                <Home className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="font-bold text-slate-900 text-sm">{addr.title}</h4>
+                  {addr.is_default && (
+                    <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.2 rounded-md">
+                      افتراضي
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-600 mt-1">{addr.address_line}</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  مبنى: {addr.building || '-'} | دور: {addr.floor || '-'} | شقة: {addr.apartment || '-'}
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => handleDelete(addr.id)}
+              className="p-2 text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
+              title="حذف العنوان"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
