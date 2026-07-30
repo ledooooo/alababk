@@ -4,6 +4,7 @@ export interface UserProfile {
   id: string;
   email: string;
   name: string;
+  full_name?: string;
   phone: string;
   role: UserRole;
   avatar_url?: string;
@@ -53,6 +54,7 @@ export interface Product {
   description: string;
   price: number;
   original_price?: number;
+  category_id?: string;
   category_name: string;
   image_url: string;
   stock: number;
@@ -66,6 +68,7 @@ export interface CustomerAddress {
   user_id: string;
   title: string; // e.g. "المنزل", "العمل"
   address_line: string;
+  street?: string;
   building: string;
   floor: string;
   apartment: string;
@@ -138,6 +141,7 @@ export interface Order {
   items: OrderItem[];
   subtotal: number;
   delivery_fee: number;
+  tip_amount?: number;
   discount_amount: number;
   coupon_code?: string;
   total: number;
@@ -158,6 +162,7 @@ export interface DeliveryAgent {
   phone: string;
   avatar_url?: string;
   vehicle_type: 'scooter' | 'motorcycle' | 'bicycle' | 'car';
+  license_plate?: string;
   national_id: string;
   is_approved: boolean;
   is_online: boolean;
@@ -201,11 +206,18 @@ export interface Review {
   id: string;
   order_id: string;
   store_id: string;
+  store_name?: string;
   customer_id: string;
   customer_name: string;
+  delivery_agent_id?: string;
+  delivery_agent_name?: string;
+  rating?: number;
   store_rating: number; // 1 to 5
+  agent_rating?: number;
   delivery_rating?: number; // 1 to 5
-  comment: string;
+  comment?: string;
+  store_comment?: string;
+  agent_comment?: string;
   store_response?: string;
   created_at: string;
 }

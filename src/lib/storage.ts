@@ -1035,6 +1035,60 @@ export const StorageRepo = {
     notifyStorageChange('coupon', 'delete', { id });
   },
 
+  getCurrentStore(): Store | null {
+    const user = this.getCurrentUser();
+    if (!user) return this.getStores()[0] || null;
+    if (user.associated_store_id) {
+      return this.getStoreById(user.associated_store_id) || this.getStores()[0] || null;
+    }
+    return this.getStores().find((s) => s.owner_id === user.id) || this.getStores()[0] || null;
+  },
+
+  getCurrentAgent(): DeliveryAgent | null {
+    const user = this.getCurrentUser();
+    if (!user) return this.getAgents()[0] || null;
+    return this.getAgentByUserId(user.id) || this.getAgents()[0] || null;
+  },
+
+  getReviews(storeId?: string): Review[] {
+    if (typeof window === 'undefined') return [];
+    const data = localStorage.getItem(STORAGE_KEYS.REVIEWS);
+    const list: Review[] = data ? JSON.parse(data) : [];
+    if (storeId) {
+      return list.filter((r) => r.store_id === storeId);
+    }
+    return list;
+  },
+
+  saveReview(review: Review) {
+    const reviews = this.getReviews();
+    const idx = reviews.findIndex((r) => r.id === review.id);
+    if (idx >= 0) {
+      reviews[idx] = review;
+    } else {
+      reviews.unshift(review);
+    }
+    localStorage.setItem(STORAGE_KEYS.REVIEWS, JSON.stringify(reviews));
+    notifyStorageChange('review', 'save', review);
+  },
+
+  getNotifications(userId?: string): NotificationItem[] {
+    if (typeof window === 'undefined') return [];
+    const data = localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS);
+    const list: NotificationItem[] = data ? JSON.parse(data) : [];
+    if (userId) {
+      return list.filter((n) => n.user_id === userId || n.user_id === 'all');
+    }
+    return list;
+  },
+
+  saveNotification(notification: NotificationItem) {
+    const list = this.getNotifications();
+    list.unshift(notification);
+    localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(list));
+    notifyStorageChange('notification', 'save', notification);
+  },
+
   /**
    * Sync real Supabase DB data into LocalStorage & emit real-time updates
    */

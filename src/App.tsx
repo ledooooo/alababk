@@ -86,7 +86,9 @@ import {
   Database,
   Search as SearchIcon,
   User as UserIcon,
-  LayoutGrid
+  LayoutGrid,
+  Users,
+  Shield
 } from 'lucide-react';
 
 export default function App() {

@@ -242,7 +242,7 @@ export const SearchView: React.FC<SearchViewProps> = ({ onSelectStore, onNavigat
                   <span className="font-black text-slate-900 text-sm">{formatCurrency(prod.price)}</span>
                   <button
                     onClick={() => {
-                      addItem(prod, prod.store_id, 'متجر معتمد');
+                      addItem(prod, 'متجر معتمد', 1);
                     }}
                     className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold"
                   >
