@@ -59,6 +59,14 @@ export const LandingView: React.FC<LandingViewProps> = ({ onNavigate }) => {
             </button>
 
             <button
+              onClick={() => onNavigate('auth')}
+              className="px-5 py-3.5 bg-white text-emerald-950 hover:bg-emerald-50 font-black text-sm rounded-2xl shadow-md transition-all flex items-center gap-2"
+            >
+              <Users className="w-4 h-4 text-emerald-600" />
+              <span>تسجيل الدخول / حساب جديد</span>
+            </button>
+
+            <button
               onClick={() => onNavigate('apply-store')}
               className="px-5 py-3.5 bg-white/10 hover:bg-white/20 text-white font-bold text-sm rounded-2xl border border-white/20 backdrop-blur-md transition-all flex items-center gap-2"
             >

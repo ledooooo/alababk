@@ -17,8 +17,9 @@ import { CategoriesBrowseView } from './components/views/customer/CategoriesBrow
 import { ProfileView } from './components/views/customer/ProfileView';
 import { OrderConfirmationView } from './components/views/customer/OrderConfirmationView';
 
-// Auth Modals
+// Auth Modals & Views
 import { ForgotPasswordModal, ResetPasswordModal } from './components/modals/AuthModals';
+import { AuthView } from './components/views/public/AuthView';
 
 // Public Views
 import { LandingView } from './components/views/public/LandingView';
@@ -143,8 +144,11 @@ export default function App() {
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans antialiased dir-rtl selection:bg-emerald-500 selection:text-white flex flex-col">
       {/* Primary Navigation Bar */}
       <Navbar
-        currentRole={currentRole}
-        onRoleChange={handleRoleChange}
+        currentTab={activeTab}
+        onNavigate={(tab, param) => {
+          if (param) setSelectedStoreId(param);
+          setActiveTab(tab);
+        }}
         onOpenCart={() => setIsOpen(true)}
       />
 
@@ -640,6 +644,24 @@ export default function App() {
           if (param) setSelectedStoreId(param);
           setActiveTab(tab);
         }} />}
+        {activeTab === 'auth' && (
+          <AuthView
+            onSuccess={(user) => {
+              setCurrentUser(user);
+              if (user.role === 'customer') setActiveTab('customer-stores');
+              else if (user.role === 'store_owner') setActiveTab('store-dashboard');
+              else if (user.role === 'delivery_agent') setActiveTab('delivery-dashboard');
+              else if (user.role === 'admin') setActiveTab('admin-dashboard');
+            }}
+            onNavigate={(tab) => {
+              if (tab === 'forgot-password') {
+                setShowForgotModal(true);
+              } else {
+                setActiveTab(tab);
+              }
+            }}
+          />
+        )}
         {activeTab === 'about' && <AboutView onNavigate={(tab) => setActiveTab(tab)} />}
         {activeTab === 'apply-store' && <ApplyStoreView onNavigate={(tab) => setActiveTab(tab)} />}
         {activeTab === 'apply-agent' && <ApplyAgentView onNavigate={(tab) => setActiveTab(tab)} />}
@@ -647,7 +669,7 @@ export default function App() {
         {activeTab === 'terms' && <TermsPrivacyView />}
 
         {/* Customer Route Render */}
-        {currentRole === 'customer' && !['landing', 'about', 'apply-store', 'apply-agent', 'contact', 'terms'].includes(activeTab) && (
+        {currentRole === 'customer' && !['landing', 'auth', 'about', 'apply-store', 'apply-agent', 'contact', 'terms'].includes(activeTab) && (
           <>
             {activeTab === 'customer-stores' && (
               <CustomerStoresView onSelectStore={handleSelectStore} />
@@ -739,7 +761,7 @@ export default function App() {
         )}
 
         {/* Store Owner Route Render */}
-        {currentRole === 'store_owner' && !['landing', 'about', 'apply-store', 'apply-agent', 'contact', 'terms'].includes(activeTab) && (
+        {currentRole === 'store_owner' && !['landing', 'auth', 'about', 'apply-store', 'apply-agent', 'contact', 'terms'].includes(activeTab) && (
           <>
             {activeTab === 'store-dashboard' && (
               <StoreDashboardView onNavigate={(tab) => setActiveTab(tab)} />
@@ -755,7 +777,7 @@ export default function App() {
         )}
 
         {/* Delivery Agent Route Render */}
-        {currentRole === 'delivery_agent' && !['landing', 'about', 'apply-store', 'apply-agent', 'contact', 'terms'].includes(activeTab) && (
+        {currentRole === 'delivery_agent' && !['landing', 'auth', 'about', 'apply-store', 'apply-agent', 'contact', 'terms'].includes(activeTab) && (
           <>
             {activeTab === 'delivery-dashboard' && (
               <DeliveryDashboardView onNavigate={(tab) => setActiveTab(tab)} />
@@ -782,7 +804,7 @@ export default function App() {
         )}
 
         {/* Admin Route Render */}
-        {currentRole === 'admin' && !['landing', 'about', 'apply-store', 'apply-agent', 'contact', 'terms'].includes(activeTab) && (
+        {currentRole === 'admin' && !['landing', 'auth', 'about', 'apply-store', 'apply-agent', 'contact', 'terms'].includes(activeTab) && (
           <>
             {activeTab === 'admin-dashboard' && (
               <AdminDashboardView onNavigate={(tab) => setActiveTab(tab)} />

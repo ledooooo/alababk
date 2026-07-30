@@ -16,7 +16,9 @@ import {
   Sparkles,
   PhoneCall,
   Menu,
-  X
+  X,
+  LogIn,
+  UserPlus
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -336,8 +338,19 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </nav>
 
-          {/* Right Action Bar (Cart + Role Switcher + Mobile Toggle) */}
+          {/* Right Action Bar (Cart + Auth + Role Switcher + Mobile Toggle) */}
           <div className="flex items-center gap-2">
+            {/* Login / Register Button */}
+            <button
+              onClick={() => onNavigate('auth')}
+              className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-xs px-3 py-2 rounded-xl transition-all flex items-center gap-1.5 border border-slate-200"
+              title="تسجيل الدخول أو حساب جديد"
+            >
+              <LogIn className="w-3.5 h-3.5 text-emerald-600" />
+              <span className="hidden sm:inline">تسجيل الدخول / حساب جديد</span>
+              <span className="sm:hidden">دخول</span>
+            </button>
+
             {/* Cart Trigger Button for Customer */}
             {role === 'customer' && (
               <button
