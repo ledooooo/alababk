@@ -12,6 +12,21 @@ import { CustomerCheckoutView } from './components/views/customer/CustomerChecko
 import { CustomerOrdersView } from './components/views/customer/CustomerOrdersView';
 import { CustomerOrderDetailView } from './components/views/customer/CustomerOrderDetailView';
 import { CustomerAddressesView } from './components/views/customer/CustomerAddressesView';
+import { SearchView } from './components/views/customer/SearchView';
+import { CategoriesBrowseView } from './components/views/customer/CategoriesBrowseView';
+import { ProfileView } from './components/views/customer/ProfileView';
+import { OrderConfirmationView } from './components/views/customer/OrderConfirmationView';
+
+// Auth Modals
+import { ForgotPasswordModal, ResetPasswordModal } from './components/modals/AuthModals';
+
+// Public Views
+import { LandingView } from './components/views/public/LandingView';
+import { AboutView } from './components/views/public/AboutView';
+import { ApplyStoreView } from './components/views/public/ApplyStoreView';
+import { ApplyAgentView } from './components/views/public/ApplyAgentView';
+import { ContactView } from './components/views/public/ContactView';
+import { TermsPrivacyView } from './components/views/public/TermsPrivacyView';
 
 // Store Owner Views
 import { StoreDashboardView } from './components/views/store/StoreDashboardView';
@@ -19,12 +34,18 @@ import { StoreOrdersView } from './components/views/store/StoreOrdersView';
 import { StoreProductsView } from './components/views/store/StoreProductsView';
 import { StoreSettingsView } from './components/views/store/StoreSettingsView';
 import { StoreAnalyticsView } from './components/views/store/StoreAnalyticsView';
+import { StoreReviewsView } from './components/views/store/StoreReviewsView';
+import { StorePayoutsView } from './components/views/store/StorePayoutsView';
+import { StoreNotificationsView } from './components/views/store/StoreNotificationsView';
 
 // Delivery Agent Views
 import { DeliveryDashboardView } from './components/views/delivery/DeliveryDashboardView';
 import { DeliveryAvailableView } from './components/views/delivery/DeliveryAvailableView';
 import { DeliveryActiveView } from './components/views/delivery/DeliveryActiveView';
 import { DeliveryHistoryView } from './components/views/delivery/DeliveryHistoryView';
+import { DeliveryEarningsView } from './components/views/delivery/DeliveryEarningsView';
+import { DeliveryProfileView } from './components/views/delivery/DeliveryProfileView';
+import { DeliveryNotificationsView } from './components/views/delivery/DeliveryNotificationsView';
 
 // Admin Views
 import { AdminDashboardView } from './components/views/admin/AdminDashboardView';
@@ -38,7 +59,13 @@ import { AdminCategoriesView } from './components/views/admin/AdminCategoriesVie
 import { AdminPayoutsView } from './components/views/admin/AdminPayoutsView';
 import { AdminReviewsView } from './components/views/admin/AdminReviewsView';
 import { AdminNotificationsView } from './components/views/admin/AdminNotificationsView';
+import { AdminCustomersView } from './components/views/admin/AdminCustomersView';
+import { AdminAnalyticsView } from './components/views/admin/AdminAnalyticsView';
+import { AdminPlatformSettingsView } from './components/views/admin/AdminPlatformSettingsView';
+import { AdminActivityLogView } from './components/views/admin/AdminActivityLogView';
 import { AdminSupabaseSync } from './components/views/admin/AdminSupabaseSync';
+import { NotificationsView } from './components/views/customer/NotificationsView';
+import { NotFoundView } from './components/views/public/NotFoundView';
 
 import {
   ShoppingBag,
@@ -55,7 +82,10 @@ import {
   FolderTree,
   Bell,
   Star,
-  Database
+  Database,
+  Search as SearchIcon,
+  User as UserIcon,
+  LayoutGrid
 } from 'lucide-react';
 
 export default function App() {
@@ -65,6 +95,9 @@ export default function App() {
   // Customer navigation state
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [resetEmail, setResetEmail] = useState('');
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [showResetModal, setShowResetModal] = useState(false);
   const { isOpen, setIsOpen } = useCartStore();
 
   useEffect(() => {
@@ -101,7 +134,7 @@ export default function App() {
 
   const handleOrderPlaced = (orderId: string) => {
     setSelectedOrderId(orderId);
-    setActiveTab('customer-order-detail');
+    setActiveTab('order-confirmation');
   };
 
   const currentRole = currentUser?.role || 'customer';
@@ -127,7 +160,7 @@ export default function App() {
                     setActiveTab('customer-stores');
                   }}
                   className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all flex items-center gap-1.5 ${
-                    activeTab.startsWith('customer-store')
+                    activeTab === 'customer-stores' || activeTab === 'customer-store-detail'
                       ? 'bg-emerald-600 text-white shadow-xs'
                       : 'text-slate-600 hover:bg-slate-100'
                   }`}
@@ -137,18 +170,42 @@ export default function App() {
                 </button>
 
                 <button
+                  onClick={() => setActiveTab('search')}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all flex items-center gap-1.5 ${
+                    activeTab === 'search'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <SearchIcon className="w-4 h-4" />
+                  <span>البحث الشامل</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('categories-browse')}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all flex items-center gap-1.5 ${
+                    activeTab === 'categories-browse'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                  <span>الأقسام</span>
+                </button>
+
+                <button
                   onClick={() => {
                     setSelectedOrderId(null);
                     setActiveTab('customer-orders');
                   }}
                   className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all flex items-center gap-1.5 ${
-                    activeTab.startsWith('customer-order')
+                    activeTab.startsWith('customer-order') || activeTab === 'order-confirmation'
                       ? 'bg-emerald-600 text-white shadow-xs'
                       : 'text-slate-600 hover:bg-slate-100'
                   }`}
                 >
                   <ListOrdered className="w-4 h-4" />
-                  <span>سجل طلباتي</span>
+                  <span>طلباتي</span>
                 </button>
 
                 <button
@@ -160,7 +217,31 @@ export default function App() {
                   }`}
                 >
                   <MapPin className="w-4 h-4" />
-                  <span>دفتر العناوين</span>
+                  <span>العناوين</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('profile')}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all flex items-center gap-1.5 ${
+                    activeTab === 'profile'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <UserIcon className="w-4 h-4" />
+                  <span>حسابي الشخصي</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('notifications')}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all flex items-center gap-1.5 ${
+                    activeTab === 'notifications'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <Bell className="w-4 h-4" />
+                  <span>الإشعارات</span>
                 </button>
               </>
             )}
@@ -204,6 +285,30 @@ export default function App() {
                 </button>
 
                 <button
+                  onClick={() => setActiveTab('store-reviews')}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all flex items-center gap-1.5 ${
+                    activeTab === 'store-reviews'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <Star className="w-4 h-4" />
+                  <span>تقييمات العملاء</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('store-payouts')}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all flex items-center gap-1.5 ${
+                    activeTab === 'store-payouts'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <DollarSign className="w-4 h-4" />
+                  <span>المستحقات والسحب</span>
+                </button>
+
+                <button
                   onClick={() => setActiveTab('store-analytics')}
                   className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all flex items-center gap-1.5 ${
                     activeTab === 'store-analytics'
@@ -212,7 +317,19 @@ export default function App() {
                   }`}
                 >
                   <TrendingUp className="w-4 h-4" />
-                  <span>التقارير المالي</span>
+                  <span>التقارير المالية</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('store-notifications')}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all flex items-center gap-1.5 ${
+                    activeTab === 'store-notifications'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <Bell className="w-4 h-4" />
+                  <span>الإشعارات</span>
                 </button>
 
                 <button
@@ -276,7 +393,43 @@ export default function App() {
                   }`}
                 >
                   <DollarSign className="w-4 h-4" />
-                  <span>السجل والأرباح</span>
+                  <span>سجل التوصيل</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('delivery-earnings')}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all flex items-center gap-1.5 ${
+                    activeTab === 'delivery-earnings'
+                      ? 'bg-orange-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <DollarSign className="w-4 h-4" />
+                  <span>محفظة الأرباح</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('delivery-profile')}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all flex items-center gap-1.5 ${
+                    activeTab === 'delivery-profile'
+                      ? 'bg-orange-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <UserIcon className="w-4 h-4" />
+                  <span>ملف الكابتن</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('delivery-notifications')}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all flex items-center gap-1.5 ${
+                    activeTab === 'delivery-notifications'
+                      ? 'bg-orange-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <Bell className="w-4 h-4" />
+                  <span>التنبيهات</span>
                 </button>
               </>
             )}
@@ -293,6 +446,18 @@ export default function App() {
                 >
                   <ShieldCheck className="w-4 h-4" />
                   <span>لوحة القيادة</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('admin-analytics')}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all flex items-center gap-1.5 ${
+                    activeTab === 'admin-analytics'
+                      ? 'bg-purple-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <TrendingUp className="w-4 h-4" />
+                  <span>التحليلات الشاملة</span>
                 </button>
 
                 <button
@@ -329,6 +494,18 @@ export default function App() {
                 >
                   <Bike className="w-4 h-4" />
                   <span>المندوبين</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('admin-customers')}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all flex items-center gap-1.5 ${
+                    activeTab === 'admin-customers'
+                      ? 'bg-purple-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <Users className="w-4 h-4" />
+                  <span>العملاء</span>
                 </button>
 
                 <button
@@ -392,6 +569,30 @@ export default function App() {
                 </button>
 
                 <button
+                  onClick={() => setActiveTab('admin-activity-log')}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all flex items-center gap-1.5 ${
+                    activeTab === 'admin-activity-log'
+                      ? 'bg-purple-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <Shield className="w-4 h-4" />
+                  <span>سجل النشاطات</span>
+                </button>
+
+                <button
+                  onClick={() => setActiveTab('admin-settings')}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all flex items-center gap-1.5 ${
+                    activeTab === 'admin-settings'
+                      ? 'bg-purple-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <Settings className="w-4 h-4" />
+                  <span>إعدادات النظام</span>
+                </button>
+
+                <button
                   onClick={() => setActiveTab('admin-reviews')}
                   className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all flex items-center gap-1.5 ${
                     activeTab === 'admin-reviews'
@@ -434,11 +635,54 @@ export default function App() {
 
       {/* Main View Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {/* Public Global Views */}
+        {activeTab === 'landing' && <LandingView onNavigate={(tab, param) => {
+          if (param) setSelectedStoreId(param);
+          setActiveTab(tab);
+        }} />}
+        {activeTab === 'about' && <AboutView onNavigate={(tab) => setActiveTab(tab)} />}
+        {activeTab === 'apply-store' && <ApplyStoreView onNavigate={(tab) => setActiveTab(tab)} />}
+        {activeTab === 'apply-agent' && <ApplyAgentView onNavigate={(tab) => setActiveTab(tab)} />}
+        {activeTab === 'contact' && <ContactView onNavigate={(tab) => setActiveTab(tab)} />}
+        {activeTab === 'terms' && <TermsPrivacyView />}
+
         {/* Customer Route Render */}
-        {currentRole === 'customer' && (
+        {currentRole === 'customer' && !['landing', 'about', 'apply-store', 'apply-agent', 'contact', 'terms'].includes(activeTab) && (
           <>
             {activeTab === 'customer-stores' && (
               <CustomerStoresView onSelectStore={handleSelectStore} />
+            )}
+
+            {activeTab === 'search' && (
+              <SearchView
+                onSelectStore={handleSelectStore}
+                onNavigate={(tab, param) => {
+                  if (param) setSelectedStoreId(param);
+                  setActiveTab(tab);
+                }}
+              />
+            )}
+
+            {activeTab === 'categories-browse' && (
+              <CategoriesBrowseView
+                onNavigate={(tab, param) => {
+                  if (param) setSelectedStoreId(param);
+                  setActiveTab(tab);
+                }}
+              />
+            )}
+
+            {activeTab === 'profile' && (
+              <ProfileView
+                onNavigate={(tab, param) => {
+                  if (param) setSelectedStoreId(param);
+                  setActiveTab(tab);
+                }}
+                onLogout={() => {
+                  StorageRepo.switchRole('customer');
+                  setActiveTab('landing');
+                }}
+              />
             )}
 
             {activeTab === 'customer-store-detail' && selectedStoreId && (
@@ -452,6 +696,16 @@ export default function App() {
               <CustomerCheckoutView
                 onOrderPlaced={handleOrderPlaced}
                 onBack={() => setActiveTab('customer-stores')}
+              />
+            )}
+
+            {activeTab === 'order-confirmation' && selectedOrderId && (
+              <OrderConfirmationView
+                orderId={selectedOrderId}
+                onNavigate={(tab, param) => {
+                  if (param) setSelectedOrderId(param);
+                  setActiveTab(tab);
+                }}
               />
             )}
 
@@ -473,24 +727,35 @@ export default function App() {
             )}
 
             {activeTab === 'customer-addresses' && <CustomerAddressesView />}
+            {activeTab === 'notifications' && (
+              <NotificationsView
+                onNavigate={(tab, param) => {
+                  if (param) setSelectedStoreId(param);
+                  setActiveTab(tab);
+                }}
+              />
+            )}
           </>
         )}
 
         {/* Store Owner Route Render */}
-        {currentRole === 'store_owner' && (
+        {currentRole === 'store_owner' && !['landing', 'about', 'apply-store', 'apply-agent', 'contact', 'terms'].includes(activeTab) && (
           <>
             {activeTab === 'store-dashboard' && (
               <StoreDashboardView onNavigate={(tab) => setActiveTab(tab)} />
             )}
             {activeTab === 'store-orders' && <StoreOrdersView />}
             {activeTab === 'store-products' && <StoreProductsView />}
-            {activeTab === 'store-settings' && <StoreSettingsView />}
+            {activeTab === 'store-reviews' && <StoreReviewsView />}
+            {activeTab === 'store-payouts' && <StorePayoutsView />}
             {activeTab === 'store-analytics' && <StoreAnalyticsView />}
+            {activeTab === 'store-notifications' && <StoreNotificationsView />}
+            {activeTab === 'store-settings' && <StoreSettingsView />}
           </>
         )}
 
         {/* Delivery Agent Route Render */}
-        {currentRole === 'delivery_agent' && (
+        {currentRole === 'delivery_agent' && !['landing', 'about', 'apply-store', 'apply-agent', 'contact', 'terms'].includes(activeTab) && (
           <>
             {activeTab === 'delivery-dashboard' && (
               <DeliveryDashboardView onNavigate={(tab) => setActiveTab(tab)} />
@@ -510,23 +775,30 @@ export default function App() {
               />
             )}
             {activeTab === 'delivery-history' && <DeliveryHistoryView />}
+            {activeTab === 'delivery-earnings' && <DeliveryEarningsView />}
+            {activeTab === 'delivery-profile' && <DeliveryProfileView />}
+            {activeTab === 'delivery-notifications' && <DeliveryNotificationsView />}
           </>
         )}
 
         {/* Admin Route Render */}
-        {currentRole === 'admin' && (
+        {currentRole === 'admin' && !['landing', 'about', 'apply-store', 'apply-agent', 'contact', 'terms'].includes(activeTab) && (
           <>
             {activeTab === 'admin-dashboard' && (
               <AdminDashboardView onNavigate={(tab) => setActiveTab(tab)} />
             )}
+            {activeTab === 'admin-analytics' && <AdminAnalyticsView />}
             {activeTab === 'admin-stores-applications' && <AdminStoresApplicationsView />}
             {activeTab === 'admin-stores' && <AdminStoresView />}
             {activeTab === 'admin-agents' && <AdminAgentsView />}
+            {activeTab === 'admin-customers' && <AdminCustomersView />}
             {activeTab === 'admin-orders' && <AdminOrdersView />}
             {activeTab === 'admin-zones' && <AdminZonesView />}
             {activeTab === 'admin-coupons' && <AdminCouponsView />}
             {activeTab === 'admin-categories' && <AdminCategoriesView />}
             {activeTab === 'admin-payouts' && <AdminPayoutsView />}
+            {activeTab === 'admin-activity-log' && <AdminActivityLogView />}
+            {activeTab === 'admin-settings' && <AdminPlatformSettingsView />}
             {activeTab === 'admin-reviews' && <AdminReviewsView />}
             {activeTab === 'admin-notifications' && <AdminNotificationsView />}
             {activeTab === 'admin-supabase' && <AdminSupabaseSync />}
@@ -538,14 +810,43 @@ export default function App() {
       <CartDrawer onCheckout={handleProceedToCheckout} />
 
       {/* Footer */}
-      <footer className="bg-white border-t border-slate-200 mt-auto py-6">
-        <div className="max-w-7xl mx-auto px-4 text-center text-xs text-slate-500">
-          <p className="font-bold text-slate-800">
-            منصة على بابك - منصة التوصيل الفائق والتسوق المحلي المباشر 🇪🇬
-          </p>
-          <p className="mt-1 text-[11px] text-slate-400">
-            جميع الحقوق محفوظة © {new Date().getFullYear()} - ربط أصحاب المحلات، كباتن التوصيل، والعملاء
-          </p>
+      <footer className="bg-white border-t border-slate-200 mt-auto py-8 dir-rtl">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+          <div className="flex flex-wrap items-center justify-between gap-4 text-xs font-bold text-slate-700 pb-4 border-b border-slate-100">
+            <div className="flex items-center gap-4">
+              <button onClick={() => setActiveTab('landing')} className="hover:text-purple-600 transition-colors">
+                الرئيسية
+              </button>
+              <button onClick={() => setActiveTab('about')} className="hover:text-purple-600 transition-colors">
+                عن المنصة
+              </button>
+              <button onClick={() => setActiveTab('apply-store')} className="hover:text-purple-600 transition-colors">
+                انضم كمتجر
+              </button>
+              <button onClick={() => setActiveTab('apply-agent')} className="hover:text-purple-600 transition-colors">
+                انضم ككابتن
+              </button>
+              <button onClick={() => setActiveTab('contact')} className="hover:text-purple-600 transition-colors">
+                اتصل بنا
+              </button>
+              <button onClick={() => setActiveTab('terms')} className="hover:text-purple-600 transition-colors">
+                الشروط والخصوصية
+              </button>
+            </div>
+
+            <span className="text-[11px] text-slate-400 font-normal">
+              منصة على بابك (JIHAT Platform) - توصيل فائق السرعة
+            </span>
+          </div>
+
+          <div className="text-center text-xs text-slate-500">
+            <p className="font-bold text-slate-800">
+              منصة على بابك - التوصيل الفائق والتسوق المحلي المباشر في جمهورية مصر العربية 🇪🇬
+            </p>
+            <p className="mt-1 text-[11px] text-slate-400">
+              جميع الحقوق محفوظة © {new Date().getFullYear()} - ربط أصحاب المحلات، كباتن التوصيل، والعملاء
+            </p>
+          </div>
         </div>
       </footer>
     </div>

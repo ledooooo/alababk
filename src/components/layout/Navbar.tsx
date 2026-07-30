@@ -103,7 +103,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* Brand Logo & Slogan */}
           <div className="flex items-center gap-3">
             <button
-              onClick={() => onNavigate(role === 'customer' ? 'stores' : `${role}-dashboard`)}
+              onClick={() => onNavigate('landing')}
               className="flex items-center gap-2 text-right group"
             >
               <div className="w-10 h-10 bg-emerald-600 text-white rounded-xl flex items-center justify-center font-black text-xl shadow-md shadow-emerald-600/20 group-hover:scale-105 transition-transform">
@@ -143,9 +143,17 @@ export const Navbar: React.FC<NavbarProps> = ({
             {role === 'customer' && (
               <>
                 <button
-                  onClick={() => onNavigate('stores')}
+                  onClick={() => onNavigate('landing')}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+                    currentTab === 'landing' ? 'bg-emerald-50 text-emerald-800' : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <span>الرئيسية</span>
+                </button>
+                <button
+                  onClick={() => onNavigate('customer-stores')}
                   className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-                    currentTab === 'stores' ? 'bg-emerald-50 text-emerald-800' : 'text-slate-600 hover:bg-slate-100'
+                    currentTab === 'customer-stores' ? 'bg-emerald-50 text-emerald-800' : 'text-slate-600 hover:bg-slate-100'
                   }`}
                 >
                   <Store className="w-4 h-4" />
@@ -161,13 +169,20 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <span>طلباتي</span>
                 </button>
                 <button
-                  onClick={() => onNavigate('customer-addresses')}
-                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-                    currentTab === 'customer-addresses' ? 'bg-emerald-50 text-emerald-800' : 'text-slate-600 hover:bg-slate-100'
+                  onClick={() => onNavigate('about')}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+                    currentTab === 'about' ? 'bg-emerald-50 text-emerald-800' : 'text-slate-600 hover:bg-slate-100'
                   }`}
                 >
-                  <MapPin className="w-4 h-4" />
-                  <span>عناويني</span>
+                  <span>عن المنصة</span>
+                </button>
+                <button
+                  onClick={() => onNavigate('contact')}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+                    currentTab === 'contact' ? 'bg-emerald-50 text-emerald-800' : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <span>اتصل بنا</span>
                 </button>
               </>
             )}
