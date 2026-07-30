@@ -417,3 +417,148 @@ export async function seedSupabaseDatabase() {
     return { success: false, message: `تعذر التغذية التلقائية: ${String(err)}` };
   }
 }
+
+/**
+ * Save/Upsert Store in Supabase
+ */
+export async function saveSupabaseStore(store: Partial<Store>) {
+  try {
+    const payload = {
+      id: store.id,
+      name: store.name,
+      slug: store.slug || store.name?.toLowerCase().replace(/\s+/g, '-'),
+      description: store.description,
+      phone: store.phone || '01000000000',
+      address: store.address || 'القاهرة، مصر',
+      logo_url: store.logo_url,
+      cover_url: store.banner_url,
+      is_active: store.is_open ?? true,
+      is_approved: store.is_approved ?? true,
+      commission_pct: store.commission_rate ?? 15,
+      min_order_amount: store.min_order_amount ?? 0,
+    };
+    await supabase.from('stores').upsert(payload);
+  } catch (err) {
+    console.error('Failed to save store to Supabase:', err);
+  }
+}
+
+/**
+ * Save/Upsert Product in Supabase
+ */
+export async function saveSupabaseProduct(product: Partial<Product>) {
+  try {
+    const payload = {
+      id: product.id,
+      store_id: product.store_id,
+      name: product.name,
+      slug: product.name?.toLowerCase().replace(/\s+/g, '-') || `prod-${Date.now()}`,
+      description: product.description,
+      price: product.price,
+      old_price: product.original_price,
+      stock: product.stock ?? 50,
+      images: product.image_url ? [product.image_url] : [],
+      is_active: product.is_active ?? true,
+    };
+    await supabase.from('products').upsert(payload);
+  } catch (err) {
+    console.error('Failed to save product to Supabase:', err);
+  }
+}
+
+/**
+ * Save/Upsert Order in Supabase
+ */
+export async function saveSupabaseOrder(order: Partial<Order>) {
+  try {
+    const payload = {
+      id: order.id,
+      code: order.order_number,
+      customer_id: order.customer_id || 'usr-customer-1',
+      store_id: order.store_id,
+      delivery_agent_id: order.delivery_agent_id,
+      address_id: order.delivery_address?.id || 'addr-1',
+      subtotal: order.subtotal,
+      delivery_fee: order.delivery_fee,
+      discount: order.discount_amount || 0,
+      total: order.total,
+      payment_method: order.payment_method === 'card' ? 'online' : 'cash',
+      payment_status: order.payment_status === 'paid' ? 'paid' : 'pending',
+      status: order.status || 'pending',
+      customer_notes: order.customer_notes,
+    };
+    await supabase.from('orders').upsert(payload);
+
+    // Save order items if available
+    if (order.items && order.items.length > 0) {
+      const itemsPayload = order.items.map((item) => ({
+        id: item.id,
+        order_id: order.id,
+        product_id: item.product_id,
+        name: item.product_name,
+        price: item.unit_price,
+        quantity: item.quantity,
+        subtotal: item.total_price,
+        notes: item.notes,
+      }));
+      await supabase.from('order_items').upsert(itemsPayload);
+    }
+  } catch (err) {
+    console.error('Failed to save order to Supabase:', err);
+  }
+}
+
+/**
+ * Update Order Status in Supabase
+ */
+export async function updateSupabaseOrderStatus(orderId: string, status: string, note?: string) {
+  try {
+    await supabase.from('orders').update({ status, updated_at: new Date().toISOString() }).eq('id', orderId);
+    if (note) {
+      await supabase.from('order_status_history').insert([{ order_id: orderId, status, note }]);
+    }
+  } catch (err) {
+    console.error('Failed to update order status in Supabase:', err);
+  }
+}
+
+/**
+ * Save/Upsert Delivery Zone in Supabase
+ */
+export async function saveSupabaseZone(zone: Partial<DeliveryZone>) {
+  try {
+    const payload = {
+      id: zone.id,
+      name: zone.name,
+      fee: zone.fee || zone.base_delivery_fee,
+      eta_minutes: zone.eta_minutes || zone.estimated_delivery_mins || 30,
+      is_active: zone.is_active ?? true,
+    };
+    await supabase.from('delivery_zones').upsert(payload);
+  } catch (err) {
+    console.error('Failed to save zone to Supabase:', err);
+  }
+}
+
+/**
+ * Save/Upsert Coupon in Supabase
+ */
+export async function saveSupabaseCoupon(coupon: Partial<Coupon>) {
+  try {
+    const payload = {
+      id: coupon.id,
+      code: coupon.code,
+      type: coupon.discount_type === 'percent' ? 'percent' : 'fixed',
+      value: coupon.discount_value,
+      min_order_amount: coupon.min_order_amount || 0,
+      max_discount: coupon.max_discount_amount,
+      max_uses: coupon.usage_limit,
+      is_active: coupon.is_active ?? true,
+      valid_until: coupon.valid_until,
+    };
+    await supabase.from('coupons').upsert(payload);
+  } catch (err) {
+    console.error('Failed to save coupon to Supabase:', err);
+  }
+}
+

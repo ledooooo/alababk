@@ -14,6 +14,20 @@ import {
   OrderStatus
 } from '../types/domain';
 import { DEFAULT_CATEGORIES, EGYPT_DEFAULT_ZONES, DEFAULT_LAT, DEFAULT_LNG } from './constants';
+import {
+  saveSupabaseStore,
+  saveSupabaseProduct,
+  saveSupabaseOrder,
+  updateSupabaseOrderStatus,
+  saveSupabaseZone,
+  saveSupabaseCoupon,
+  fetchSupabaseStores,
+  fetchSupabaseProducts,
+  fetchSupabaseOrders,
+  fetchSupabaseCategories,
+  fetchSupabaseZones,
+  fetchSupabaseCoupons,
+} from './supabase';
 
 const STORAGE_KEYS = {
   USERS: 'jihat_users',
@@ -760,6 +774,7 @@ export const StorageRepo = {
     }
     localStorage.setItem(STORAGE_KEYS.STORES, JSON.stringify(stores));
     notifyStorageChange('store', 'save', store);
+    saveSupabaseStore(store);
   },
 
   // --- PRODUCTS ---
@@ -787,6 +802,7 @@ export const StorageRepo = {
     }
     localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
     notifyStorageChange('product', 'save', product);
+    saveSupabaseProduct(product);
   },
 
   deleteProduct(id: string) {
@@ -850,6 +866,7 @@ export const StorageRepo = {
     }
     localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(orders));
     notifyStorageChange('order', 'save', order);
+    saveSupabaseOrder(order);
   },
 
   updateOrderStatus(orderId: string, status: OrderStatus, note?: string, agentInfo?: Partial<Order>) {
@@ -873,6 +890,7 @@ export const StorageRepo = {
     }
 
     this.saveOrder(order);
+    updateSupabaseOrderStatus(orderId, status, note);
     return order;
   },
 
@@ -934,12 +952,26 @@ export const StorageRepo = {
     }
     localStorage.setItem(STORAGE_KEYS.ZONES, JSON.stringify(zones));
     notifyStorageChange('zone', 'save', zone);
+    saveSupabaseZone(zone);
   },
 
   getCoupons(): Coupon[] {
     if (typeof window === 'undefined') return [];
     const data = localStorage.getItem(STORAGE_KEYS.COUPONS);
     return data ? JSON.parse(data) : [];
+  },
+
+  saveCoupon(coupon: Coupon) {
+    const coupons = this.getCoupons();
+    const idx = coupons.findIndex(c => c.id === coupon.id);
+    if (idx >= 0) {
+      coupons[idx] = coupon;
+    } else {
+      coupons.push(coupon);
+    }
+    localStorage.setItem(STORAGE_KEYS.COUPONS, JSON.stringify(coupons));
+    notifyStorageChange('coupon', 'save', coupon);
+    saveSupabaseCoupon(coupon);
   },
 
   switchRole(role: UserRole) {
@@ -997,21 +1029,56 @@ export const StorageRepo = {
     notifyStorageChange('store', 'delete', { id });
   },
 
-  saveCoupon(coupon: Coupon) {
-    const coupons = this.getCoupons();
-    const idx = coupons.findIndex((c) => c.id === coupon.id);
-    if (idx >= 0) {
-      coupons[idx] = coupon;
-    } else {
-      coupons.unshift(coupon);
-    }
-    localStorage.setItem(STORAGE_KEYS.COUPONS, JSON.stringify(coupons));
-    notifyStorageChange('coupon', 'save', coupon);
-  },
-
   deleteCoupon(id: string) {
     const coupons = this.getCoupons().filter((c) => c.id !== id);
     localStorage.setItem(STORAGE_KEYS.COUPONS, JSON.stringify(coupons));
     notifyStorageChange('coupon', 'delete', { id });
   },
+
+  /**
+   * Sync real Supabase DB data into LocalStorage & emit real-time updates
+   */
+  async syncWithSupabase() {
+    if (typeof window === 'undefined') return;
+
+    try {
+      const [dbCats, dbStores, dbProds, dbOrders, dbZones, dbCoupons] = await Promise.all([
+        fetchSupabaseCategories(),
+        fetchSupabaseStores(),
+        fetchSupabaseProducts(),
+        fetchSupabaseOrders(),
+        fetchSupabaseZones(),
+        fetchSupabaseCoupons(),
+      ]);
+
+      if (dbCats && dbCats.length > 0) {
+        localStorage.setItem('jihat_categories', JSON.stringify(dbCats));
+      }
+      if (dbStores && dbStores.length > 0) {
+        localStorage.setItem(STORAGE_KEYS.STORES, JSON.stringify(dbStores));
+      }
+      if (dbProds && dbProds.length > 0) {
+        localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(dbProds));
+      }
+      if (dbOrders && dbOrders.length > 0) {
+        localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(dbOrders));
+      }
+      if (dbZones && dbZones.length > 0) {
+        localStorage.setItem(STORAGE_KEYS.ZONES, JSON.stringify(dbZones));
+      }
+      if (dbCoupons && dbCoupons.length > 0) {
+        localStorage.setItem(STORAGE_KEYS.COUPONS, JSON.stringify(dbCoupons));
+      }
+
+      notifyStorageChange('supabase', 'sync');
+    } catch (e) {
+      console.warn('Supabase background sync notice:', e);
+    }
+  },
 };
+
+// Initialize Seed Data and Sync with Supabase on startup
+if (typeof window !== 'undefined') {
+  StorageRepo.syncWithSupabase();
+}
+
