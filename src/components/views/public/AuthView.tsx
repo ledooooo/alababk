@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { StorageRepo } from '../../../lib/storage';
+import { ensureUUID } from '../../../lib/supabase';
 import { UserRole, UserProfile } from '../../../types/domain';
 import {
   User,
@@ -81,7 +82,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
       } else {
         // Create user dynamically if logging in for first time with phone/email
         const newUser: UserProfile = {
-          id: `usr-${Date.now()}`,
+          id: ensureUUID(),
           name: name.trim() || (trimmedIdentifier.includes('@') ? trimmedIdentifier.split('@')[0] : 'مستخدم جديد'),
           email: email.trim() || (trimmedIdentifier.includes('@') ? trimmedIdentifier : `${trimmedIdentifier}@alababak.app`),
           phone: phone.trim() || trimmedIdentifier,
@@ -136,7 +137,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
       }
 
       const newUser: UserProfile = {
-        id: `usr-${Date.now()}`,
+        id: ensureUUID(),
         name: name.trim(),
         email: email.trim() || `${phone.trim()}@alababak.app`,
         phone: phone.trim(),

@@ -44,40 +44,56 @@ export async function checkSupabaseConnection(): Promise<{ connected: boolean; m
 }
 
 /**
+ * Utility to generate or validate a UUID
+ */
+export function ensureUUID(id?: string): string {
+  if (id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    return id;
+  }
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+    const r = (Math.random() * 16) | 0,
+      v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
+/**
  * Save / Upsert User profile in Supabase database
  */
 export async function saveSupabaseUser(user: Partial<UserProfile>) {
   try {
-    const payload = {
-      id: user.id,
-      email: user.email,
-      full_name: user.name,
+    const validId = ensureUUID(user.id);
+    user.id = validId; // Ensure user object retains the valid UUID
+
+    const payload: Record<string, any> = {
+      id: validId,
+      email: user.email || '',
+      full_name: user.name || '',
       phone: user.phone || '',
-      role: user.role,
-      avatar_url: user.avatar_url,
-      associated_store_id: user.associated_store_id,
-      is_active: (user as { is_active?: boolean }).is_active ?? true,
+      role: user.role || 'customer',
+      avatar_url: user.avatar_url || null,
+      associated_store_id: user.associated_store_id || null,
       updated_at: new Date().toISOString(),
     };
     
-    // Primary attempt: upsert into 'profiles' table
+    // Attempt 1: upsert with full payload into 'profiles' table
     const { error } = await supabase.from('profiles').upsert(payload);
     if (error) {
-      console.warn('Supabase profiles save info:', error.message);
-      // Secondary attempt: upsert into 'users' table
-      try {
-        await supabase.from('users').upsert({
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          phone: user.phone || '',
-          role: user.role,
-          avatar_url: user.avatar_url,
-          associated_store_id: user.associated_store_id,
-          updated_at: new Date().toISOString(),
-        });
-      } catch {
-        // Ignore fallback upsert error
+      console.warn('Supabase profiles save attempt 1 info:', error.message);
+      // Attempt 2: fallback payload without optional extra fields
+      const fallbackPayload = {
+        id: validId,
+        email: user.email || '',
+        full_name: user.name || '',
+        phone: user.phone || '',
+        role: user.role || 'customer',
+      };
+      const { error: err2 } = await supabase.from('profiles').upsert(fallbackPayload);
+      if (err2) {
+        console.warn('Supabase profiles save attempt 2 info:', err2.message);
       }
     }
   } catch (err) {
