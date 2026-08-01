@@ -5,6 +5,7 @@ import {
   User,
   Store,
   Bike,
+  Shield,
   Lock,
   Mail,
   Phone,
@@ -242,7 +243,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
             {/* Account Role Selector */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-2">نوع الحساب المطلوب</label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <button
                   type="button"
                   onClick={() => setRole('customer')}
@@ -280,6 +281,19 @@ export const AuthView: React.FC<AuthViewProps> = ({
                 >
                   <Bike className="w-5 h-5 text-orange-600" />
                   <span className="text-[11px]">كابتن توصيل</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setRole('admin')}
+                  className={`p-3 rounded-2xl border text-center transition-all flex flex-col items-center gap-1 ${
+                    role === 'admin'
+                      ? 'border-purple-600 bg-purple-50/80 text-purple-900 font-extrabold ring-1 ring-purple-600'
+                      : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <Shield className="w-5 h-5 text-purple-600" />
+                  <span className="text-[11px]">مدير نظام</span>
                 </button>
               </div>
             </div>
