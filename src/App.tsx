@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from './lib/storage';
 import { UserRole } from './types/domain';
 import { Navbar } from './components/layout/Navbar';
+import { SplashScreen } from './components/layout/SplashScreen';
 import { CartDrawer } from './components/cart/CartDrawer';
 import { useCartStore } from './stores/cart-store';
 
@@ -92,6 +93,7 @@ import {
 } from 'lucide-react';
 
 export default function App() {
+  const [showSplash, setShowSplash] = useState(true);
   const [currentUser, setCurrentUser] = useState(StorageRepo.getCurrentUser());
   const [activeTab, setActiveTab] = useState<string>('customer-stores');
 
@@ -144,6 +146,14 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans antialiased dir-rtl selection:bg-emerald-500 selection:text-white flex flex-col">
+      {/* 5-Second Splash Screen */}
+      {showSplash && (
+        <SplashScreen
+          durationSeconds={5}
+          onFinish={() => setShowSplash(false)}
+        />
+      )}
+
       {/* Primary Navigation Bar */}
       <Navbar
         currentTab={activeTab}
