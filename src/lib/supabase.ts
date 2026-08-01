@@ -68,36 +68,54 @@ export async function saveSupabaseUser(user: Partial<UserProfile>) {
     const validId = ensureUUID(user.id);
     user.id = validId; // Ensure user object retains the valid UUID
 
+    const userName = user.name || (user as any).full_name || 'مستخدم';
+    const userEmail = user.email || `${user.phone || validId.slice(0, 8)}@alababak.app`;
+    const userRole = user.role || 'customer';
+
     const payload: Record<string, any> = {
       id: validId,
-      email: user.email || '',
-      full_name: user.name || '',
+      email: userEmail,
+      name: userName,
+      full_name: userName,
       phone: user.phone || '',
-      role: user.role || 'customer',
+      role: userRole,
       avatar_url: user.avatar_url || null,
-      associated_store_id: user.associated_store_id || null,
       updated_at: new Date().toISOString(),
     };
-    
-    // Attempt 1: upsert with full payload into 'profiles' table
-    const { error } = await supabase.from('profiles').upsert(payload);
-    if (error) {
-      console.warn('Supabase profiles save attempt 1 info:', error.message);
-      // Attempt 2: fallback payload without optional extra fields
-      const fallbackPayload = {
-        id: validId,
-        email: user.email || '',
-        full_name: user.name || '',
-        phone: user.phone || '',
-        role: user.role || 'customer',
-      };
-      const { error: err2 } = await supabase.from('profiles').upsert(fallbackPayload);
-      if (err2) {
-        console.warn('Supabase profiles save attempt 2 info:', err2.message);
-      }
+
+    if (user.associated_store_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user.associated_store_id)) {
+      payload.associated_store_id = user.associated_store_id;
+    }
+
+    // Primary Attempt: upsert into 'profiles'
+    const { error } = await supabase.from('profiles').upsert(payload, { onConflict: 'id' });
+    if (!error) return;
+
+    // Secondary Attempt: try payload with 'name' only (if full_name column doesn't exist)
+    const { full_name, associated_store_id, ...payloadWithName } = payload;
+    const { error: err1 } = await supabase.from('profiles').upsert(payloadWithName, { onConflict: 'id' });
+    if (!err1) return;
+
+    // Tertiary Attempt: try payload with 'full_name' only (if name column doesn't exist)
+    const { name, ...payloadWithFullName } = payload;
+    const { error: err2 } = await supabase.from('profiles').upsert(payloadWithFullName, { onConflict: 'id' });
+    if (!err2) return;
+
+    // Fallback Attempt: try 'users' table if profiles has FK constraints
+    const minimalUser = {
+      id: validId,
+      email: userEmail,
+      name: userName,
+      phone: user.phone || '',
+      role: userRole,
+    };
+    try {
+      await supabase.from('users').upsert(minimalUser, { onConflict: 'id' });
+    } catch {
+      // Ignore fallback table attempt error
     }
   } catch (err) {
-    console.error('Failed to save user profile to Supabase:', err);
+    console.warn('Sync profile info:', err);
   }
 }
 

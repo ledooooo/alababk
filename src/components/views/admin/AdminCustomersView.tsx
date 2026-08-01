@@ -10,9 +10,9 @@ export const AdminCustomersView: React.FC = () => {
 
   const filtered = users.filter(
     (u) =>
-      u.full_name.toLowerCase().includes(query.toLowerCase()) ||
-      u.phone.includes(query) ||
-      u.email.toLowerCase().includes(query.toLowerCase())
+      (u.name || u.full_name || '').toLowerCase().includes(query.toLowerCase()) ||
+      (u.phone || '').includes(query) ||
+      (u.email || '').toLowerCase().includes(query.toLowerCase())
   );
 
   const toggleBlock = (userId: string) => {
@@ -80,11 +80,11 @@ export const AdminCustomersView: React.FC = () => {
                       <div className="flex items-center gap-3">
                         <img
                           src={user.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200'}
-                          alt={user.full_name}
+                          alt={user.name || user.full_name || 'عميل'}
                           className="w-10 h-10 rounded-xl object-cover border border-slate-200"
                         />
                         <div>
-                          <p className="font-extrabold text-slate-900">{user.full_name}</p>
+                          <p className="font-extrabold text-slate-900">{user.name || user.full_name || 'عميل'}</p>
                           <p className="text-[10px] text-slate-400 font-mono">ID: #{user.id.slice(0, 8)}</p>
                         </div>
                       </div>
