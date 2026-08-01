@@ -65,54 +65,43 @@ export function ensureUUID(id?: string): string {
  */
 export async function saveSupabaseUser(user: Partial<UserProfile>) {
   try {
-    const validId = ensureUUID(user.id);
+    // If authenticated user exists in Supabase auth, prefer their auth ID
+    let validId = user.id ? ensureUUID(user.id) : '';
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      if (authData?.user?.id) {
+        validId = authData.user.id;
+      }
+    } catch {
+      // Ignore auth check errors
+    }
+
+    if (!validId) {
+      validId = ensureUUID(user.id);
+    }
     user.id = validId; // Ensure user object retains the valid UUID
 
     const userName = user.name || (user as any).full_name || 'مستخدم';
-    const userEmail = user.email || `${user.phone || validId.slice(0, 8)}@alababak.app`;
-    const userRole = user.role || 'customer';
+    let userRole = user.role || 'customer';
+    if (!['customer', 'store_owner', 'delivery_agent', 'admin'].includes(userRole)) {
+      userRole = 'customer';
+    }
 
+    // Exact payload strictly matching public.profiles columns in SQL schema:
+    // id (UUID, FK auth.users), role, full_name, phone (UNIQUE), avatar_url, is_active, updated_at
     const payload: Record<string, any> = {
       id: validId,
-      email: userEmail,
-      name: userName,
-      full_name: userName,
-      phone: user.phone || '',
       role: userRole,
+      full_name: userName,
+      phone: user.phone?.trim() ? user.phone.trim() : null, // null if empty to satisfy UNIQUE constraint
       avatar_url: user.avatar_url || null,
+      is_active: (user as any).is_active ?? true,
       updated_at: new Date().toISOString(),
     };
 
-    if (user.associated_store_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user.associated_store_id)) {
-      payload.associated_store_id = user.associated_store_id;
-    }
-
-    // Primary Attempt: upsert into 'profiles'
     const { error } = await supabase.from('profiles').upsert(payload, { onConflict: 'id' });
-    if (!error) return;
-
-    // Secondary Attempt: try payload with 'name' only (if full_name column doesn't exist)
-    const { full_name, associated_store_id, ...payloadWithName } = payload;
-    const { error: err1 } = await supabase.from('profiles').upsert(payloadWithName, { onConflict: 'id' });
-    if (!err1) return;
-
-    // Tertiary Attempt: try payload with 'full_name' only (if name column doesn't exist)
-    const { name, ...payloadWithFullName } = payload;
-    const { error: err2 } = await supabase.from('profiles').upsert(payloadWithFullName, { onConflict: 'id' });
-    if (!err2) return;
-
-    // Fallback Attempt: try 'users' table if profiles has FK constraints
-    const minimalUser = {
-      id: validId,
-      email: userEmail,
-      name: userName,
-      phone: user.phone || '',
-      role: userRole,
-    };
-    try {
-      await supabase.from('users').upsert(minimalUser, { onConflict: 'id' });
-    } catch {
-      // Ignore fallback table attempt error
+    if (error) {
+      console.warn('Supabase profile sync notice:', error.message);
     }
   } catch (err) {
     console.warn('Sync profile info:', err);
