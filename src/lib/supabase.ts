@@ -514,23 +514,50 @@ export async function seedSupabaseDatabase() {
  */
 export async function saveSupabaseStore(store: Partial<Store>) {
   try {
-    const payload = {
-      id: store.id,
-      name: store.name,
-      slug: store.slug || store.name?.toLowerCase().replace(/\s+/g, '-'),
-      description: store.description,
+    const validId = ensureUUID(store.id);
+    store.id = validId;
+    let ownerId = store.owner_id ? ensureUUID(store.owner_id) : '';
+
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      if (authData?.user?.id) {
+        ownerId = authData.user.id;
+      }
+    } catch {
+      // Ignore
+    }
+
+    if (!ownerId) {
+      ownerId = ensureUUID();
+    }
+
+    const payload: Record<string, any> = {
+      id: validId,
+      owner_id: ownerId,
+      name: store.name || 'متجر جديد',
+      slug: store.slug || (store.name || 'store').toLowerCase().replace(/\s+/g, '-') + '-' + validId.slice(0, 4),
+      description: store.description || '',
       phone: store.phone || '01000000000',
       address: store.address || 'القاهرة، مصر',
-      logo_url: store.logo_url,
-      cover_url: store.banner_url,
+      logo_url: store.logo_url || null,
+      cover_url: store.banner_url || null,
       is_active: store.is_open ?? true,
       is_approved: store.is_approved ?? true,
       commission_pct: store.commission_rate ?? 15,
       min_order_amount: store.min_order_amount ?? 0,
+      updated_at: new Date().toISOString(),
     };
-    await supabase.from('stores').upsert(payload);
+
+    if (store.category_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(store.category_id)) {
+      payload.category_id = store.category_id;
+    }
+
+    const { error } = await supabase.from('stores').upsert(payload, { onConflict: 'id' });
+    if (error) {
+      console.warn('Supabase store save info:', error.message);
+    }
   } catch (err) {
-    console.error('Failed to save store to Supabase:', err);
+    console.warn('Sync store error:', err);
   }
 }
 
@@ -539,21 +566,82 @@ export async function saveSupabaseStore(store: Partial<Store>) {
  */
 export async function saveSupabaseProduct(product: Partial<Product>) {
   try {
-    const payload = {
-      id: product.id,
-      store_id: product.store_id,
-      name: product.name,
-      slug: product.name?.toLowerCase().replace(/\s+/g, '-') || `prod-${Date.now()}`,
-      description: product.description,
-      price: product.price,
-      old_price: product.original_price,
+    const validId = ensureUUID(product.id);
+    product.id = validId;
+    const validStoreId = product.store_id ? ensureUUID(product.store_id) : '';
+    if (!validStoreId) return;
+
+    const payload: Record<string, any> = {
+      id: validId,
+      store_id: validStoreId,
+      name: product.name || 'منتج جديد',
+      slug: (product.name || 'prod').toLowerCase().replace(/\s+/g, '-') + '-' + validId.slice(0, 4),
+      description: product.description || '',
+      price: product.price || 0,
+      old_price: product.original_price || null,
       stock: product.stock ?? 50,
       images: product.image_url ? [product.image_url] : [],
       is_active: product.is_active ?? true,
+      updated_at: new Date().toISOString(),
     };
-    await supabase.from('products').upsert(payload);
+
+    const { error } = await supabase.from('products').upsert(payload, { onConflict: 'id' });
+    if (error) {
+      console.warn('Supabase product save info:', error.message);
+    }
   } catch (err) {
-    console.error('Failed to save product to Supabase:', err);
+    console.warn('Sync product error:', err);
+  }
+}
+
+/**
+ * Save/Upsert Delivery Agent in Supabase
+ */
+export async function saveSupabaseAgent(agent: Partial<DeliveryAgent>) {
+  try {
+    const validId = ensureUUID(agent.id);
+    agent.id = validId;
+    let userId = agent.user_id ? ensureUUID(agent.user_id) : '';
+
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      if (authData?.user?.id) {
+        userId = authData.user.id;
+      }
+    } catch {
+      // Ignore
+    }
+
+    if (!userId) {
+      userId = ensureUUID();
+    }
+
+    const vehicleMap: Record<string, string> = {
+      motorcycle: 'motorcycle',
+      scooter: 'motorcycle',
+      bicycle: 'bicycle',
+      car: 'car',
+      walking: 'walking',
+    };
+
+    const payload = {
+      id: validId,
+      user_id: userId,
+      vehicle_type: vehicleMap[agent.vehicle_type || ''] || 'motorcycle',
+      plate_number: agent.license_plate || null,
+      id_number: agent.national_id || null,
+      is_online: agent.is_online ?? true,
+      is_approved: agent.is_approved ?? true,
+      is_active: true,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error } = await supabase.from('delivery_agents').upsert(payload, { onConflict: 'id' });
+    if (error) {
+      console.warn('Supabase agent save info:', error.message);
+    }
+  } catch (err) {
+    console.warn('Sync agent error:', err);
   }
 }
 
@@ -562,40 +650,78 @@ export async function saveSupabaseProduct(product: Partial<Product>) {
  */
 export async function saveSupabaseOrder(order: Partial<Order>) {
   try {
-    const payload = {
-      id: order.id,
-      code: order.order_number,
-      customer_id: order.customer_id || 'usr-customer-1',
-      store_id: order.store_id,
-      delivery_agent_id: order.delivery_agent_id,
-      address_id: order.delivery_address?.id || 'addr-1',
-      subtotal: order.subtotal,
-      delivery_fee: order.delivery_fee,
+    const validId = ensureUUID(order.id);
+    order.id = validId;
+    const validCustomerId = order.customer_id ? ensureUUID(order.customer_id) : ensureUUID();
+    const validStoreId = order.store_id ? ensureUUID(order.store_id) : '';
+    if (!validStoreId) return;
+
+    let validAddressId = order.delivery_address?.id ? ensureUUID(order.delivery_address.id) : '';
+    if (validAddressId) {
+      const addressPayload = {
+        id: validAddressId,
+        user_id: validCustomerId,
+        label: order.delivery_address?.title || 'عنوان التوصيل',
+        street: order.delivery_address?.address_line || 'القاهرة',
+        building: order.delivery_address?.building || null,
+        floor: order.delivery_address?.floor || null,
+        apartment: order.delivery_address?.apartment || null,
+        notes: order.delivery_address?.notes || null,
+      };
+      try {
+        await supabase.from('addresses').upsert(addressPayload, { onConflict: 'id' });
+      } catch {
+        // Ignore
+      }
+    } else {
+      validAddressId = ensureUUID();
+    }
+
+    const payload: Record<string, any> = {
+      id: validId,
+      code: order.order_number || `JHT-${Date.now().toString().slice(-4)}`,
+      customer_id: validCustomerId,
+      store_id: validStoreId,
+      address_id: validAddressId,
+      subtotal: order.subtotal || 0,
+      delivery_fee: order.delivery_fee || 0,
       discount: order.discount_amount || 0,
-      total: order.total,
+      total: order.total || 0,
       payment_method: order.payment_method === 'card' ? 'online' : 'cash',
       payment_status: order.payment_status === 'paid' ? 'paid' : 'pending',
       status: order.status || 'pending',
-      customer_notes: order.customer_notes,
+      customer_notes: order.customer_notes || null,
+      updated_at: new Date().toISOString(),
     };
-    await supabase.from('orders').upsert(payload);
 
-    // Save order items if available
+    if (order.delivery_agent_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(order.delivery_agent_id)) {
+      payload.delivery_agent_id = order.delivery_agent_id;
+    }
+
+    const { error } = await supabase.from('orders').upsert(payload, { onConflict: 'id' });
+    if (error) {
+      console.warn('Supabase order save info:', error.message);
+    }
+
     if (order.items && order.items.length > 0) {
       const itemsPayload = order.items.map((item) => ({
-        id: item.id,
-        order_id: order.id,
-        product_id: item.product_id,
+        id: ensureUUID(item.id),
+        order_id: validId,
+        product_id: item.product_id ? ensureUUID(item.product_id) : null,
         name: item.product_name,
         price: item.unit_price,
         quantity: item.quantity,
         subtotal: item.total_price,
-        notes: item.notes,
+        notes: item.notes || null,
       }));
-      await supabase.from('order_items').upsert(itemsPayload);
+      try {
+        await supabase.from('order_items').upsert(itemsPayload, { onConflict: 'id' });
+      } catch {
+        // Ignore
+      }
     }
   } catch (err) {
-    console.error('Failed to save order to Supabase:', err);
+    console.warn('Sync order error:', err);
   }
 }
 

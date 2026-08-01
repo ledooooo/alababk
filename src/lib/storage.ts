@@ -19,6 +19,7 @@ import {
   fetchSupabaseUsers,
   saveSupabaseStore,
   saveSupabaseProduct,
+  saveSupabaseAgent,
   saveSupabaseOrder,
   updateSupabaseOrderStatus,
   saveSupabaseZone,
@@ -29,6 +30,7 @@ import {
   fetchSupabaseCategories,
   fetchSupabaseZones,
   fetchSupabaseCoupons,
+  fetchSupabaseAgents,
 } from './supabase';
 
 const STORAGE_KEYS = {
@@ -97,308 +99,33 @@ export function subscribeToStorageChange(callback: (detail: { entityType: string
   };
 }
 
-// Initial Sample Seed Data Generator
+// Initial Sample Seed Data Generator (Clean state - synced directly from Supabase DB)
 function seedDefaultData() {
   if (typeof window === 'undefined') return;
 
-  // 1. Seed Categories
   if (!localStorage.getItem(STORAGE_KEYS.ZONES)) {
     localStorage.setItem(STORAGE_KEYS.ZONES, JSON.stringify(EGYPT_DEFAULT_ZONES));
   }
-
-  // 2. Seed Users & Demo Profiles for each role
   if (!localStorage.getItem(STORAGE_KEYS.USERS)) {
-    const demoUsers: UserProfile[] = [
-      {
-        id: 'usr-customer-1',
-        email: 'customer@jihat.app',
-        name: 'أحمد محمود العبد',
-        phone: '01012345678',
-        role: 'customer',
-        avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=250',
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: 'usr-store-1',
-        email: 'abuali@jihat.app',
-        name: 'أبو علي',
-        phone: '01123456789',
-        role: 'store_owner',
-        associated_store_id: 'store-1',
-        avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=250',
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: 'usr-store-2',
-        email: 'albaraka@jihat.app',
-        name: 'المهندس مصطفى',
-        phone: '01234567890',
-        role: 'store_owner',
-        associated_store_id: 'store-2',
-        avatar_url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=250',
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: 'usr-agent-1',
-        email: 'agent@jihat.app',
-        name: 'الكابتن محمود طارق',
-        phone: '01098765432',
-        role: 'delivery_agent',
-        avatar_url: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=250',
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: 'usr-admin-1',
-        email: 'admin@alababak.app',
-        name: 'مدير منصة على بابك',
-        phone: '01000000000',
-        role: 'admin',
-        avatar_url: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=250',
-        created_at: new Date().toISOString(),
-      },
-    ];
-    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(demoUsers));
-    localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(demoUsers[0])); // Default login as Customer
+    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify([]));
   }
-
-  // 3. Seed Delivery Agents
   if (!localStorage.getItem(STORAGE_KEYS.AGENTS)) {
-    const demoAgents: DeliveryAgent[] = [
-      {
-        id: 'agent-1',
-        user_id: 'usr-agent-1',
-        name: 'الكابتن محمود طارق',
-        phone: '01098765432',
-        vehicle_type: 'motorcycle',
-        national_id: '29801011234567',
-        is_approved: true,
-        is_online: true,
-        active_zone: 'المعادي وشارع 9',
-        rating: 4.9,
-        total_trips: 184,
-        current_lat: 30.0450,
-        current_lng: 31.2370,
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: 'agent-2',
-        user_id: 'usr-agent-2',
-        name: 'الكابتن حسن حسني',
-        phone: '01188776655',
-        vehicle_type: 'scooter',
-        national_id: '29505051234568',
-        is_approved: true,
-        is_online: true,
-        active_zone: 'مدينة نصر ومكرم عبيد',
-        rating: 4.8,
-        total_trips: 92,
-        current_lat: 30.0600,
-        current_lng: 31.3400,
-        created_at: new Date().toISOString(),
-      }
-    ];
-    localStorage.setItem(STORAGE_KEYS.AGENTS, JSON.stringify(demoAgents));
+    localStorage.setItem(STORAGE_KEYS.AGENTS, JSON.stringify([]));
   }
-
-  // 4. Seed Stores (Clean state: no fake mock stores)
   if (!localStorage.getItem(STORAGE_KEYS.STORES)) {
     localStorage.setItem(STORAGE_KEYS.STORES, JSON.stringify([]));
   }
-
-  // 5. Seed Products (Clean state: no fake mock products)
   if (!localStorage.getItem(STORAGE_KEYS.PRODUCTS)) {
     localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify([]));
   }
-
-
-  // 6. Seed Addresses for Default Customer
   if (!localStorage.getItem(STORAGE_KEYS.ADDRESSES)) {
-    const demoAddresses: CustomerAddress[] = [
-      {
-        id: 'addr-1',
-        user_id: 'usr-customer-1',
-        title: 'شقة المنزل (المعادي)',
-        address_line: '23 شارع 9 - المعادي - بالقرب من محطة المترو',
-        building: 'عمارة 15',
-        floor: 'الدور 4',
-        apartment: 'شقة 12',
-        lat: 30.0444,
-        lng: 31.2357,
-        notes: 'يرجى الاتصال عند الوصول وترك الطلب مع الحارس إذا لم أرد.',
-        is_default: true,
-      },
-      {
-        id: 'addr-2',
-        user_id: 'usr-customer-1',
-        title: 'المكتب والعمل (مدينة نصر)',
-        address_line: 'شارع مكرم عبيد - مدينة نصر',
-        building: 'برج الأطباء',
-        floor: 'الدور 2',
-        apartment: 'مكتب 201',
-        lat: 30.0620,
-        lng: 31.3450,
-        notes: 'يرجى التسليم للاستقبال.',
-        is_default: false,
-      }
-    ];
-    localStorage.setItem(STORAGE_KEYS.ADDRESSES, JSON.stringify(demoAddresses));
+    localStorage.setItem(STORAGE_KEYS.ADDRESSES, JSON.stringify([]));
   }
-
-  // 7. Seed Sample Coupons
   if (!localStorage.getItem(STORAGE_KEYS.COUPONS)) {
-    const demoCoupons: Coupon[] = [
-      {
-        id: 'coup-1',
-        code: 'JIHAT10',
-        discount_type: 'percent',
-        discount_value: 10,
-        min_order_amount: 50,
-        max_discount_amount: 30,
-        usage_limit: 100,
-        used_count: 14,
-        is_active: true,
-        expires_at: new Date(Date.now() + 60 * 24 * 3600 * 1000).toISOString(),
-      },
-      {
-        id: 'coup-2',
-        code: 'WELCOME20',
-        discount_type: 'flat',
-        discount_value: 20,
-        min_order_amount: 100,
-        usage_limit: 500,
-        used_count: 88,
-        is_active: true,
-        expires_at: new Date(Date.now() + 90 * 24 * 3600 * 1000).toISOString(),
-      },
-    ];
-    localStorage.setItem(STORAGE_KEYS.COUPONS, JSON.stringify(demoCoupons));
+    localStorage.setItem(STORAGE_KEYS.COUPONS, JSON.stringify([]));
   }
-
-  // 8. Seed Sample Orders
   if (!localStorage.getItem(STORAGE_KEYS.ORDERS)) {
-    const defaultAddress: CustomerAddress = {
-      id: 'addr-1',
-      user_id: 'usr-customer-1',
-      title: 'شقة المنزل (المعادي)',
-      address_line: '23 شارع 9 - المعادي',
-      building: 'عمارة 15',
-      floor: '4',
-      apartment: '12',
-      lat: 30.0444,
-      lng: 31.2357,
-      is_default: true,
-    };
-
-    const demoOrders: Order[] = [
-      {
-        id: 'ord-1001',
-        order_number: 'JHT-1001',
-        customer_id: 'usr-customer-1',
-        customer_name: 'أحمد محمود العبد',
-        customer_phone: '01012345678',
-        store_id: 'store-1',
-        store_name: 'سوبرماركت بقالة أبو علي المعادي',
-        store_phone: '01123456789',
-        store_address: '23 شارع 9 - المعادي',
-        store_lat: 30.0460,
-        store_lng: 31.2380,
-        delivery_address: defaultAddress,
-        delivery_agent_id: 'agent-1',
-        delivery_agent_name: 'الكابتن محمود طارق',
-        delivery_agent_phone: '01098765432',
-        delivery_agent_vehicle: 'موتوسيكل',
-        delivery_agent_lat: 30.0450,
-        delivery_agent_lng: 31.2370,
-        items: [
-          {
-            id: 'item-1',
-            product_id: 'prod-101',
-            product_name: 'لبن جهينة كامل الدسم 1 لتر',
-            product_image: 'https://images.unsplash.com/photo-1563636619-e9143da7973b?auto=format&fit=crop&q=80&w=400',
-            unit_price: 45,
-            quantity: 2,
-            total_price: 90,
-          },
-          {
-            id: 'item-2',
-            product_id: 'prod-103',
-            product_name: 'طماطم بلدي طازجة',
-            product_image: 'https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&q=80&w=400',
-            unit_price: 15,
-            quantity: 1,
-            total_price: 15,
-          }
-        ],
-        subtotal: 105,
-        delivery_fee: 15,
-        discount_amount: 10,
-        coupon_code: 'JIHAT10',
-        total: 110,
-        payment_method: 'cod',
-        payment_status: 'pending',
-        status: 'on_the_way',
-        status_history: [
-          { status: 'pending', timestamp: new Date(Date.now() - 25 * 60 * 1000).toISOString() },
-          { status: 'accepted', timestamp: new Date(Date.now() - 22 * 60 * 1000).toISOString() },
-          { status: 'preparing', timestamp: new Date(Date.now() - 18 * 60 * 1000).toISOString() },
-          { status: 'ready', timestamp: new Date(Date.now() - 10 * 60 * 1000).toISOString() },
-          { status: 'assigned', timestamp: new Date(Date.now() - 8 * 60 * 1000).toISOString() },
-          { status: 'picked_up', timestamp: new Date(Date.now() - 5 * 60 * 1000).toISOString() },
-          { status: 'on_the_way', timestamp: new Date(Date.now() - 3 * 60 * 1000).toISOString() },
-        ],
-        customer_notes: 'يرجى التأكد من تاريخ صلاحية اللبن.',
-        created_at: new Date(Date.now() - 25 * 60 * 1000).toISOString(),
-        updated_at: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
-      },
-      {
-        id: 'ord-1002',
-        order_number: 'JHT-1002',
-        customer_id: 'usr-customer-1',
-        customer_name: 'أحمد محمود العبد',
-        customer_phone: '01012345678',
-        store_id: 'store-2',
-        store_name: 'جزارة واللحوم الطازجة البركة',
-        store_phone: '01234567890',
-        store_address: '15 شارع دجلة - المعادي',
-        store_lat: 30.0410,
-        store_lng: 31.2320,
-        delivery_address: defaultAddress,
-        delivery_agent_id: 'agent-1',
-        delivery_agent_name: 'الكابتن محمود طارق',
-        delivery_agent_phone: '01098765432',
-        items: [
-          {
-            id: 'item-3',
-            product_id: 'prod-202',
-            product_name: 'كفتة حاتي بلدي متبلة جاهزة 1 كجم',
-            product_image: 'https://images.unsplash.com/photo-1529193591184-b1d58069ecdd?auto=format&fit=crop&q=80&w=400',
-            unit_price: 360,
-            quantity: 1,
-            total_price: 360,
-          }
-        ],
-        subtotal: 360,
-        delivery_fee: 15,
-        discount_amount: 0,
-        total: 375,
-        payment_method: 'cod',
-        payment_status: 'paid',
-        status: 'delivered',
-        status_history: [
-          { status: 'pending', timestamp: new Date(Date.now() - 120 * 60 * 1000).toISOString() },
-          { status: 'accepted', timestamp: new Date(Date.now() - 115 * 60 * 1000).toISOString() },
-          { status: 'preparing', timestamp: new Date(Date.now() - 100 * 60 * 1000).toISOString() },
-          { status: 'ready', timestamp: new Date(Date.now() - 70 * 60 * 1000).toISOString() },
-          { status: 'assigned', timestamp: new Date(Date.now() - 65 * 60 * 1000).toISOString() },
-          { status: 'picked_up', timestamp: new Date(Date.now() - 50 * 60 * 1000).toISOString() },
-          { status: 'on_the_way', timestamp: new Date(Date.now() - 40 * 60 * 1000).toISOString() },
-          { status: 'delivered', timestamp: new Date(Date.now() - 20 * 60 * 1000).toISOString() },
-        ],
-        created_at: new Date(Date.now() - 120 * 60 * 1000).toISOString(),
-        updated_at: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
-      },
-    ];
-    localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(demoOrders));
+    localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify([]));
   }
 }
 
@@ -620,6 +347,7 @@ export const StorageRepo = {
     }
     localStorage.setItem(STORAGE_KEYS.AGENTS, JSON.stringify(agents));
     notifyStorageChange('agent', 'save', agent);
+    saveSupabaseAgent(agent);
   },
 
   // --- CATEGORIES & ZONES & COUPONS ---
@@ -801,7 +529,7 @@ export const StorageRepo = {
     if (typeof window === 'undefined') return;
 
     try {
-      const [dbCats, dbStores, dbProds, dbOrders, dbZones, dbCoupons, dbUsers] = await Promise.all([
+      const [dbCats, dbStores, dbProds, dbOrders, dbZones, dbCoupons, dbUsers, dbAgents] = await Promise.all([
         fetchSupabaseCategories(),
         fetchSupabaseStores(),
         fetchSupabaseProducts(),
@@ -809,26 +537,24 @@ export const StorageRepo = {
         fetchSupabaseZones(),
         fetchSupabaseCoupons(),
         fetchSupabaseUsers(),
+        fetchSupabaseAgents(),
       ]);
 
       if (dbCats && dbCats.length > 0) {
         localStorage.setItem('jihat_categories', JSON.stringify(dbCats));
       }
-      if (dbStores && dbStores.length > 0) {
-        localStorage.setItem(STORAGE_KEYS.STORES, JSON.stringify(dbStores));
-      }
-      if (dbProds && dbProds.length > 0) {
-        localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(dbProds));
-      }
-      if (dbOrders && dbOrders.length > 0) {
-        localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(dbOrders));
-      }
+      localStorage.setItem(STORAGE_KEYS.STORES, JSON.stringify(dbStores || []));
+      localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(dbProds || []));
+      localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(dbOrders || []));
+      localStorage.setItem(STORAGE_KEYS.AGENTS, JSON.stringify(dbAgents || []));
+
       if (dbZones && dbZones.length > 0) {
         localStorage.setItem(STORAGE_KEYS.ZONES, JSON.stringify(dbZones));
       }
       if (dbCoupons && dbCoupons.length > 0) {
         localStorage.setItem(STORAGE_KEYS.COUPONS, JSON.stringify(dbCoupons));
       }
+
       if (dbUsers && dbUsers.length > 0) {
         const localUsers = this.getUsers();
         const mergedUsers = [...localUsers];
