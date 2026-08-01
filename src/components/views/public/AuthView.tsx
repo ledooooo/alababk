@@ -466,24 +466,6 @@ export const AuthView: React.FC<AuthViewProps> = ({
             </button>
           </form>
         )}
-
-        {/* Existing Accounts Switcher for Convenience */}
-        <div className="pt-4 border-t border-slate-100 text-center space-y-3">
-          <p className="text-[11px] font-bold text-slate-400">أو يمكنك الدخول فوراً بالحسابات المسجلة بالمظام:</p>
-          <div className="flex flex-wrap gap-1.5 justify-center">
-            {existingUsers.map((u) => (
-              <button
-                key={u.id}
-                type="button"
-                onClick={() => handleQuickSwitch(u)}
-                className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold rounded-lg transition-colors flex items-center gap-1"
-              >
-                <span>{u.name}</span>
-                <span className="text-[10px] text-slate-400">({u.role === 'customer' ? 'عميل' : u.role === 'store_owner' ? 'متجر' : u.role === 'delivery_agent' ? 'كابتن' : 'مدير'})</span>
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
     </div>
   );

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../lib/storage';
 import { UserProfile, UserRole } from '../../types/domain';
-import { User, Store, Bike, ShieldCheck, ChevronDown, Check, LogOut, Sparkles } from 'lucide-react';
+import { User, Store, Bike, ShieldCheck, ChevronDown, LogOut, Phone, Mail } from 'lucide-react';
 
 interface RoleSwitcherProps {
   onRoleChange?: (role: UserRole) => void;
@@ -9,25 +9,14 @@ interface RoleSwitcherProps {
 
 export const RoleSwitcher: React.FC<RoleSwitcherProps> = ({ onRoleChange }) => {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(StorageRepo.getCurrentUser());
-  const [allUsers, setAllUsers] = useState<UserProfile[]>(StorageRepo.getUsers());
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
     const unsubscribe = subscribeToStorageChange(() => {
       setCurrentUser(StorageRepo.getCurrentUser());
-      setAllUsers(StorageRepo.getUsers());
     });
     return unsubscribe;
   }, []);
-
-  const handleSwitchUser = (user: UserProfile) => {
-    StorageRepo.setCurrentUser(user);
-    setCurrentUser(user);
-    setIsOpen(false);
-    if (onRoleChange) {
-      onRoleChange(user.role);
-    }
-  };
 
   const getRoleIcon = (role: UserRole) => {
     switch (role) {
@@ -60,60 +49,60 @@ export const RoleSwitcher: React.FC<RoleSwitcherProps> = ({ onRoleChange }) => {
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-2 bg-slate-900 text-white hover:bg-slate-800 text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-700 shadow-sm transition-all"
-        title="حسابي وإعدادات التواجد"
+        title="حسابي الخالي"
       >
         <div className="flex items-center gap-1.5">
           {currentUser && getRoleIcon(currentUser.role)}
-          <span className="font-semibold">{currentUser?.name || 'زائر'}</span>
+          <span className="font-semibold">{currentUser?.name || currentUser?.full_name || 'زائر'}</span>
         </div>
         {currentUser && getRoleBadge(currentUser.role)}
         <ChevronDown className="w-3.5 h-3.5 text-slate-400 ms-1" />
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-slate-200 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-          <div className="px-3 py-2 border-b border-slate-100 bg-slate-50/80">
-            <p className="text-xs font-bold text-slate-700">الحساب الحالي</p>
-            <p className="text-[11px] text-slate-500">{currentUser?.email || currentUser?.phone || 'مستخدم مسجل'}</p>
+        <div className="absolute left-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-slate-200 py-3 px-3 z-50 animate-in fade-in slide-in-from-top-2 duration-150 space-y-3">
+          <div className="flex items-center gap-3 pb-2 border-b border-slate-100">
+            <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-700 text-sm overflow-hidden border border-slate-200 shrink-0">
+              {currentUser?.avatar_url ? (
+                <img src={currentUser.avatar_url} alt={currentUser.name} className="w-full h-full object-cover" />
+              ) : (
+                currentUser?.name?.slice(0, 1) || 'U'
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-black text-slate-900 truncate">{currentUser?.name || currentUser?.full_name || 'مستخدم مسجل'}</p>
+              <div className="mt-0.5 flex items-center gap-1">
+                {currentUser && getRoleBadge(currentUser.role)}
+              </div>
+            </div>
           </div>
 
-          <div className="py-1 max-h-64 overflow-y-auto">
-            {allUsers.map((user) => {
-              const isSelected = currentUser?.id === user.id;
-              return (
-                <button
-                  key={user.id}
-                  onClick={() => handleSwitchUser(user)}
-                  className={`w-full flex items-center justify-between px-3 py-2 text-right text-xs hover:bg-slate-50 transition-colors ${
-                    isSelected ? 'bg-emerald-50/60 font-semibold text-emerald-950' : 'text-slate-700'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="p-1.5 bg-slate-100 rounded-md shrink-0">
-                      {getRoleIcon(user.role)}
-                    </div>
-                    <div className="truncate">
-                      <p className="font-semibold truncate">{user.name}</p>
-                      <p className="text-[10px] text-slate-500 dir-ltr text-right">{user.phone}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    {getRoleBadge(user.role)}
-                    {isSelected && <Check className="w-4 h-4 text-emerald-600" />}
-                  </div>
-                </button>
-              );
-            })}
+          <div className="space-y-1 text-xs text-slate-600 bg-slate-50 p-2.5 rounded-lg border border-slate-100">
+            {currentUser?.phone && (
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-slate-400 font-bold">الهاتف:</span>
+                <span className="font-mono font-bold text-slate-800 dir-ltr">{currentUser.phone}</span>
+              </div>
+            )}
+            {currentUser?.email && (
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-slate-400 font-bold">البريد:</span>
+                <span className="font-mono text-slate-700 dir-ltr truncate max-w-[170px]">{currentUser.email}</span>
+              </div>
+            )}
           </div>
 
-          <div className="px-2 pt-2 border-t border-slate-100 text-center">
+          <div className="pt-1 border-t border-slate-100">
             <button
               onClick={() => {
                 StorageRepo.logout();
                 setCurrentUser(null);
                 setIsOpen(false);
+                if (onRoleChange) {
+                  onRoleChange('customer');
+                }
               }}
-              className="w-full flex items-center justify-center gap-1.5 py-1.5 text-xs text-rose-600 font-bold hover:bg-rose-50 rounded-lg transition-colors"
+              className="w-full flex items-center justify-center gap-1.5 py-2 text-xs text-rose-600 font-bold hover:bg-rose-50 rounded-lg transition-colors"
             >
               <LogOut className="w-3.5 h-3.5" />
               تسجيل الخروج
