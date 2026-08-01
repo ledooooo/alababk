@@ -15,6 +15,8 @@ import {
 } from '../types/domain';
 import { DEFAULT_CATEGORIES, EGYPT_DEFAULT_ZONES, DEFAULT_LAT, DEFAULT_LNG } from './constants';
 import {
+  saveSupabaseUser,
+  fetchSupabaseUsers,
   saveSupabaseStore,
   saveSupabaseProduct,
   saveSupabaseOrder,
@@ -198,320 +200,16 @@ function seedDefaultData() {
     localStorage.setItem(STORAGE_KEYS.AGENTS, JSON.stringify(demoAgents));
   }
 
-  // 4. Seed Stores
+  // 4. Seed Stores (Clean state: no fake mock stores)
   if (!localStorage.getItem(STORAGE_KEYS.STORES)) {
-    const demoStores: Store[] = [
-      {
-        id: 'store-1',
-        name: 'سوبرماركت بقالة أبو علي المعادي',
-        slug: 'abu-ali-grocery',
-        owner_id: 'usr-store-1',
-        owner_name: 'أبو علي',
-        owner_phone: '01123456789',
-        category_id: 'cat-grocery',
-        category_name: 'بقالة وسوبرماركت',
-        description: 'أجود أنواع البقالة والمنتجات الغذائية الطازجة وتوصيل سريع للبيت في شارع 9 والمعادي.',
-        logo_url: 'https://images.unsplash.com/photo-1578916171728-46686eac8d58?auto=format&fit=crop&q=80&w=300',
-        banner_url: 'https://images.unsplash.com/photo-1604719312566-8912e9227c6a?auto=format&fit=crop&q=80&w=800',
-        address: '23 شارع 9 - المعادي - القاهرة',
-        lat: 30.0460,
-        lng: 31.2380,
-        phone: '01123456789',
-        is_approved: true,
-        is_open: true,
-        rating: 4.8,
-        reviews_count: 86,
-        commission_rate: 10,
-        min_order_amount: 30,
-        delivery_fee: 15,
-        opening_hours: {
-          sat: { open: '08:00', close: '23:30' },
-          sun: { open: '08:00', close: '23:30' },
-          mon: { open: '08:00', close: '23:30' },
-          tue: { open: '08:00', close: '23:30' },
-          wed: { open: '08:00', close: '23:30' },
-          thu: { open: '08:00', close: '01:00' },
-          fri: { open: '09:00', close: '01:00' },
-        },
-        created_at: new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString(),
-      },
-      {
-        id: 'store-2',
-        name: 'جزارة واللحوم الطازجة البركة',
-        slug: 'albaraka-meat',
-        owner_id: 'usr-store-2',
-        owner_name: 'المهندس مصطفى',
-        owner_phone: '01234567890',
-        category_id: 'cat-meat',
-        category_name: 'لحوم ودواجن',
-        description: 'لحوم بلدي طازجة يومياً، كفتة، وسجق بلدي خالي من المواد حافظة.',
-        logo_url: 'https://images.unsplash.com/photo-1551028150-64b9f398f678?auto=format&fit=crop&q=80&w=300',
-        banner_url: 'https://images.unsplash.com/photo-1607623814075-e51df1bdc82f?auto=format&fit=crop&q=80&w=800',
-        address: '15 شارع دجلة - المعادي',
-        lat: 30.0410,
-        lng: 31.2320,
-        phone: '01234567890',
-        is_approved: true,
-        is_open: true,
-        rating: 4.9,
-        reviews_count: 54,
-        commission_rate: 10,
-        min_order_amount: 100,
-        delivery_fee: 15,
-        opening_hours: {
-          sat: { open: '09:00', close: '22:00' },
-          sun: { open: '09:00', close: '22:00' },
-          mon: { open: '09:00', close: '22:00' },
-          tue: { open: '09:00', close: '22:00' },
-          wed: { open: '09:00', close: '22:00' },
-          thu: { open: '09:00', close: '23:00' },
-          fri: { open: '09:00', close: '23:00' },
-        },
-        created_at: new Date(Date.now() - 20 * 24 * 3600 * 1000).toISOString(),
-      },
-      {
-        id: 'store-3',
-        name: 'مخبز وأفران الشمس البلدي',
-        slug: 'el-shams-bakery',
-        owner_id: 'usr-store-3',
-        owner_name: 'الحاج إبراهيم',
-        owner_phone: '01555443322',
-        category_id: 'cat-bakery',
-        category_name: 'مخبوزات وحلويات',
-        description: 'خبز بلدي، فينوا، باتيه طازج، وفطير مشلتت بالسمن البلدي الاصلي.',
-        logo_url: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&q=80&w=300',
-        banner_url: 'https://images.unsplash.com/photo-1517433670267-08bbd4be890f?auto=format&fit=crop&q=80&w=800',
-        address: '44 شارع النصر - المعادي',
-        lat: 30.0480,
-        lng: 31.2420,
-        phone: '01555443322',
-        is_approved: true,
-        is_open: true,
-        rating: 4.7,
-        reviews_count: 112,
-        commission_rate: 8,
-        min_order_amount: 20,
-        delivery_fee: 12,
-        opening_hours: {
-          sat: { open: '06:00', close: '23:00' },
-          sun: { open: '06:00', close: '23:00' },
-          mon: { open: '06:00', close: '23:00' },
-          tue: { open: '06:00', close: '23:00' },
-          wed: { open: '06:00', close: '23:00' },
-          thu: { open: '06:00', close: '23:30' },
-          fri: { open: '06:00', close: '23:30' },
-        },
-        created_at: new Date(Date.now() - 15 * 24 * 3600 * 1000).toISOString(),
-      },
-      {
-        id: 'store-4',
-        name: 'صيدلية الشفاء والعناية',
-        slug: 'al-shifa-pharmacy',
-        owner_id: 'usr-store-4',
-        owner_name: 'د. خالد صبري',
-        owner_phone: '01033221100',
-        category_id: 'cat-pharmacy',
-        category_name: 'صيدلية وعناية',
-        description: 'جميع الأدوية، المستلزمات الطبية، ومنتجات العناية بالبشرة والشعر.',
-        logo_url: 'https://images.unsplash.com/photo-1586015555751-63bb77f4322a?auto=format&fit=crop&q=80&w=300',
-        banner_url: 'https://images.unsplash.com/photo-1631549916768-4119b2e5f926?auto=format&fit=crop&q=80&w=800',
-        address: '10 شارع اللاسلكي - المعادي',
-        lat: 30.0430,
-        lng: 31.2350,
-        phone: '01033221100',
-        is_approved: true,
-        is_open: true,
-        rating: 4.9,
-        reviews_count: 42,
-        commission_rate: 10,
-        min_order_amount: 40,
-        delivery_fee: 15,
-        opening_hours: {
-          sat: { open: '00:00', close: '23:59' },
-          sun: { open: '00:00', close: '23:59' },
-          mon: { open: '00:00', close: '23:59' },
-          tue: { open: '00:00', close: '23:59' },
-          wed: { open: '00:00', close: '23:59' },
-          thu: { open: '00:00', close: '23:59' },
-          fri: { open: '00:00', close: '23:59' },
-        },
-        created_at: new Date(Date.now() - 10 * 24 * 3600 * 1000).toISOString(),
-      },
-    ];
-    localStorage.setItem(STORAGE_KEYS.STORES, JSON.stringify(demoStores));
+    localStorage.setItem(STORAGE_KEYS.STORES, JSON.stringify([]));
   }
 
-  // 5. Seed Products
+  // 5. Seed Products (Clean state: no fake mock products)
   if (!localStorage.getItem(STORAGE_KEYS.PRODUCTS)) {
-    const demoProducts: Product[] = [
-      // Abu Ali Products
-      {
-        id: 'prod-101',
-        store_id: 'store-1',
-        name: 'لبن جهينة كامل الدسم 1 لتر',
-        description: 'حليب بقر طبيعي 100% معقم ومبستر',
-        price: 45,
-        original_price: 48,
-        category_name: 'ألبان وأجبان',
-        image_url: 'https://images.unsplash.com/photo-1563636619-e9143da7973b?auto=format&fit=crop&q=80&w=400',
-        stock: 50,
-        is_active: true,
-        unit: 'علبة',
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: 'prod-102',
-        store_id: 'store-1',
-        name: 'جبنة بيضاء دومتي بلس 500 جم',
-        description: 'جبنة طازجة طعم ثلاجة عالية الجودة',
-        price: 38,
-        category_name: 'ألبان وأجبان',
-        image_url: 'https://images.unsplash.com/photo-1552767059-ce182ead8c1b?auto=format&fit=crop&q=80&w=400',
-        stock: 35,
-        is_active: true,
-        unit: 'علبة',
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: 'prod-103',
-        store_id: 'store-1',
-        name: 'طماطم بلدي طازجة',
-        description: 'طماطم حمراء طازجة درجة أولى للتطبيخ والسلاطة',
-        price: 15,
-        original_price: 18,
-        category_name: 'خضار وفاكهة طازجة',
-        image_url: 'https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&q=80&w=400',
-        stock: 100,
-        is_active: true,
-        unit: 'كجم',
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: 'prod-104',
-        store_id: 'store-1',
-        name: 'خيار بلدي طازج',
-        description: 'خيار مقرمش طازج يومياً',
-        price: 18,
-        category_name: 'خضار وفاكهة طازجة',
-        image_url: 'https://images.unsplash.com/photo-1449300079323-02e209d9d3a6?auto=format&fit=crop&q=80&w=400',
-        stock: 60,
-        is_active: true,
-        unit: 'كجم',
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: 'prod-105',
-        store_id: 'store-1',
-        name: 'مياه معدنية أفرست 1.5 لتر',
-        description: 'كرتونة مياه شرب نقية 12 زجاجة',
-        price: 75,
-        category_name: 'مشروبات ومياه',
-        image_url: 'https://images.unsplash.com/photo-1548839140-29a749e1bc4e?auto=format&fit=crop&q=80&w=400',
-        stock: 20,
-        is_active: true,
-        unit: 'كرتونة',
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: 'prod-106',
-        store_id: 'store-1',
-        name: 'زيت عباد الشمس كريستال 800 مل',
-        description: 'زيت نقي خفيف للطبخ والقلي',
-        price: 68,
-        category_name: 'بقالة وسوبرماركت',
-        image_url: 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&q=80&w=400',
-        stock: 40,
-        is_active: true,
-        unit: 'زجاجة',
-        created_at: new Date().toISOString(),
-      },
-
-      // Al Baraka Meat Products
-      {
-        id: 'prod-201',
-        store_id: 'store-2',
-        name: 'لحم ك any كندوز بلدي 1 كجم',
-        description: 'لحم كندوز طازج كاندوز ممتاز للخضار والمشويات',
-        price: 390,
-        original_price: 410,
-        category_name: 'لحوم ودواجن',
-        image_url: 'https://images.unsplash.com/photo-1603048588665-791ca8aea617?auto=format&fit=crop&q=80&w=400',
-        stock: 15,
-        is_active: true,
-        unit: 'كجم',
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: 'prod-202',
-        store_id: 'store-2',
-        name: 'كفتة حاتي بلدي متبلة جاهزة 1 كجم',
-        description: 'كفتة كندوز مع بهارات الحاتي الخاصة جاهزة للشوي',
-        price: 360,
-        category_name: 'لحوم ودواجن',
-        image_url: 'https://images.unsplash.com/photo-1529193591184-b1d58069ecdd?auto=format&fit=crop&q=80&w=400',
-        stock: 25,
-        is_active: true,
-        unit: 'كجم',
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: 'prod-203',
-        store_id: 'store-2',
-        name: 'سجق بلدي خالي من الفول صويا 1 كجم',
-        description: 'سجق بلدي شرقي بالبهارات البلدي طازج يومياً',
-        price: 340,
-        category_name: 'لحوم ودواجن',
-        image_url: 'https://images.unsplash.com/photo-1585325701165-351af916e581?auto=format&fit=crop&q=80&w=400',
-        stock: 20,
-        is_active: true,
-        unit: 'كجم',
-        created_at: new Date().toISOString(),
-      },
-
-      // El Shams Bakery Products
-      {
-        id: 'prod-301',
-        store_id: 'store-3',
-        name: 'ربطة خبز بلدي ساخن (5 رغيف)',
-        description: 'خبز بلدي ردة ساخن طازج من الفرن مباشرة',
-        price: 10,
-        category_name: 'مخبوزات وحلويات',
-        image_url: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?auto=format&fit=crop&q=80&w=400',
-        stock: 200,
-        is_active: true,
-        unit: 'ربطة',
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: 'prod-302',
-        store_id: 'store-3',
-        name: 'فطير مشلتت فلاحي بالسمن البلدي (كبير)',
-        description: 'فطير فلاحي مورق هش بالسمن البلدي الأصلي',
-        price: 120,
-        original_price: 140,
-        category_name: 'مخبوزات وحلويات',
-        image_url: 'https://images.unsplash.com/photo-1555507036-ab1f4038808a?auto=format&fit=crop&q=80&w=400',
-        stock: 12,
-        is_active: true,
-        unit: 'قطعة',
-        created_at: new Date().toISOString(),
-      },
-      {
-        id: 'prod-303',
-        store_id: 'store-3',
-        name: 'طبق باتيه بالجبنة الومي (6 قطع)',
-        description: 'باتيه هش ومحشو جبنة رومي طازجة',
-        price: 45,
-        category_name: 'مخبوزات وحلويات',
-        image_url: 'https://images.unsplash.com/photo-1530610476181-d83430b64dcd?auto=format&fit=crop&q=80&w=400',
-        stock: 30,
-        is_active: true,
-        unit: 'طبق',
-        created_at: new Date().toISOString(),
-      },
-    ];
-    localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(demoProducts));
+    localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify([]));
   }
+
 
   // 6. Seed Addresses for Default Customer
   if (!localStorage.getItem(STORAGE_KEYS.ADDRESSES)) {
@@ -728,6 +426,12 @@ export const StorageRepo = {
     notifyStorageChange('user', 'switch', user);
   },
 
+  logout() {
+    if (typeof window === 'undefined') return;
+    localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+    notifyStorageChange('user', 'switch', null);
+  },
+
   getUsers(): UserProfile[] {
     if (typeof window === 'undefined') return [];
     const data = localStorage.getItem(STORAGE_KEYS.USERS);
@@ -747,6 +451,7 @@ export const StorageRepo = {
       this.setCurrentUser(user);
     }
     notifyStorageChange('user', 'save', user);
+    saveSupabaseUser(user);
   },
 
   // --- STORES ---
@@ -1096,13 +801,14 @@ export const StorageRepo = {
     if (typeof window === 'undefined') return;
 
     try {
-      const [dbCats, dbStores, dbProds, dbOrders, dbZones, dbCoupons] = await Promise.all([
+      const [dbCats, dbStores, dbProds, dbOrders, dbZones, dbCoupons, dbUsers] = await Promise.all([
         fetchSupabaseCategories(),
         fetchSupabaseStores(),
         fetchSupabaseProducts(),
         fetchSupabaseOrders(),
         fetchSupabaseZones(),
         fetchSupabaseCoupons(),
+        fetchSupabaseUsers(),
       ]);
 
       if (dbCats && dbCats.length > 0) {
@@ -1122,6 +828,16 @@ export const StorageRepo = {
       }
       if (dbCoupons && dbCoupons.length > 0) {
         localStorage.setItem(STORAGE_KEYS.COUPONS, JSON.stringify(dbCoupons));
+      }
+      if (dbUsers && dbUsers.length > 0) {
+        const localUsers = this.getUsers();
+        const mergedUsers = [...localUsers];
+        dbUsers.forEach((u) => {
+          if (!mergedUsers.some((lu) => lu.id === u.id)) {
+            mergedUsers.push(u);
+          }
+        });
+        localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(mergedUsers));
       }
 
       notifyStorageChange('supabase', 'sync');

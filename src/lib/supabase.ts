@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import {
   UserProfile,
+  UserRole,
   Store,
   Product,
   CustomerAddress,
@@ -40,6 +41,73 @@ export async function checkSupabaseConnection(): Promise<{ connected: boolean; m
   } catch (err) {
     return { connected: false, message: `فشل الاتصال الشبكي: ${String(err)}` };
   }
+}
+
+/**
+ * Save / Upsert User profile in Supabase database
+ */
+export async function saveSupabaseUser(user: Partial<UserProfile>) {
+  try {
+    const payload = {
+      id: user.id,
+      email: user.email,
+      full_name: user.name,
+      phone: user.phone || '',
+      role: user.role,
+      avatar_url: user.avatar_url,
+      associated_store_id: user.associated_store_id,
+      is_active: (user as { is_active?: boolean }).is_active ?? true,
+      updated_at: new Date().toISOString(),
+    };
+    
+    // Primary attempt: upsert into 'profiles' table
+    const { error } = await supabase.from('profiles').upsert(payload);
+    if (error) {
+      console.warn('Supabase profiles save info:', error.message);
+      // Secondary attempt: upsert into 'users' table
+      try {
+        await supabase.from('users').upsert({
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          phone: user.phone || '',
+          role: user.role,
+          avatar_url: user.avatar_url,
+          associated_store_id: user.associated_store_id,
+          updated_at: new Date().toISOString(),
+        });
+      } catch {
+        // Ignore fallback upsert error
+      }
+    }
+  } catch (err) {
+    console.error('Failed to save user profile to Supabase:', err);
+  }
+}
+
+/**
+ * Fetch Users / Profiles from Supabase database
+ */
+export async function fetchSupabaseUsers(): Promise<UserProfile[]> {
+  try {
+    const { data, error } = await supabase.from('profiles').select('*');
+    if (!error && data && data.length > 0) {
+      return data.map((u) => ({
+        id: u.id,
+        email: u.email || '',
+        name: u.full_name || u.name || 'مستخدم',
+        phone: u.phone || '',
+        role: (u.role as UserRole) || 'customer',
+        avatar_url: u.avatar_url,
+        associated_store_id: u.associated_store_id,
+        is_active: u.is_active ?? true,
+        created_at: u.created_at || new Date().toISOString(),
+      }));
+    }
+  } catch {
+    // fallback
+  }
+  return [];
 }
 
 /**

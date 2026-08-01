@@ -60,10 +60,8 @@ export const RoleSwitcher: React.FC<RoleSwitcherProps> = ({ onRoleChange }) => {
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="flex items-center gap-2 bg-slate-900 text-white hover:bg-slate-800 text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-700 shadow-sm transition-all"
-        title="تبديل وضع العرض والمستخدم للتجربة"
+        title="حسابي وإعدادات التواجد"
       >
-        <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-        <span className="hidden sm:inline text-slate-300">وضع المعاينة:</span>
         <div className="flex items-center gap-1.5">
           {currentUser && getRoleIcon(currentUser.role)}
           <span className="font-semibold">{currentUser?.name || 'زائر'}</span>
@@ -75,8 +73,8 @@ export const RoleSwitcher: React.FC<RoleSwitcherProps> = ({ onRoleChange }) => {
       {isOpen && (
         <div className="absolute left-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-slate-200 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
           <div className="px-3 py-2 border-b border-slate-100 bg-slate-50/80">
-            <p className="text-xs font-bold text-slate-700">تبديل حساب التجربة الفوري</p>
-            <p className="text-[11px] text-slate-500">اختر دوراً لمعاينة الواجهة الخاصة به:</p>
+            <p className="text-xs font-bold text-slate-700">الحساب الحالي</p>
+            <p className="text-[11px] text-slate-500">{currentUser?.email || currentUser?.phone || 'مستخدم مسجل'}</p>
           </div>
 
           <div className="py-1 max-h-64 overflow-y-auto">
@@ -111,11 +109,11 @@ export const RoleSwitcher: React.FC<RoleSwitcherProps> = ({ onRoleChange }) => {
           <div className="px-2 pt-2 border-t border-slate-100 text-center">
             <button
               onClick={() => {
-                StorageRepo.setCurrentUser(null);
+                StorageRepo.logout();
                 setCurrentUser(null);
                 setIsOpen(false);
               }}
-              className="w-full flex items-center justify-center gap-1.5 py-1.5 text-xs text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+              className="w-full flex items-center justify-center gap-1.5 py-1.5 text-xs text-rose-600 font-bold hover:bg-rose-50 rounded-lg transition-colors"
             >
               <LogOut className="w-3.5 h-3.5" />
               تسجيل الخروج
