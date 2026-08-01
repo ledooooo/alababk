@@ -326,6 +326,77 @@ export const StorageRepo = {
     return order;
   },
 
+  assignOrderToAgent(orderId: string, agentId: string, agentName: string, agentPhone: string) {
+    return this.updateOrderStatus(orderId, 'assigned', `تم إسناد الطلب للكابتن ${agentName}`, {
+      delivery_agent_id: agentId,
+      delivery_agent_name: agentName,
+      delivery_agent_phone: agentPhone,
+    });
+  },
+
+  // --- PAYOUTS ---
+  getPayouts() {
+    if (typeof window === 'undefined') return [];
+    const data = localStorage.getItem('jihat_payouts');
+    if (data) return JSON.parse(data);
+
+    // Initial demo payouts if empty
+    const demoPayouts = [
+      {
+        id: 'payout-101',
+        recipient_id: 'usr-store-owner-1',
+        recipient_name: 'سوبرماركت أبو علي',
+        recipient_type: 'store',
+        store_name: 'سوبرماركت أبو علي المعادي',
+        user_name: 'خالد عبد السلام',
+        amount: 3850,
+        status: 'pending',
+        payment_method: 'فودافون كاش (Vodafone Cash)',
+        account_details: '01012345678',
+        created_at: new Date(Date.now() - 3600000 * 4).toISOString(),
+      },
+      {
+        id: 'payout-102',
+        recipient_id: 'usr-agent-1',
+        recipient_name: 'الكابتن مصطفى علي',
+        recipient_type: 'agent',
+        store_name: 'كابتن أسطول التوصيل',
+        user_name: 'الكابتن مصطفى علي',
+        amount: 1250,
+        status: 'pending',
+        payment_method: 'أنستا باي (InstaPay)',
+        account_details: 'mustafa@instapay',
+        created_at: new Date(Date.now() - 3600000 * 12).toISOString(),
+      },
+      {
+        id: 'payout-103',
+        recipient_id: 'usr-store-owner-2',
+        recipient_name: 'صيدلية النيل الحديثة',
+        recipient_type: 'store',
+        store_name: 'صيدلية النيل الحديثة',
+        user_name: 'د. طارق السعيد',
+        amount: 5400,
+        status: 'approved',
+        payment_method: 'تحويل بنكي (CIB)',
+        account_details: 'EG120000010023450001',
+        created_at: new Date(Date.now() - 3600000 * 48).toISOString(),
+      }
+    ];
+
+    localStorage.setItem('jihat_payouts', JSON.stringify(demoPayouts));
+    return demoPayouts;
+  },
+
+  updatePayoutStatus(payoutId: string, status: 'approved' | 'rejected' | 'pending') {
+    const payouts = this.getPayouts();
+    const idx = payouts.findIndex((p: { id: string }) => p.id === payoutId);
+    if (idx >= 0) {
+      payouts[idx].status = status;
+      localStorage.setItem('jihat_payouts', JSON.stringify(payouts));
+      notifyStorageChange('payout', 'save', payouts[idx]);
+    }
+  },
+
   // --- DELIVERY AGENTS ---
   getAgents(): DeliveryAgent[] {
     if (typeof window === 'undefined') return [];
@@ -439,6 +510,33 @@ export const StorageRepo = {
           name: 'الكابتن مصطفى علي',
           phone: '01234567890',
           role: 'delivery_agent',
+          created_at: new Date().toISOString(),
+        };
+      } else if (role === 'delivery_supervisor') {
+        target = {
+          id: 'usr-supervisor-1',
+          email: 'supervisor@jihat.app',
+          name: 'الكابتن حسام حسن (مسؤول المندوبين)',
+          phone: '01099887766',
+          role: 'delivery_supervisor',
+          created_at: new Date().toISOString(),
+        };
+      } else if (role === 'finance_admin') {
+        target = {
+          id: 'usr-finance-1',
+          email: 'finance@jihat.app',
+          name: 'الأستاذ سامح فؤاد (المسؤول المالي)',
+          phone: '01155443322',
+          role: 'finance_admin',
+          created_at: new Date().toISOString(),
+        };
+      } else if (role === 'orders_manager') {
+        target = {
+          id: 'usr-orders-1',
+          email: 'dispatcher@jihat.app',
+          name: 'م. عمر الشريف (مسؤول التحكم والطلبات)',
+          phone: '01222334455',
+          role: 'orders_manager',
           created_at: new Date().toISOString(),
         };
       } else {

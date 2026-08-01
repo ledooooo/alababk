@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../lib/storage';
 import { UserProfile, UserRole } from '../../types/domain';
-import { User, Store, Bike, ShieldCheck, ChevronDown, LogOut, Phone, Mail } from 'lucide-react';
+import { User, Store, Bike, ShieldCheck, ChevronDown, LogOut, Phone, Mail, Coins, ShoppingBag, Radio } from 'lucide-react';
 
 interface RoleSwitcherProps {
   onRoleChange?: (role: UserRole) => void;
@@ -28,6 +28,12 @@ export const RoleSwitcher: React.FC<RoleSwitcherProps> = ({ onRoleChange }) => {
         return <Bike className="w-4 h-4 text-orange-600" />;
       case 'admin':
         return <ShieldCheck className="w-4 h-4 text-purple-600" />;
+      case 'delivery_supervisor':
+        return <Radio className="w-4 h-4 text-orange-500" />;
+      case 'finance_admin':
+        return <Coins className="w-4 h-4 text-emerald-500" />;
+      case 'orders_manager':
+        return <ShoppingBag className="w-4 h-4 text-indigo-500" />;
     }
   };
 
@@ -41,6 +47,12 @@ export const RoleSwitcher: React.FC<RoleSwitcherProps> = ({ onRoleChange }) => {
         return <span className="bg-orange-50 text-orange-700 border border-orange-200 text-xs px-2 py-0.5 rounded-full font-medium">مندوب توصيل</span>;
       case 'admin':
         return <span className="bg-purple-50 text-purple-700 border border-purple-200 text-xs px-2 py-0.5 rounded-full font-medium">مدير النظام</span>;
+      case 'delivery_supervisor':
+        return <span className="bg-orange-100 text-orange-800 border border-orange-300 text-xs px-2 py-0.5 rounded-full font-medium">مسؤول الكباتن</span>;
+      case 'finance_admin':
+        return <span className="bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs px-2 py-0.5 rounded-full font-medium">مسؤول مالي</span>;
+      case 'orders_manager':
+        return <span className="bg-indigo-100 text-indigo-800 border border-indigo-300 text-xs px-2 py-0.5 rounded-full font-medium">مسؤول الطلبات</span>;
     }
   };
 

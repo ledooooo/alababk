@@ -69,6 +69,11 @@ import { AdminSupabaseSync } from './components/views/admin/AdminSupabaseSync';
 import { NotificationsView } from './components/views/customer/NotificationsView';
 import { NotFoundView } from './components/views/public/NotFoundView';
 
+// New Specialized Operational Views
+import { DeliverySupervisorDashboardView } from './components/views/supervisor/DeliverySupervisorDashboardView';
+import { FinanceAdminDashboardView } from './components/views/finance/FinanceAdminDashboardView';
+import { OrdersManagerDashboardView } from './components/views/orders/OrdersManagerDashboardView';
+
 import {
   ShoppingBag,
   ListOrdered,
@@ -121,6 +126,9 @@ export default function App() {
     if (role === 'customer') setActiveTab('customer-stores');
     else if (role === 'store_owner') setActiveTab('store-dashboard');
     else if (role === 'delivery_agent') setActiveTab('delivery-dashboard');
+    else if (role === 'delivery_supervisor') setActiveTab('delivery-supervisor-dashboard');
+    else if (role === 'finance_admin') setActiveTab('finance-admin-dashboard');
+    else if (role === 'orders_manager') setActiveTab('orders-manager-dashboard');
     else if (role === 'admin') setActiveTab('admin-dashboard');
 
     setSelectedStoreId(null);
@@ -446,6 +454,54 @@ export default function App() {
                 >
                   <Bell className="w-4 h-4" />
                   <span>التنبيهات</span>
+                </button>
+              </>
+            )}
+
+            {currentRole === 'delivery_supervisor' && (
+              <>
+                <button
+                  onClick={() => setActiveTab('delivery-supervisor-dashboard')}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all flex items-center gap-1.5 ${
+                    activeTab === 'delivery-supervisor-dashboard'
+                      ? 'bg-orange-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <Bike className="w-4 h-4" />
+                  <span>إدارة وإشراف الكباتن</span>
+                </button>
+              </>
+            )}
+
+            {currentRole === 'finance_admin' && (
+              <>
+                <button
+                  onClick={() => setActiveTab('finance-admin-dashboard')}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all flex items-center gap-1.5 ${
+                    activeTab === 'finance-admin-dashboard'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <DollarSign className="w-4 h-4" />
+                  <span>المحاسبة والتسويات المالية</span>
+                </button>
+              </>
+            )}
+
+            {currentRole === 'orders_manager' && (
+              <>
+                <button
+                  onClick={() => setActiveTab('orders-manager-dashboard')}
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold shrink-0 transition-all flex items-center gap-1.5 ${
+                    activeTab === 'orders-manager-dashboard'
+                      ? 'bg-indigo-600 text-white shadow-xs'
+                      : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <ShoppingBag className="w-4 h-4" />
+                  <span>غرفة التحكم وإسناد الطلبات</span>
                 </button>
               </>
             )}
@@ -813,6 +869,21 @@ export default function App() {
             {activeTab === 'delivery-profile' && <DeliveryProfileView />}
             {activeTab === 'delivery-notifications' && <DeliveryNotificationsView />}
           </>
+        )}
+
+        {/* Delivery Supervisor Route Render */}
+        {currentRole === 'delivery_supervisor' && !['landing', 'auth', 'about', 'apply-store', 'apply-agent', 'contact', 'terms'].includes(activeTab) && (
+          <DeliverySupervisorDashboardView />
+        )}
+
+        {/* Finance Admin Route Render */}
+        {currentRole === 'finance_admin' && !['landing', 'auth', 'about', 'apply-store', 'apply-agent', 'contact', 'terms'].includes(activeTab) && (
+          <FinanceAdminDashboardView />
+        )}
+
+        {/* Orders Manager Route Render */}
+        {currentRole === 'orders_manager' && !['landing', 'auth', 'about', 'apply-store', 'apply-agent', 'contact', 'terms'].includes(activeTab) && (
+          <OrdersManagerDashboardView />
         )}
 
         {/* Admin Route Render */}

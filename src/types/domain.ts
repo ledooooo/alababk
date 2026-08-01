@@ -1,4 +1,11 @@
-export type UserRole = 'customer' | 'store_owner' | 'delivery_agent' | 'admin';
+export type UserRole =
+  | 'customer'
+  | 'store_owner'
+  | 'delivery_agent'
+  | 'admin'
+  | 'delivery_supervisor'
+  | 'finance_admin'
+  | 'orders_manager';
 
 export interface UserProfile {
   id: string;
@@ -239,11 +246,17 @@ export interface Payout {
   recipient_name?: string;
   recipient_type: 'store' | 'agent';
   amount: number;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
+  status: 'pending' | 'processing' | 'completed' | 'failed' | 'approved' | 'rejected';
   method?: string;
+  store_name?: string;
+  user_name?: string;
+  payment_method?: string;
+  account_details?: string;
   reference?: string;
   period_start?: string;
   period_end?: string;
   notes?: string;
   created_at: string;
 }
+
+export type PayoutRequest = Payout;

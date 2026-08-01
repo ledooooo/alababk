@@ -37,6 +37,9 @@ export const AdminCustomersView: React.FC = () => {
       store_owner: 'صاحب متجر',
       delivery_agent: 'مندوب توصيل',
       admin: 'مدير النظام',
+      delivery_supervisor: 'مسؤول مندوبين التوصيل',
+      finance_admin: 'مسؤول مالي وإداري',
+      orders_manager: 'مسؤول الطلبات',
     };
 
     showToast(`تم تغيير صلاحية "${user.name || user.full_name || 'المستخدم'}" بنجاح إلى (${roleNames[newRole]})`);
@@ -90,6 +93,12 @@ export const AdminCustomersView: React.FC = () => {
         return <span className="bg-orange-50 text-orange-700 border border-orange-200 text-xs px-2.5 py-1 rounded-full font-bold flex items-center gap-1 w-fit">مندوب توصيل</span>;
       case 'admin':
         return <span className="bg-purple-50 text-purple-700 border border-purple-200 text-xs px-2.5 py-1 rounded-full font-bold flex items-center gap-1 w-fit">مدير النظام</span>;
+      case 'delivery_supervisor':
+        return <span className="bg-amber-50 text-amber-800 border border-amber-200 text-xs px-2.5 py-1 rounded-full font-bold flex items-center gap-1 w-fit">مسؤول الكباتن</span>;
+      case 'finance_admin':
+        return <span className="bg-teal-50 text-teal-800 border border-teal-200 text-xs px-2.5 py-1 rounded-full font-bold flex items-center gap-1 w-fit">مسؤول مالي</span>;
+      case 'orders_manager':
+        return <span className="bg-indigo-50 text-indigo-800 border border-indigo-200 text-xs px-2.5 py-1 rounded-full font-bold flex items-center gap-1 w-fit">مسؤول الطلبات</span>;
     }
   };
 
@@ -130,6 +139,9 @@ export const AdminCustomersView: React.FC = () => {
             { id: 'customer', label: 'العملاء' },
             { id: 'store_owner', label: 'أصحاب المتاجر' },
             { id: 'delivery_agent', label: 'مندوبي التوصيل' },
+            { id: 'delivery_supervisor', label: 'مسؤولي الكباتن' },
+            { id: 'finance_admin', label: 'المسؤول المالي' },
+            { id: 'orders_manager', label: 'مسؤولي الطلبات' },
             { id: 'admin', label: 'مدراء النظام' },
           ].map((tab) => (
             <button
@@ -229,6 +241,9 @@ export const AdminCustomersView: React.FC = () => {
                             <option value="customer">عميل (Customer)</option>
                             <option value="store_owner">صاحب متجر (Store Owner)</option>
                             <option value="delivery_agent">مندوب توصيل (Delivery Agent)</option>
+                            <option value="delivery_supervisor">مسؤول المندوبين (Fleet Manager)</option>
+                            <option value="finance_admin">مسؤول مالي وإداري (Finance)</option>
+                            <option value="orders_manager">مسؤول الطلبات (Dispatcher)</option>
                             <option value="admin">مدير النظام (Admin)</option>
                           </select>
                         </div>
@@ -333,6 +348,9 @@ export const AdminCustomersView: React.FC = () => {
                   <option value="customer">عميل (Customer)</option>
                   <option value="store_owner">صاحب متجر (Store Owner)</option>
                   <option value="delivery_agent">مندوب توصيل (Delivery Agent)</option>
+                  <option value="delivery_supervisor">مسؤول المندوبين (Fleet Manager)</option>
+                  <option value="finance_admin">مسؤول مالي وإداري (Finance)</option>
+                  <option value="orders_manager">مسؤول الطلبات (Dispatcher)</option>
                   <option value="admin">مدير النظام (Admin)</option>
                 </select>
               </div>

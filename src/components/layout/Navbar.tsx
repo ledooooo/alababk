@@ -279,6 +279,45 @@ export const Navbar: React.FC<NavbarProps> = ({
               </>
             )}
 
+            {role === 'delivery_supervisor' && (
+              <>
+                <button
+                  onClick={() => onNavigate('delivery-supervisor-dashboard')}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+                    currentTab === 'delivery-supervisor-dashboard' ? 'bg-orange-50 text-orange-800' : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  لوحة مسؤول الكباتن
+                </button>
+              </>
+            )}
+
+            {role === 'finance_admin' && (
+              <>
+                <button
+                  onClick={() => onNavigate('finance-admin-dashboard')}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+                    currentTab === 'finance-admin-dashboard' ? 'bg-emerald-50 text-emerald-800' : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  الإدارة المالية والنسب
+                </button>
+              </>
+            )}
+
+            {role === 'orders_manager' && (
+              <>
+                <button
+                  onClick={() => onNavigate('orders-manager-dashboard')}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+                    currentTab === 'orders-manager-dashboard' ? 'bg-indigo-50 text-indigo-800' : 'text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  غرفة التحكم بالطلبات
+                </button>
+              </>
+            )}
+
             {role === 'admin' && (
               <>
                 <button
