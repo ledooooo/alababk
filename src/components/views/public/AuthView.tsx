@@ -168,9 +168,12 @@ export const AuthView: React.FC<AuthViewProps> = ({
       <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xl overflow-hidden p-6 sm:p-8 space-y-6">
         {/* Header Branding */}
         <div className="text-center space-y-2">
-          <div className="w-14 h-14 bg-emerald-600 text-white rounded-2xl flex items-center justify-center font-black text-2xl mx-auto shadow-md shadow-emerald-600/20">
-            ع
-          </div>
+          <img
+            src="/icon.png"
+            alt="على بابك"
+            className="w-16 h-16 rounded-2xl object-cover mx-auto shadow-md shadow-emerald-600/20"
+            referrerPolicy="no-referrer"
+          />
           <h1 className="text-2xl font-black text-slate-900">
             {mode === 'login' ? 'تسجيل الدخول إلى حسابك' : 'إنشاء حساب جديد'}
           </h1>

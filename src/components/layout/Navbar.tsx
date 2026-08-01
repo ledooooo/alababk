@@ -108,9 +108,12 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => onNavigate('landing')}
               className="flex items-center gap-2 text-right group"
             >
-              <div className="w-10 h-10 bg-emerald-600 text-white rounded-xl flex items-center justify-center font-black text-xl shadow-md shadow-emerald-600/20 group-hover:scale-105 transition-transform">
-                ع
-              </div>
+              <img
+                src="/icon.png"
+                alt="على بابك"
+                className="w-10 h-10 rounded-xl object-cover shadow-md shadow-emerald-600/20 group-hover:scale-105 transition-transform"
+                referrerPolicy="no-referrer"
+              />
               <div>
                 <span className="font-extrabold text-xl text-slate-900 tracking-tight block leading-none">
                   على بابك

@@ -34,9 +34,17 @@ export const LandingView: React.FC<LandingViewProps> = ({ onNavigate }) => {
         <div className="absolute right-10 top-0 w-64 h-64 bg-teal-400/10 rounded-full blur-2xl pointer-events-none" />
 
         <div className="relative z-10 max-w-3xl space-y-6">
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-700/60 border border-emerald-500/40 text-emerald-200 text-xs font-extrabold backdrop-blur-md">
-            <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
-            <span>منصة التوصيل الفائق الأولى في مصر 🇪🇬</span>
+          <div className="flex items-center gap-3">
+            <img
+              src="/icon.png"
+              alt="شعار على بابك"
+              className="w-12 h-12 rounded-2xl object-cover shadow-lg border border-amber-300/30"
+              referrerPolicy="no-referrer"
+            />
+            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-700/60 border border-emerald-500/40 text-emerald-200 text-xs font-extrabold backdrop-blur-md">
+              <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
+              <span>منصة التوصيل الفائق الأولى في مصر 🇪🇬</span>
+            </div>
           </div>
 
           <h1 className="text-3xl sm:text-5xl font-black leading-tight tracking-tight text-white">
