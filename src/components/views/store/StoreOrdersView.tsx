@@ -3,6 +3,7 @@ import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
 import { Order, OrderStatus } from '../../../types/domain';
 import { formatCurrency, formatDateArabic, formatPhoneNumber } from '../../../lib/formatters';
 import { ORDER_STATUS_LABELS } from '../../../lib/constants';
+import { Pagination } from '../../shared/Pagination';
 import {
   ShoppingBag,
   Clock,
@@ -25,6 +26,12 @@ export const StoreOrdersView: React.FC = () => {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [rejectingOrderId, setRejectingOrderId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('بعض المنتجات غير متوفرة بالمخزون حالياً');
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 5;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab]);
 
   useEffect(() => {
     const fetchOrders = () => {
@@ -73,6 +80,12 @@ export const StoreOrdersView: React.FC = () => {
     if (activeTab === 'completed') return ['delivered', 'rejected', 'cancelled'].includes(o.status);
     return true;
   });
+
+  const totalPages = Math.ceil(filteredOrders.length / ITEMS_PER_PAGE);
+  const paginatedOrders = filteredOrders.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   const pendingCount = orders.filter((o) => o.status === 'pending').length;
   const preparingCount = orders.filter((o) => ['accepted', 'preparing'].includes(o.status)).length;
@@ -166,7 +179,7 @@ export const StoreOrdersView: React.FC = () => {
         </div>
       ) : (
         <div className="space-y-4">
-          {filteredOrders.map((order) => {
+          {paginatedOrders.map((order) => {
             const statusConfig = ORDER_STATUS_LABELS[order.status] || ORDER_STATUS_LABELS.pending;
 
             return (
@@ -285,6 +298,15 @@ export const StoreOrdersView: React.FC = () => {
               </div>
             );
           })}
+
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            totalItems={filteredOrders.length}
+            itemsPerPage={ITEMS_PER_PAGE}
+            className="mt-6"
+          />
         </div>
       )}
 

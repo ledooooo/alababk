@@ -3,12 +3,19 @@ import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
 import { Order, OrderStatus } from '../../../types/domain';
 import { formatCurrency, formatDateArabic, formatPhoneNumber } from '../../../lib/formatters';
 import { ORDER_STATUS_LABELS } from '../../../lib/constants';
+import { Pagination } from '../../shared/Pagination';
 import { ShoppingBag, Search, Filter, ShieldCheck, Phone, MapPin } from 'lucide-react';
 
 export const AdminOrdersView: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 8;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, statusFilter]);
 
   useEffect(() => {
     const refresh = () => {
@@ -36,6 +43,12 @@ export const AdminOrdersView: React.FC = () => {
 
     return matchesSearch && matchesStatus;
   });
+
+  const totalPages = Math.ceil(filteredOrders.length / ITEMS_PER_PAGE);
+  const paginatedOrders = filteredOrders.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   return (
     <div className="space-y-6 dir-rtl pb-16">
@@ -102,7 +115,7 @@ export const AdminOrdersView: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                filteredOrders.map((o) => {
+                paginatedOrders.map((o) => {
                   const statusConfig = ORDER_STATUS_LABELS[o.status] || ORDER_STATUS_LABELS.pending;
 
                   return (
@@ -159,6 +172,15 @@ export const AdminOrdersView: React.FC = () => {
             </tbody>
           </table>
         </div>
+
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          totalItems={filteredOrders.length}
+          itemsPerPage={ITEMS_PER_PAGE}
+          className="p-4"
+        />
       </div>
     </div>
   );

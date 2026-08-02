@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
 import { Store, Category } from '../../../types/domain';
 import { StoreCard } from '../../store/StoreCard';
+import { Pagination } from '../../shared/Pagination';
 import { Search, MapPin, Sparkles, ShoppingBag, Truck, Clock } from 'lucide-react';
 
 interface CustomerStoresViewProps {
@@ -13,6 +14,8 @@ export const CustomerStoresView: React.FC<CustomerStoresViewProps> = ({ onSelect
   const [categories, setCategories] = useState<Category[]>(StorageRepo.getCategories());
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 8;
 
   useEffect(() => {
     const unsubscribe = subscribeToStorageChange(() => {
@@ -20,6 +23,11 @@ export const CustomerStoresView: React.FC<CustomerStoresViewProps> = ({ onSelect
     });
     return unsubscribe;
   }, []);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedCategory, searchQuery]);
 
   const approvedStores = stores.filter((s) => s.is_approved);
 
@@ -32,6 +40,12 @@ export const CustomerStoresView: React.FC<CustomerStoresViewProps> = ({ onSelect
       store.address.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   });
+
+  const totalPages = Math.ceil(filteredStores.length / ITEMS_PER_PAGE);
+  const paginatedStores = filteredStores.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   return (
     <div className="space-y-8 dir-rtl pb-12">
@@ -159,11 +173,22 @@ export const CustomerStoresView: React.FC<CustomerStoresViewProps> = ({ onSelect
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-            {filteredStores.map((store) => (
-              <StoreCard key={store.id} store={store} onSelect={onSelectStore} />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+              {paginatedStores.map((store) => (
+                <StoreCard key={store.id} store={store} onSelect={onSelectStore} />
+              ))}
+            </div>
+
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+              totalItems={filteredStores.length}
+              itemsPerPage={ITEMS_PER_PAGE}
+              className="mt-6"
+            />
+          </>
         )}
       </div>
     </div>

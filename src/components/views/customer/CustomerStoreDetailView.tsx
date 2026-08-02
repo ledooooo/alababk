@@ -5,6 +5,7 @@ import { useCartStore } from '../../../stores/cart-store';
 import { ProductCard } from '../../product/ProductCard';
 import { StoreReviewsSection } from './StoreReviewsSection';
 import { StoreCategoryFilterBar } from './StoreCategoryFilterBar';
+import { Pagination } from '../../shared/Pagination';
 import { formatCurrency } from '../../../lib/formatters';
 import {
   ArrowRight,
@@ -39,9 +40,15 @@ export const CustomerStoreDetailView: React.FC<CustomerStoreDetailViewProps> = (
   const [selectedCat, setSelectedCat] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'default' | 'price-asc' | 'price-desc' | 'offers'>('default');
   const [showOnlyOffers, setShowOnlyOffers] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
   const [isWishlisted, setIsWishlisted] = useState<boolean>(
     StorageRepo.isStoreWishlisted(storeId)
   );
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedCat, searchQuery, sortBy, showOnlyOffers]);
   const [confirmDialogProduct, setConfirmDialogProduct] = useState<{
     product: Product;
     storeName: string;
@@ -106,6 +113,12 @@ export const CustomerStoreDetailView: React.FC<CustomerStoreDetailViewProps> = (
       return discountB - discountA;
     });
   }
+
+  const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
+  const paginatedProducts = filteredProducts.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   const handleConfirmReplaceCart = () => {
     if (confirmDialogProduct) {
@@ -298,16 +311,27 @@ export const CustomerStoreDetailView: React.FC<CustomerStoreDetailViewProps> = (
               <p className="text-xs text-slate-500 mt-1">جرب البحث بكلمة أخرى أو اختر قسماً آخر.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
-              {filteredProducts.map((product) => (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  storeName={store.name}
-                  onCartConfirmRequest={(p, sName) => setConfirmDialogProduct({ product: p, storeName: sName })}
-                />
-              ))}
-            </div>
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
+                {paginatedProducts.map((product) => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    storeName={store.name}
+                    onCartConfirmRequest={(p, sName) => setConfirmDialogProduct({ product: p, storeName: sName })}
+                  />
+                ))}
+              </div>
+
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+                totalItems={filteredProducts.length}
+                itemsPerPage={ITEMS_PER_PAGE}
+                className="mt-6"
+              />
+            </>
           )}
         </>
       ) : (

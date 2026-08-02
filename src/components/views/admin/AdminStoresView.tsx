@@ -2,10 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
 import { Store } from '../../../types/domain';
 import { formatCurrency, formatPhoneNumber } from '../../../lib/formatters';
-import { Store as StoreIcon, Plus, Edit2, Trash2, Power, Star } from 'lucide-react';
+import { Pagination } from '../../shared/Pagination';
+import { Store as StoreIcon, Plus, Edit2, Trash2, Power, Star, Search } from 'lucide-react';
 
 export const AdminStoresView: React.FC = () => {
   const [stores, setStores] = useState<Store[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 6;
   const [editingCommissionStoreId, setEditingCommissionStoreId] = useState<string | null>(null);
   const [commissionInput, setCommissionInput] = useState(10);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -25,6 +29,19 @@ export const AdminStoresView: React.FC = () => {
     });
     return unsubscribe;
   }, []);
+
+  const filteredStores = stores.filter(
+    (s) =>
+      s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      s.category_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      s.address.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const totalPages = Math.ceil(filteredStores.length / ITEMS_PER_PAGE);
+  const paginatedStores = filteredStores.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   const toggleStoreStatus = (s: Store) => {
     StorageRepo.saveStore({ ...s, is_open: !s.is_open });
@@ -97,7 +114,22 @@ export const AdminStoresView: React.FC = () => {
         </button>
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs p-4 space-y-4">
+        {/* Search bar */}
+        <div className="relative max-w-md">
+          <Search className="w-4 h-4 text-slate-400 absolute right-3 top-3" />
+          <input
+            type="text"
+            placeholder="البحث باسم المتجر أو القسم أو العنوان..."
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setCurrentPage(1);
+            }}
+            className="w-full pr-9 pl-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-purple-500"
+          />
+        </div>
+
         <div className="overflow-x-auto">
           <table className="w-full text-right text-xs">
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
@@ -112,14 +144,14 @@ export const AdminStoresView: React.FC = () => {
             </thead>
 
             <tbody className="divide-y divide-slate-100">
-              {stores.length === 0 ? (
+              {filteredStores.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="p-8 text-center text-slate-500">
-                    لا توجد متاجر حالياً في قاعدة البيانات. اضغط "إضافة متجر جديد" لإنشاء متجر حقيقي.
+                    لا توجد متاجر تطابق بحثك حالياً.
                   </td>
                 </tr>
               ) : (
-                stores.map((s) => (
+                paginatedStores.map((s) => (
                   <tr key={s.id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="p-3.5">
                       <div className="flex items-center gap-3">
@@ -205,6 +237,15 @@ export const AdminStoresView: React.FC = () => {
             </tbody>
           </table>
         </div>
+
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          totalItems={filteredStores.length}
+          itemsPerPage={ITEMS_PER_PAGE}
+          className="mt-4"
+        />
       </div>
 
       {/* Modal Add Store */}

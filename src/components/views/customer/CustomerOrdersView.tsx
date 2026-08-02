@@ -3,6 +3,7 @@ import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
 import { Order } from '../../../types/domain';
 import { formatCurrency, formatDateArabic } from '../../../lib/formatters';
 import { ORDER_STATUS_LABELS } from '../../../lib/constants';
+import { Pagination } from '../../shared/Pagination';
 import {
   ListOrdered,
   Store,
@@ -26,6 +27,12 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
   const currentUser = StorageRepo.getCurrentUser();
   const [orders, setOrders] = useState<Order[]>([]);
   const [activeTab, setActiveTab] = useState<'all' | 'active' | 'completed'>('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 5;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeTab]);
 
   useEffect(() => {
     const fetchOrders = () => {
@@ -52,6 +59,12 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
     }
     return true;
   });
+
+  const totalPages = Math.ceil(filteredOrders.length / ITEMS_PER_PAGE);
+  const paginatedOrders = filteredOrders.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   return (
     <div className="space-y-6 dir-rtl pb-16">
@@ -130,7 +143,7 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
         </div>
       ) : (
         <div className="space-y-4">
-          {filteredOrders.map((order) => {
+          {paginatedOrders.map((order) => {
             const statusConfig = ORDER_STATUS_LABELS[order.status] || ORDER_STATUS_LABELS.pending;
             const isActive = !['delivered', 'cancelled', 'rejected'].includes(order.status);
 
@@ -176,6 +189,15 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
               </div>
             );
           })}
+
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            totalItems={filteredOrders.length}
+            itemsPerPage={ITEMS_PER_PAGE}
+            className="mt-6"
+          />
         </div>
       )}
     </div>

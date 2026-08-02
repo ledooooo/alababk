@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
 import { Product } from '../../../types/domain';
 import { formatCurrency } from '../../../lib/formatters';
+import { Pagination } from '../../shared/Pagination';
 import { Package, Plus, Edit2, Trash2, Search, Check, X, Image as ImageIcon } from 'lucide-react';
 
 export const StoreProductsView: React.FC = () => {
@@ -9,8 +10,14 @@ export const StoreProductsView: React.FC = () => {
   const storeId = currentUser?.associated_store_id || 'store-1';
   const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 6;
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
 
   useEffect(() => {
     const fetchProducts = () => {
@@ -90,6 +97,12 @@ export const StoreProductsView: React.FC = () => {
       p.category_name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
+  const paginatedProducts = filteredProducts.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
+
   return (
     <div className="space-y-6 dir-rtl pb-16">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
@@ -147,7 +160,7 @@ export const StoreProductsView: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                filteredProducts.map((p) => (
+                paginatedProducts.map((p) => (
                   <tr key={p.id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="p-3.5">
                       <div className="flex items-center gap-3">
@@ -215,6 +228,15 @@ export const StoreProductsView: React.FC = () => {
             </tbody>
           </table>
         </div>
+
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          totalItems={filteredProducts.length}
+          itemsPerPage={ITEMS_PER_PAGE}
+          className="p-4"
+        />
       </div>
 
       {/* Add / Edit Product Modal */}

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
 import { UserProfile, UserRole } from '../../../types/domain';
+import { Pagination } from '../../shared/Pagination';
 import { Users, Search, ShieldCheck, User, Store, Bike, Ban, CheckCircle2, Eye, X, Edit3, Sparkles } from 'lucide-react';
 
 export const AdminCustomersView: React.FC = () => {
@@ -11,6 +12,12 @@ export const AdminCustomersView: React.FC = () => {
   const [blockedUsers, setBlockedUsers] = useState<string[]>([]);
   const [selectedProfile, setSelectedProfile] = useState<UserProfile | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 8;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [query, roleFilter]);
 
   useEffect(() => {
     const unsubscribe = subscribeToStorageChange(() => {
@@ -69,6 +76,12 @@ export const AdminCustomersView: React.FC = () => {
     if (roleFilter === 'all') return matchesSearch;
     return matchesSearch && u.role === roleFilter;
   });
+
+  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
+  const paginatedUsers = filtered.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   const getRoleIcon = (role: UserRole) => {
     switch (role) {
@@ -205,7 +218,7 @@ export const AdminCustomersView: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                filtered.map((user) => {
+                paginatedUsers.map((user) => {
                   const isBlocked = blockedUsers.includes(user.id);
                   const userOrders = orders.filter((o) => o.customer_id === user.id || o.customer_phone === user.phone);
 
@@ -295,6 +308,15 @@ export const AdminCustomersView: React.FC = () => {
             </tbody>
           </table>
         </div>
+
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          totalItems={filtered.length}
+          itemsPerPage={ITEMS_PER_PAGE}
+          className="p-4"
+        />
       </div>
 
       {/* Profile Details Modal */}
