@@ -29,10 +29,10 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
         onClick={onClose}
       />
 
-      <div className="fixed inset-y-0 left-0 max-w-full flex pl-10">
-        <div className="w-screen max-w-md bg-white shadow-2xl flex flex-col">
+      <div className="fixed inset-y-0 left-0 max-w-full flex h-full h-screen z-50">
+        <div className="w-screen max-w-md h-full h-screen bg-white shadow-2xl flex flex-col justify-between border-r border-slate-200">
           {/* Header */}
-          <div className="p-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
+          <div className="shrink-0 p-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
             <div className="flex items-center gap-2">
               <div className="p-2 bg-emerald-500/20 text-emerald-400 rounded-lg">
                 <ShoppingBag className="w-5 h-5" />
@@ -132,7 +132,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
           {/* Footer Summary */}
           {items.length > 0 && (
-            <div className="p-4 bg-slate-50 border-t border-slate-200 space-y-3">
+            <div className="shrink-0 p-4 bg-slate-50 border-t border-slate-200 space-y-3">
               <div className="space-y-1.5 text-xs text-slate-600">
                 <div className="flex justify-between">
                   <span>مجموع المنتجات:</span>

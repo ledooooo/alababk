@@ -3,6 +3,7 @@ import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
 import { Store, Product } from '../../../types/domain';
 import { useCartStore } from '../../../stores/cart-store';
 import { ProductCard } from '../../product/ProductCard';
+import { StoreReviewsSection } from './StoreReviewsSection';
 import { formatCurrency } from '../../../lib/formatters';
 import {
   ArrowRight,
@@ -15,7 +16,8 @@ import {
   ShoppingBag,
   AlertTriangle,
   Info,
-  Heart
+  Heart,
+  MessageSquare
 } from 'lucide-react';
 
 interface CustomerStoreDetailViewProps {
@@ -31,6 +33,7 @@ export const CustomerStoreDetailView: React.FC<CustomerStoreDetailViewProps> = (
 }) => {
   const store = StorageRepo.getStoreById(storeId);
   const [products, setProducts] = useState<Product[]>([]);
+  const [activeTab, setActiveTab] = useState<'products' | 'reviews'>('products');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCat, setSelectedCat] = useState<string>('all');
   const [isWishlisted, setIsWishlisted] = useState<boolean>(
@@ -194,15 +197,19 @@ export const CustomerStoreDetailView: React.FC<CustomerStoreDetailViewProps> = (
 
             {/* Metrics Chips */}
             <div className="flex items-center gap-2 shrink-0 flex-wrap">
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-center min-w-[80px]">
-                <div className="flex items-center justify-center gap-1 text-amber-600 font-bold text-sm">
+              <button
+                onClick={() => setActiveTab('reviews')}
+                className="bg-amber-50 hover:bg-amber-100 border border-amber-200/80 rounded-xl p-2.5 text-center min-w-[85px] transition-all cursor-pointer group"
+                title="اضغط لمشاهدة جميع التقييمات والآراء"
+              >
+                <div className="flex items-center justify-center gap-1 text-amber-600 font-bold text-sm group-hover:scale-105 transition-transform">
                   <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
                   <span>{store.rating.toFixed(1)}</span>
                 </div>
-                <span className="text-[10px] text-slate-400 block mt-0.5">
+                <span className="text-[10px] text-amber-800 font-bold block mt-0.5">
                   ({store.reviews_count} تقييم)
                 </span>
-              </div>
+              </button>
 
               <div className="bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-center min-w-[90px]">
                 <div className="text-slate-900 font-extrabold text-xs">
@@ -222,77 +229,112 @@ export const CustomerStoreDetailView: React.FC<CustomerStoreDetailViewProps> = (
         </div>
       </div>
 
-      {/* Product Search & Category Filters */}
-      <div className="space-y-3">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-          <h2 className="font-extrabold text-slate-900 text-lg flex items-center gap-2">
-            <ShoppingBag className="w-5 h-5 text-emerald-600" />
-            <span>منتجات وقائمة المتجر ({filteredProducts.length})</span>
-          </h2>
+      {/* Primary Section Switcher Tabs */}
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-3">
+        <button
+          onClick={() => setActiveTab('products')}
+          className={`px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-black transition-all flex items-center gap-2 ${
+            activeTab === 'products'
+              ? 'bg-slate-900 text-white shadow-md scale-102'
+              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+          }`}
+        >
+          <ShoppingBag className="w-4 h-4 text-emerald-500" />
+          <span>قائمة أصناف المنتجات ({products.length})</span>
+        </button>
 
-          <div className="relative w-full sm:w-72">
-            <Search className="w-4 h-4 text-slate-400 absolute right-3 top-3" />
-            <input
-              type="text"
-              placeholder="ابحث في منتجات المتجر..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pr-9 pl-3 py-2 bg-white text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
-            />
-          </div>
-        </div>
+        <button
+          onClick={() => setActiveTab('reviews')}
+          className={`px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-black transition-all flex items-center gap-2 ${
+            activeTab === 'reviews'
+              ? 'bg-slate-900 text-white shadow-md scale-102'
+              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+          }`}
+        >
+          <MessageSquare className="w-4 h-4 text-amber-500" />
+          <span>التقييمات والآراء ({store.reviews_count || StorageRepo.getReviews(store.id).length})</span>
+        </button>
+      </div>
 
-        {/* Sub-categories Selector */}
-        {productCategories.length > 0 && (
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-            <button
-              onClick={() => setSelectedCat('all')}
-              className={`px-3.5 py-2 rounded-xl text-xs font-bold shrink-0 transition-all ${
-                selectedCat === 'all'
-                  ? 'bg-slate-900 text-white'
-                  : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
-              }`}
-            >
-              الكل ({products.length})
-            </button>
-            {productCategories.map((cat) => {
-              const count = products.filter((p) => p.category_name === cat).length;
-              return (
+      {/* Tab Contents */}
+      {activeTab === 'products' ? (
+        <>
+          {/* Product Search & Category Filters */}
+          <div className="space-y-3">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+              <h2 className="font-extrabold text-slate-900 text-base sm:text-lg flex items-center gap-2">
+                <ShoppingBag className="w-5 h-5 text-emerald-600" />
+                <span>أصناف وقائمة المتجر ({filteredProducts.length})</span>
+              </h2>
+
+              <div className="relative w-full sm:w-72">
+                <Search className="w-4 h-4 text-slate-400 absolute right-3 top-3" />
+                <input
+                  type="text"
+                  placeholder="ابحث في منتجات المتجر..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pr-9 pl-3 py-2 bg-white text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
+                />
+              </div>
+            </div>
+
+            {/* Sub-categories Selector */}
+            {productCategories.length > 0 && (
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
                 <button
-                  key={cat}
-                  onClick={() => setSelectedCat(cat)}
+                  onClick={() => setSelectedCat('all')}
                   className={`px-3.5 py-2 rounded-xl text-xs font-bold shrink-0 transition-all ${
-                    selectedCat === cat
-                      ? 'bg-slate-900 text-white'
+                    selectedCat === 'all'
+                      ? 'bg-emerald-600 text-white shadow-xs'
                       : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
                   }`}
                 >
-                  {cat} ({count})
+                  الكل ({products.length})
                 </button>
-              );
-            })}
+                {productCategories.map((cat) => {
+                  const count = products.filter((p) => p.category_name === cat).length;
+                  return (
+                    <button
+                      key={cat}
+                      onClick={() => setSelectedCat(cat)}
+                      className={`px-3.5 py-2 rounded-xl text-xs font-bold shrink-0 transition-all ${
+                        selectedCat === cat
+                          ? 'bg-emerald-600 text-white shadow-xs'
+                          : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      {cat} ({count})
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
-      {/* Products Grid */}
-      {filteredProducts.length === 0 ? (
-        <div className="bg-white rounded-2xl p-10 text-center border border-slate-200">
-          <Info className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-          <h4 className="font-bold text-slate-800 text-sm">لا توجد منتجات في هذا القسم</h4>
-          <p className="text-xs text-slate-500 mt-1">جرب البحث بكلمة أخرى أو اختر قسماً آخر.</p>
-        </div>
+          {/* Products Grid */}
+          {filteredProducts.length === 0 ? (
+            <div className="bg-white rounded-2xl p-10 text-center border border-slate-200">
+              <Info className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+              <h4 className="font-bold text-slate-800 text-sm">لا توجد منتجات في هذا القسم</h4>
+              <p className="text-xs text-slate-500 mt-1">جرب البحث بكلمة أخرى أو اختر قسماً آخر.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
+              {filteredProducts.map((product) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  storeName={store.name}
+                  onCartConfirmRequest={(p, sName) => setConfirmDialogProduct({ product: p, storeName: sName })}
+                />
+              ))}
+            </div>
+          )}
+        </>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4">
-          {filteredProducts.map((product) => (
-            <ProductCard
-              key={product.id}
-              product={product}
-              storeName={store.name}
-              onCartConfirmRequest={(p, sName) => setConfirmDialogProduct({ product: p, storeName: sName })}
-            />
-          ))}
-        </div>
+        /* Reviews Section Tab */
+        <StoreReviewsSection store={store} />
       )}
 
       {/* Single Store Conflict Confirmation Dialog */}

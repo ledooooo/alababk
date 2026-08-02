@@ -117,11 +117,11 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
       />
 
       {/* Slide-out Drawer Panel */}
-      <div className="fixed inset-y-0 right-0 max-w-full flex pl-10">
-        <div className="w-screen max-w-xs sm:max-w-sm bg-white shadow-2xl flex flex-col justify-between animate-in slide-in-from-right duration-250 ease-out border-l border-slate-200">
+      <div className="fixed inset-y-0 right-0 max-w-full flex h-full h-screen z-50">
+        <div className="w-screen max-w-xs sm:max-w-sm h-full h-screen bg-white shadow-2xl flex flex-col justify-between animate-in slide-in-from-right duration-250 ease-out border-l border-slate-200">
           
           {/* Top Drawer Header */}
-          <div className="p-4 sm:p-5 border-b border-slate-100 bg-slate-900 text-white">
+          <div className="shrink-0 p-4 sm:p-5 border-b border-slate-100 bg-slate-900 text-white">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <img
@@ -738,7 +738,7 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
           </div>
 
           {/* Drawer Footer */}
-          <div className="p-4 bg-slate-50 border-t border-slate-200 text-center text-xs text-slate-500">
+          <div className="shrink-0 p-4 bg-slate-50 border-t border-slate-200 text-center text-xs text-slate-500">
             <p className="font-bold text-slate-700">على بابك © 2026</p>
             <p className="text-[10px] mt-0.5">التوصيل الفائق من المتاجر المحلية</p>
           </div>
