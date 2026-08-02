@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../lib/storage';
 import { useCartStore } from '../../stores/cart-store';
 import { RoleSwitcher } from '../shared/RoleSwitcher';
+import { SidebarDrawer } from './SidebarDrawer';
 import { UserProfile, Order } from '../../types/domain';
 import {
   ShoppingBag,
@@ -380,154 +381,61 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </nav>
 
-          {/* Right Action Bar (Cart + Auth + Role Switcher + Mobile Toggle) */}
+          {/* Right Action Bar (Cart + Auth + Role Switcher + Side Menu Toggle) */}
           <div className="flex items-center gap-2">
-            {/* Login / Register Button */}
-            <button
-              onClick={() => onNavigate('auth')}
-              className="bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-xs px-3 py-2 rounded-xl transition-all flex items-center gap-1.5 border border-slate-200"
-              title="تسجيل الدخول أو حساب جديد"
-            >
-              <LogIn className="w-3.5 h-3.5 text-emerald-600" />
-              <span className="hidden sm:inline">تسجيل الدخول / حساب جديد</span>
-              <span className="sm:hidden">دخول</span>
-            </button>
+            {/* Login / Register Button - ONLY shown if guest/logged out */}
+            {!currentUser && (
+              <button
+                onClick={() => onNavigate('auth')}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 shadow-md shadow-emerald-600/20"
+                title="تسجيل الدخول أو حساب جديد"
+              >
+                <LogIn className="w-3.5 h-3.5 text-white" />
+                <span className="hidden sm:inline">تسجيل الدخول / حساب جديد</span>
+                <span className="sm:hidden">دخول</span>
+              </button>
+            )}
 
             {/* Cart Trigger Button for Customer */}
             {role === 'customer' && (
               <button
                 onClick={onOpenCart}
-                className="relative bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-md shadow-emerald-600/20 transition-all flex items-center gap-2"
+                className="relative bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs px-3.5 py-2 rounded-xl shadow-md transition-all flex items-center gap-1.5"
               >
-                <ShoppingBag className="w-4 h-4" />
+                <ShoppingBag className="w-4 h-4 text-slate-950" />
                 <span className="hidden sm:inline">السلة</span>
                 {cartItemCount > 0 && (
-                  <span className="bg-amber-400 text-slate-950 font-black text-[11px] w-5 h-5 rounded-full flex items-center justify-center shadow-xs">
+                  <span className="bg-slate-950 text-white font-black text-[11px] w-5 h-5 rounded-full flex items-center justify-center shadow-xs">
                     {cartItemCount}
                   </span>
                 )}
               </button>
             )}
 
-            {/* Quick Demo Role Switcher */}
+            {/* Role Switcher & Account Profile Badge */}
             <RoleSwitcher onRoleChange={() => onNavigate(`${StorageRepo.getCurrentUser()?.role || 'customer'}-dashboard`)} />
 
-            {/* Mobile Hamburger Button */}
+            {/* Side Menu Bar Toggle Button (Drawer Trigger) */}
             <button
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="lg:hidden p-2 rounded-lg text-slate-600 hover:bg-slate-100"
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 transition-colors flex items-center gap-1.5 font-extrabold text-xs border border-slate-200"
+              title="فتح القائمة الجانبية"
             >
-              {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              <Menu className="w-5 h-5 text-emerald-600" />
+              <span className="hidden md:inline">القائمة</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* Mobile Drawer Menu */}
-      {isMobileMenuOpen && (
-        <div className="lg:hidden bg-white border-b border-slate-200 px-4 pt-2 pb-4 space-y-1 animate-in fade-in slide-in-from-top-2 duration-150">
-          {role === 'customer' && (
-            <>
-              <button
-                onClick={() => { onNavigate('stores'); setIsMobileMenuOpen(false); }}
-                className="w-full text-right py-2 px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 rounded-lg flex items-center gap-2"
-              >
-                <Store className="w-4 h-4 text-emerald-600" />
-                <span>تصفح المتاجر</span>
-              </button>
-              <button
-                onClick={() => { onNavigate('customer-orders'); setIsMobileMenuOpen(false); }}
-                className="w-full text-right py-2 px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 rounded-lg flex items-center gap-2"
-              >
-                <ListOrdered className="w-4 h-4 text-emerald-600" />
-                <span>طلباتي</span>
-              </button>
-              <button
-                onClick={() => { onNavigate('customer-addresses'); setIsMobileMenuOpen(false); }}
-                className="w-full text-right py-2 px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 rounded-lg flex items-center gap-2"
-              >
-                <MapPin className="w-4 h-4 text-emerald-600" />
-                <span>عناويني</span>
-              </button>
-            </>
-          )}
-
-          {role === 'store_owner' && (
-            <>
-              <button
-                onClick={() => { onNavigate('store-dashboard'); setIsMobileMenuOpen(false); }}
-                className="w-full text-right py-2 px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 rounded-lg"
-              >
-                لوحة التحكم
-              </button>
-              <button
-                onClick={() => { onNavigate('store-orders'); setIsMobileMenuOpen(false); }}
-                className="w-full text-right py-2 px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 rounded-lg"
-              >
-                الطلبات الواردة
-              </button>
-              <button
-                onClick={() => { onNavigate('store-products'); setIsMobileMenuOpen(false); }}
-                className="w-full text-right py-2 px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 rounded-lg"
-              >
-                إدارة المنتجات
-              </button>
-              <button
-                onClick={() => { onNavigate('store-settings'); setIsMobileMenuOpen(false); }}
-                className="w-full text-right py-2 px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 rounded-lg"
-              >
-                إعدادات المتجر
-              </button>
-            </>
-          )}
-
-          {role === 'delivery_agent' && (
-            <>
-              <button
-                onClick={() => { onNavigate('delivery-dashboard'); setIsMobileMenuOpen(false); }}
-                className="w-full text-right py-2 px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 rounded-lg"
-              >
-                لوحة المندوب
-              </button>
-              <button
-                onClick={() => { onNavigate('delivery-available'); setIsMobileMenuOpen(false); }}
-                className="w-full text-right py-2 px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 rounded-lg"
-              >
-                الطلبات المتاحة
-              </button>
-              <button
-                onClick={() => { onNavigate('delivery-active'); setIsMobileMenuOpen(false); }}
-                className="w-full text-right py-2 px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 rounded-lg"
-              >
-                رحلة التوصيل الحالية
-              </button>
-            </>
-          )}
-
-          {role === 'admin' && (
-            <>
-              <button
-                onClick={() => { onNavigate('admin-dashboard'); setIsMobileMenuOpen(false); }}
-                className="w-full text-right py-2 px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 rounded-lg"
-              >
-                لوحة تحكم المدير
-              </button>
-              <button
-                onClick={() => { onNavigate('admin-stores-applications'); setIsMobileMenuOpen(false); }}
-                className="w-full text-right py-2 px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 rounded-lg"
-              >
-                طلبات انضمام المتاجر
-              </button>
-              <button
-                onClick={() => { onNavigate('admin-orders'); setIsMobileMenuOpen(false); }}
-                className="w-full text-right py-2 px-3 text-sm font-semibold text-slate-800 hover:bg-slate-50 rounded-lg"
-              >
-                غرفة الطلبات
-              </button>
-            </>
-          )}
-        </div>
-      )}
+      {/* Side Menu Drawer Component */}
+      <SidebarDrawer
+        isOpen={isMobileMenuOpen}
+        onClose={() => setIsMobileMenuOpen(false)}
+        currentTab={currentTab}
+        onNavigate={onNavigate}
+        currentUser={currentUser}
+      />
     </header>
   );
 };

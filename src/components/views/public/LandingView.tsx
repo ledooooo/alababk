@@ -27,13 +27,13 @@ export const LandingView: React.FC<LandingViewProps> = ({ onNavigate }) => {
   const categories = StorageRepo.getCategories();
 
   return (
-    <div className="space-y-12 dir-rtl pb-16">
+    <div className="space-y-8 sm:space-y-12 dir-rtl pb-16">
       {/* Hero Section */}
-      <section className="relative overflow-hidden bg-gradient-to-br from-emerald-900 via-emerald-800 to-teal-900 text-white rounded-3xl p-8 sm:p-12 shadow-xl">
+      <section className="relative overflow-hidden bg-gradient-to-br from-emerald-900 via-emerald-800 to-teal-900 text-white rounded-3xl p-5 sm:p-12 shadow-xl">
         <div className="absolute -left-16 -bottom-16 w-80 h-80 bg-emerald-500/20 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute right-10 top-0 w-64 h-64 bg-teal-400/10 rounded-full blur-2xl pointer-events-none" />
 
-        <div className="relative z-10 max-w-3xl space-y-6">
+        <div className="relative z-10 max-w-3xl space-y-4 sm:space-y-6">
           <div className="flex items-center gap-3">
             <img
               src="/icon.png"
