@@ -4,6 +4,7 @@ import { Store, Product } from '../../../types/domain';
 import { useCartStore } from '../../../stores/cart-store';
 import { ProductCard } from '../../product/ProductCard';
 import { StoreReviewsSection } from './StoreReviewsSection';
+import { StoreCategoryFilterBar } from './StoreCategoryFilterBar';
 import { formatCurrency } from '../../../lib/formatters';
 import {
   ArrowRight,
@@ -36,6 +37,8 @@ export const CustomerStoreDetailView: React.FC<CustomerStoreDetailViewProps> = (
   const [activeTab, setActiveTab] = useState<'products' | 'reviews'>('products');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCat, setSelectedCat] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<'default' | 'price-asc' | 'price-desc' | 'offers'>('default');
+  const [showOnlyOffers, setShowOnlyOffers] = useState(false);
   const [isWishlisted, setIsWishlisted] = useState<boolean>(
     StorageRepo.isStoreWishlisted(storeId)
   );
@@ -83,13 +86,26 @@ export const CustomerStoreDetailView: React.FC<CustomerStoreDetailViewProps> = (
   // Get unique product categories inside this store
   const productCategories = Array.from(new Set(products.map((p) => p.category_name))).filter(Boolean);
 
-  const filteredProducts = products.filter((p) => {
+  let filteredProducts = products.filter((p) => {
     const matchesCat = selectedCat === 'all' || p.category_name === selectedCat;
     const matchesSearch =
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.description.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCat && matchesSearch;
+    const matchesOffers = !showOnlyOffers || (p.original_price && p.original_price > p.price);
+    return matchesCat && matchesSearch && matchesOffers;
   });
+
+  if (sortBy === 'price-asc') {
+    filteredProducts.sort((a, b) => a.price - b.price);
+  } else if (sortBy === 'price-desc') {
+    filteredProducts.sort((a, b) => b.price - a.price);
+  } else if (sortBy === 'offers') {
+    filteredProducts.sort((a, b) => {
+      const discountA = a.original_price ? a.original_price - a.price : 0;
+      const discountB = b.original_price ? b.original_price - b.price : 0;
+      return discountB - discountA;
+    });
+  }
 
   const handleConfirmReplaceCart = () => {
     if (confirmDialogProduct) {
@@ -259,58 +275,20 @@ export const CustomerStoreDetailView: React.FC<CustomerStoreDetailViewProps> = (
       {/* Tab Contents */}
       {activeTab === 'products' ? (
         <>
-          {/* Product Search & Category Filters */}
-          <div className="space-y-3">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-              <h2 className="font-extrabold text-slate-900 text-base sm:text-lg flex items-center gap-2">
-                <ShoppingBag className="w-5 h-5 text-emerald-600" />
-                <span>أصناف وقائمة المتجر ({filteredProducts.length})</span>
-              </h2>
-
-              <div className="relative w-full sm:w-72">
-                <Search className="w-4 h-4 text-slate-400 absolute right-3 top-3" />
-                <input
-                  type="text"
-                  placeholder="ابحث في منتجات المتجر..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pr-9 pl-3 py-2 bg-white text-xs rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
-                />
-              </div>
-            </div>
-
-            {/* Sub-categories Selector */}
-            {productCategories.length > 0 && (
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-                <button
-                  onClick={() => setSelectedCat('all')}
-                  className={`px-3.5 py-2 rounded-xl text-xs font-bold shrink-0 transition-all ${
-                    selectedCat === 'all'
-                      ? 'bg-emerald-600 text-white shadow-xs'
-                      : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
-                  }`}
-                >
-                  الكل ({products.length})
-                </button>
-                {productCategories.map((cat) => {
-                  const count = products.filter((p) => p.category_name === cat).length;
-                  return (
-                    <button
-                      key={cat}
-                      onClick={() => setSelectedCat(cat)}
-                      className={`px-3.5 py-2 rounded-xl text-xs font-bold shrink-0 transition-all ${
-                        selectedCat === cat
-                          ? 'bg-emerald-600 text-white shadow-xs'
-                          : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
-                      }`}
-                    >
-                      {cat} ({count})
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          {/* Enhanced Category & Products Filter Bar */}
+          <StoreCategoryFilterBar
+            categories={productCategories}
+            selectedCategory={selectedCat}
+            onSelectCategory={setSelectedCat}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            sortBy={sortBy}
+            onSortChange={setSortBy}
+            totalProductsCount={products.length}
+            filteredProductsCount={filteredProducts.length}
+            showOnlyOffers={showOnlyOffers}
+            onToggleOnlyOffers={() => setShowOnlyOffers(!showOnlyOffers)}
+          />
 
           {/* Products Grid */}
           {filteredProducts.length === 0 ? (

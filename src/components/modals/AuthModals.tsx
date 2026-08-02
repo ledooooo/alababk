@@ -9,10 +9,21 @@ interface ForgotPasswordModalProps {
 export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({ onClose, onOpenReset }) => {
   const [email, setEmail] = useState('');
   const [isSent, setIsSent] = useState(false);
+  const [error, setError] = useState('');
+
+  const isValidEmailFormat = (emailStr: string) => {
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    return emailRegex.test(emailStr.trim());
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim()) return;
+    setError('');
+
+    if (!email.trim() || !isValidEmailFormat(email)) {
+      setError('صيغة البريد الإلكتروني غير صحيحة، يرجى كتابته بالشكل الصحيح (مثال: name@example.com)');
+      return;
+    }
 
     setIsSent(true);
   };
@@ -53,6 +64,11 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({ onClos
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
+            {error && (
+              <p className="text-xs text-rose-600 font-bold bg-rose-50 p-2.5 rounded-xl border border-rose-200">
+                {error}
+              </p>
+            )}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">البريد الإلكتروني المسجل</label>
               <div className="relative">

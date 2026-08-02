@@ -49,29 +49,69 @@ export const AuthView: React.FC<AuthViewProps> = ({
   const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Utility helpers for validation
+  const normalizeDigits = (str: string) => {
+    return str.replace(/[٠-٩]/g, (d) => (d.charCodeAt(0) - 1632).toString());
+  };
+
+  const isValid11DigitPhone = (phoneStr: string) => {
+    const cleanDigits = normalizeDigits(phoneStr).replace(/\D/g, '');
+    return cleanDigits.length === 11;
+  };
+
+  const isValidEmailFormat = (emailStr: string) => {
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    return emailRegex.test(emailStr.trim());
+  };
+
   // Existing accounts for quick login
   const existingUsers = StorageRepo.getUsers();
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    const rawInput = phone.trim();
+    if (!rawInput) {
+      setError('يرجى إدخال رقم الهاتف الجوال أو البريد الإلكتروني');
+      return;
+    }
+    if (!password) {
+      setError('يرجى إدخال كلمة المرور');
+      return;
+    }
+
+    const isEmailInput = rawInput.includes('@');
+    let validatedPhone = '';
+    let validatedEmail = '';
+
+    if (isEmailInput) {
+      if (!isValidEmailFormat(rawInput)) {
+        setError('صيغة البريد الإلكتروني غير صحيحة (مثال: name@example.com)');
+        return;
+      }
+      validatedEmail = rawInput.toLowerCase();
+    } else {
+      const cleanDigits = normalizeDigits(rawInput).replace(/\D/g, '');
+      if (cleanDigits.length !== 11) {
+        setError('رقم الهاتف يجب أن يتكون من 11 رقماً بالضبط (مثال: 01012345678)');
+        return;
+      }
+      validatedPhone = cleanDigits;
+    }
+
     setLoading(true);
 
     setTimeout(() => {
-      const trimmedIdentifier = phone.trim() || email.trim();
-      if (!trimmedIdentifier || !password) {
-        setError('يرجى إدخال رقم الهاتف / البريد الإلكتروني وكلمة المرور');
-        setLoading(false);
-        return;
-      }
-
       // Match against stored users
       const users = StorageRepo.getUsers();
-      const user = users.find(
-        (u) =>
-          u.phone === trimmedIdentifier ||
-          u.email.toLowerCase() === trimmedIdentifier.toLowerCase()
-      );
+      const user = users.find((u) => {
+        if (isEmailInput) {
+          return u.email.toLowerCase() === validatedEmail;
+        } else {
+          return normalizeDigits(u.phone).replace(/\D/g, '') === validatedPhone;
+        }
+      });
 
       if (user) {
         StorageRepo.setCurrentUser(user);
@@ -80,12 +120,12 @@ export const AuthView: React.FC<AuthViewProps> = ({
           onSuccess(user);
         }, 800);
       } else {
-        // Create user dynamically if logging in for first time with phone/email
+        // Create user dynamically if logging in for first time with valid format
         const newUser: UserProfile = {
           id: ensureUUID(),
-          name: name.trim() || (trimmedIdentifier.includes('@') ? trimmedIdentifier.split('@')[0] : 'مستخدم جديد'),
-          email: email.trim() || (trimmedIdentifier.includes('@') ? trimmedIdentifier : `${trimmedIdentifier}@alababak.app`),
-          phone: phone.trim() || trimmedIdentifier,
+          name: isEmailInput ? validatedEmail.split('@')[0] : `مستخدم ${validatedPhone.slice(-4)}`,
+          email: isEmailInput ? validatedEmail : `${validatedPhone}@alababak.app`,
+          phone: validatedPhone || '01000000000',
           role: role,
           created_at: new Date().toISOString()
         };
@@ -104,18 +144,38 @@ export const AuthView: React.FC<AuthViewProps> = ({
     e.preventDefault();
     setError('');
 
+    const cleanPhone = normalizeDigits(phone).replace(/\D/g, '');
+
     if (!name.trim()) {
       setError('يرجى كتابة الاسم بالكامل');
       return;
     }
-    if (!phone.trim()) {
+
+    if (!cleanPhone) {
       setError('يرجى إدخال رقم الهاتف الجوال');
       return;
     }
+
+    if (cleanPhone.length !== 11) {
+      setError('رقم الهاتف يجب أن يتكون من 11 رقماً بالضبط (مثال: 01012345678)');
+      return;
+    }
+
+    if (!email.trim()) {
+      setError('يرجى إدخال البريد الإلكتروني');
+      return;
+    }
+
+    if (!isValidEmailFormat(email)) {
+      setError('صيغة البريد الإلكتروني غير صحيحة، يرجى كتابتها بالشكل الصحيح (مثال: name@example.com)');
+      return;
+    }
+
     if (password.length < 6) {
       setError('كلمة المرور يجب أن لا تقل عن 6 أحرف أو أرقام');
       return;
     }
+
     if (password !== confirmPassword) {
       setError('كلمتا المرور غير متطابقتين');
       return;
@@ -127,7 +187,9 @@ export const AuthView: React.FC<AuthViewProps> = ({
       // Check if user already exists
       const users = StorageRepo.getUsers();
       const existing = users.find(
-        (u) => u.phone === phone.trim() || (email.trim() && u.email.toLowerCase() === email.trim().toLowerCase())
+        (u) =>
+          normalizeDigits(u.phone).replace(/\D/g, '') === cleanPhone ||
+          u.email.toLowerCase() === email.trim().toLowerCase()
       );
 
       if (existing) {
@@ -139,8 +201,8 @@ export const AuthView: React.FC<AuthViewProps> = ({
       const newUser: UserProfile = {
         id: ensureUUID(),
         name: name.trim(),
-        email: email.trim() || `${phone.trim()}@alababak.app`,
-        phone: phone.trim(),
+        email: email.trim().toLowerCase(),
+        phone: cleanPhone,
         role: role,
         created_at: new Date().toISOString()
       };
@@ -317,26 +379,37 @@ export const AuthView: React.FC<AuthViewProps> = ({
 
             {/* Phone Input */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">رقم الهاتف الجوال *</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-slate-700">رقم الهاتف الجوال *</label>
+                <span className="text-[10px] text-emerald-700 font-extrabold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
+                  11 رقماً إجبارياً
+                </span>
+              </div>
               <div className="relative dir-ltr">
                 <input
                   type="tel"
                   required
+                  maxLength={11}
                   placeholder="01012345678"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  className="w-full p-3 pl-10 text-right bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                  onChange={(e) => setPhone(normalizeDigits(e.target.value).replace(/\D/g, '').slice(0, 11))}
+                  className="w-full p-3 pl-10 text-right bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
                 />
                 <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
               </div>
+              <p className="text-[10px] text-slate-400 mt-1">يجب أن يتكون من 11 رقماً بالضبط (مثل: 01012345678)</p>
             </div>
 
             {/* Email Input */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">البريد الإلكتروني (اختياري)</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-slate-700">البريد الإلكتروني *</label>
+                <span className="text-[10px] text-slate-500 font-medium">صيغة بريد صحيحة</span>
+              </div>
               <div className="relative dir-ltr">
                 <input
                   type="email"
+                  required
                   placeholder="name@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -404,12 +477,15 @@ export const AuthView: React.FC<AuthViewProps> = ({
           <form onSubmit={handleLogin} className="space-y-4">
             {/* Phone or Email */}
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">رقم الهاتف أو البريد الإلكتروني</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-slate-700">رقم الهاتف أو البريد الإلكتروني</label>
+                <span className="text-[10px] text-slate-500 font-medium">(11 رقماً للهاتف أو إيميل صحيح)</span>
+              </div>
               <div className="relative dir-ltr">
                 <input
                   type="text"
                   required
-                  placeholder="01012345678"
+                  placeholder="01012345678 أو name@example.com"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   className="w-full p-3 pl-10 text-right bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
