@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { Session } from '@supabase/supabase-js';
+import { supabase } from './lib/supabase';
 import { StorageRepo, subscribeToStorageChange } from './lib/storage';
-import { UserRole } from './types/domain';
+import { UserRole, UserProfile } from './types/domain';
 import { Navbar } from './components/layout/Navbar';
 import { SplashScreen } from './components/layout/SplashScreen';
 import { CartDrawer } from './components/cart/CartDrawer';
@@ -100,8 +102,10 @@ import {
 } from 'lucide-react';
 
 export default function App() {
+  const [session, setSession] = useState<Session | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [showSplash, setShowSplash] = useState(true);
-  const [currentUser, setCurrentUser] = useState(StorageRepo.getCurrentUser());
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => StorageRepo.getCurrentUser());
   const [activeTab, setActiveTab] = useState<string>('customer-stores');
 
   // Customer navigation state
@@ -113,13 +117,86 @@ export default function App() {
   const { isOpen, setIsOpen } = useCartStore();
 
   useEffect(() => {
-    const unsubscribe = subscribeToStorageChange(() => {
+    // 1. Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setIsLoading(false);
+      if (session?.user) {
+        useCartStore.getState().setUserId(session.user.id);
+      } else {
+        useCartStore.getState().setUserId(null);
+      }
+    });
+
+    // 2. Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setSession(session);
+        setIsLoading(false);
+
+        if (event === 'SIGNED_IN' && session?.user) {
+          useCartStore.getState().setUserId(session.user.id);
+        } else if (event === 'SIGNED_OUT') {
+          useCartStore.getState().setUserId(null);
+          StorageRepo.logout();
+        }
+      }
+    );
+
+    const unsubscribeStorage = subscribeToStorageChange(() => {
       setCurrentUser(StorageRepo.getCurrentUser());
     });
-    return unsubscribe;
+
+    return () => {
+      subscription.unsubscribe();
+      unsubscribeStorage();
+    };
   }, []);
 
-  const handleRoleChange = (role: UserRole) => {
+  const PUBLIC_TABS = [
+    'landing', 'auth', 'about', 'apply-store',
+    'apply-agent', 'contact', 'terms'
+  ];
+
+  const isPublicTab = PUBLIC_TABS.includes(activeTab);
+  const isLoggedIn = !!session || !!currentUser;
+
+  // AuthGuard for protected routes
+  useEffect(() => {
+    if (!isLoading && !isLoggedIn && !isPublicTab) {
+      setActiveTab('auth');
+    }
+  }, [isLoading, isLoggedIn, isPublicTab, activeTab]);
+
+  const activeUserProfile: UserProfile | null = session ? {
+    id: session.user.id,
+    email: session.user.email || '',
+    name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email || 'مستخدم',
+    full_name: session.user.user_metadata?.full_name || session.user.user_metadata?.name,
+    phone: session.user.user_metadata?.phone || '',
+    role: (session.user.user_metadata?.role as UserRole) || 'customer',
+    avatar_url: session.user.user_metadata?.avatar_url,
+    created_at: session.user.created_at,
+  } : currentUser;
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut().catch(() => {});
+    StorageRepo.logout();
+    useCartStore.getState().setUserId(null);
+    setCurrentUser(null);
+    setActiveTab('landing');
+  };
+
+  const handleRoleChange = async (role: UserRole) => {
+    if (session?.user) {
+      try {
+        await supabase.auth.updateUser({
+          data: { role }
+        });
+      } catch (e) {
+        console.warn('Could not update role in Supabase auth metadata:', e);
+      }
+    }
     StorageRepo.switchRole(role);
     const updatedUser = StorageRepo.getCurrentUser();
     setCurrentUser(updatedUser);
@@ -152,7 +229,7 @@ export default function App() {
     setActiveTab('order-confirmation');
   };
 
-  const currentRole = currentUser?.role || 'customer';
+  const currentRole = activeUserProfile?.role || 'customer';
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans antialiased dir-rtl selection:bg-emerald-500 selection:text-white flex flex-col">
@@ -251,10 +328,7 @@ export default function App() {
                   if (param) setSelectedStoreId(param);
                   setActiveTab(tab);
                 }}
-                onLogout={() => {
-                  StorageRepo.switchRole('customer');
-                  setActiveTab('landing');
-                }}
+                onLogout={handleLogout}
               />
             )}
 

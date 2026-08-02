@@ -48,7 +48,7 @@ export const CustomerCheckoutView: React.FC<CustomerCheckoutViewProps> = ({
   const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number } | null>(null);
   const [couponError, setCouponError] = useState('');
 
-  const [paymentMethod, setPaymentMethod] = useState<'cod' | 'card'>('cod');
+  const [paymentMethod, setPaymentMethod] = useState<'cash' | 'online'>('cash');
   const [customerNotes, setCustomerNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -163,7 +163,7 @@ export const CustomerCheckoutView: React.FC<CustomerCheckoutViewProps> = ({
       coupon_code: appliedCoupon?.code,
       total,
       payment_method: paymentMethod,
-      payment_status: paymentMethod === 'card' ? 'paid' : 'pending',
+      payment_status: paymentMethod === 'online' ? 'paid' : 'pending',
       status: 'pending',
       status_history: [
         {
@@ -349,9 +349,9 @@ export const CustomerCheckoutView: React.FC<CustomerCheckoutViewProps> = ({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label
-                onClick={() => setPaymentMethod('cod')}
+                onClick={() => setPaymentMethod('cash')}
                 className={`p-4 rounded-xl border cursor-pointer transition-all flex items-center gap-3 ${
-                  paymentMethod === 'cod'
+                  paymentMethod === 'cash'
                     ? 'bg-emerald-50 border-emerald-500 text-slate-900 shadow-xs'
                     : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700'
                 }`}
@@ -359,23 +359,23 @@ export const CustomerCheckoutView: React.FC<CustomerCheckoutViewProps> = ({
                 <input
                   type="radio"
                   name="payment_choice"
-                  checked={paymentMethod === 'cod'}
-                  onChange={() => setPaymentMethod('cod')}
+                  checked={paymentMethod === 'cash'}
+                  onChange={() => setPaymentMethod('cash')}
                   className="text-emerald-600 focus:ring-emerald-500"
                 />
                 <div className="p-2 bg-emerald-100 text-emerald-800 rounded-lg">
                   <Banknote className="w-5 h-5" />
                 </div>
                 <div>
-                  <h5 className="font-bold text-xs text-slate-900">الدفع نقداً عند الاستلام (COD)</h5>
+                  <h5 className="font-bold text-xs text-slate-900">الدفع نقداً عند الاستلام (كاش)</h5>
                   <p className="text-[10px] text-slate-500 mt-0.5">ادفع للمندوب كاش بعد استلام طلبك</p>
                 </div>
               </label>
 
               <label
-                onClick={() => setPaymentMethod('card')}
+                onClick={() => setPaymentMethod('online')}
                 className={`p-4 rounded-xl border cursor-pointer transition-all flex items-center gap-3 ${
-                  paymentMethod === 'card'
+                  paymentMethod === 'online'
                     ? 'bg-emerald-50 border-emerald-500 text-slate-900 shadow-xs'
                     : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700'
                 }`}
@@ -383,15 +383,15 @@ export const CustomerCheckoutView: React.FC<CustomerCheckoutViewProps> = ({
                 <input
                   type="radio"
                   name="payment_choice"
-                  checked={paymentMethod === 'card'}
-                  onChange={() => setPaymentMethod('card')}
+                  checked={paymentMethod === 'online'}
+                  onChange={() => setPaymentMethod('online')}
                   className="text-emerald-600 focus:ring-emerald-500"
                 />
                 <div className="p-2 bg-blue-100 text-blue-800 rounded-lg">
                   <CreditCard className="w-5 h-5" />
                 </div>
                 <div>
-                  <h5 className="font-bold text-xs text-slate-900">بطاقة ائتمان / ميزة</h5>
+                  <h5 className="font-bold text-xs text-slate-900">بطاقة ائتمان / ميزة / أونلاين</h5>
                   <p className="text-[10px] text-slate-500 mt-0.5">دفع إلكتروني آمن</p>
                 </div>
               </label>

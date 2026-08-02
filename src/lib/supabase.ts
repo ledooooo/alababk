@@ -12,7 +12,11 @@ import {
   Review,
   Category,
   NotificationItem,
-  Payout
+  Payout,
+  PaginatedResult,
+  DatabaseRow,
+  ActivityLog,
+  ChatMessage,
 } from '../types/domain';
 
 // Retrieve Supabase URL and Anon Key from environment or fallback to user credentials
@@ -278,7 +282,7 @@ export async function fetchSupabaseOrders(): Promise<Order[]> {
       delivery_fee: Number(o.delivery_fee),
       discount_amount: Number(o.discount || 0),
       total: Number(o.total),
-      payment_method: o.payment_method === 'online' ? 'card' : 'cod',
+      payment_method: (o.payment_method === 'online' ? 'online' : 'cash') as 'cash' | 'online',
       payment_status: o.payment_status === 'paid' ? 'paid' : 'pending',
       status: o.status || 'pending',
       status_history: [
@@ -365,7 +369,7 @@ export async function fetchSupabaseCoupons(): Promise<Coupon[]> {
     return data.map((c) => ({
       id: c.id,
       code: c.code,
-      discount_type: c.type === 'percent' ? 'percent' : 'flat',
+      discount_type: (c.type === 'percent' ? 'percent' : 'fixed') as 'percent' | 'fixed',
       discount_value: Number(c.value),
       min_order_amount: Number(c.min_order_amount || 0),
       max_discount_amount: c.max_discount ? Number(c.max_discount) : undefined,
@@ -687,7 +691,7 @@ export async function saveSupabaseOrder(order: Partial<Order>) {
       delivery_fee: order.delivery_fee || 0,
       discount: order.discount_amount || 0,
       total: order.total || 0,
-      payment_method: order.payment_method === 'card' ? 'online' : 'cash',
+      payment_method: order.payment_method === 'online' ? 'online' : 'cash',
       payment_status: order.payment_status === 'paid' ? 'paid' : 'pending',
       status: order.status || 'pending',
       customer_notes: order.customer_notes || null,
@@ -778,4 +782,366 @@ export async function saveSupabaseCoupon(coupon: Partial<Coupon>) {
     console.error('Failed to save coupon to Supabase:', err);
   }
 }
+
+/* ========================================================================
+ * Generic CRUD Helpers
+ * ======================================================================== */
+
+/**
+ * List records from any table with optional filters, pagination, and sorting
+ */
+export async function listSupabase<T>(
+  table: string,
+  options?: {
+    filters?: Record<string, unknown>;
+    orderBy?: { column: string; ascending?: boolean };
+    limit?: number;
+    offset?: number;
+  }
+): Promise<PaginatedResult<T>> {
+  try {
+    let query = supabase.from(table).select('*', { count: 'exact' });
+
+    if (options?.filters) {
+      Object.entries(options.filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          query = query.eq(key, value);
+        }
+      });
+    }
+
+    if (options?.orderBy) {
+      query = query.order(options.orderBy.column, { ascending: options.orderBy.ascending ?? true });
+    }
+
+    if (options?.limit !== undefined) {
+      const offset = options.offset || 0;
+      query = query.range(offset, offset + options.limit - 1);
+    }
+
+    const { data, count, error } = await query;
+    if (error) {
+      console.error(`Error listing records from '${table}':`, error.message);
+      throw new Error(`Failed to list ${table}: ${error.message}`);
+    }
+
+    return {
+      data: (data as T[]) || [],
+      count: count || 0,
+    };
+  } catch (err) {
+    console.error(`listSupabase error for table '${table}':`, err);
+    return { data: [], count: 0 };
+  }
+}
+
+/**
+ * Get a single record by ID from a table
+ */
+export async function getSupabaseById<T>(table: string, id: string): Promise<T | null> {
+  try {
+    const { data, error } = await supabase.from(table).select('*').eq('id', id).single();
+    if (error) {
+      if (error.code === 'PGRST116') return null; // record not found
+      console.error(`Error in getSupabaseById('${table}', '${id}'):`, error.message);
+      throw new Error(`Failed to get ${table} by ID: ${error.message}`);
+    }
+    return data as T;
+  } catch (err) {
+    console.error(`getSupabaseById error for '${table}':`, err);
+    return null;
+  }
+}
+
+/**
+ * Create a record in a table
+ */
+export async function createSupabase<T>(table: string, data: Partial<T>): Promise<T> {
+  try {
+    const payload = { ...data };
+    if (!(payload as Record<string, unknown>).id) {
+      (payload as Record<string, unknown>).id = ensureUUID();
+    }
+    const { data: created, error } = await supabase.from(table).insert([payload as any]).select('*').single();
+    if (error) {
+      console.error(`Error in createSupabase('${table}'):`, error.message);
+      throw new Error(`Failed to create row in ${table}: ${error.message}`);
+    }
+    return created as T;
+  } catch (err) {
+    console.error(`createSupabase error for '${table}':`, err);
+    throw err;
+  }
+}
+
+/**
+ * Update a record by ID in a table
+ */
+export async function updateSupabase<T>(table: string, id: string, data: Partial<T>): Promise<T> {
+  try {
+    const payload = { ...data, updated_at: new Date().toISOString() };
+    const { data: updated, error } = await supabase.from(table).update(payload).eq('id', id).select('*').single();
+    if (error) {
+      console.error(`Error in updateSupabase('${table}', '${id}'):`, error.message);
+      throw new Error(`Failed to update ${table}: ${error.message}`);
+    }
+    return updated as T;
+  } catch (err) {
+    console.error(`updateSupabase error for '${table}':`, err);
+    throw err;
+  }
+}
+
+/**
+ * Delete a record by ID from a table
+ */
+export async function deleteSupabase(table: string, id: string): Promise<void> {
+  try {
+    const { error } = await supabase.from(table).delete().eq('id', id);
+    if (error) {
+      console.error(`Error in deleteSupabase('${table}', '${id}'):`, error.message);
+      throw new Error(`Failed to delete row from ${table}: ${error.message}`);
+    }
+  } catch (err) {
+    console.error(`deleteSupabase error for '${table}':`, err);
+    throw err;
+  }
+}
+
+/* ========================================================================
+ * Entity-Specific Typed Helper Methods
+ * ======================================================================== */
+
+export const listSupabaseStores = (options?: Parameters<typeof listSupabase>[1]) => listSupabase<Store>('stores', options);
+export const getSupabaseStoreById = (id: string) => getSupabaseById<Store>('stores', id);
+export const createSupabaseStore = (data: Partial<Store>) => createSupabase<Store>('stores', data);
+export const updateSupabaseStore = (id: string, data: Partial<Store>) => updateSupabase<Store>('stores', id, data);
+export const deleteSupabaseStore = (id: string) => deleteSupabase('stores', id);
+
+export const listSupabaseProducts = (options?: Parameters<typeof listSupabase>[1]) => listSupabase<Product>('products', options);
+export const getSupabaseProductById = (id: string) => getSupabaseById<Product>('products', id);
+export const createSupabaseProduct = (data: Partial<Product>) => createSupabase<Product>('products', data);
+export const updateSupabaseProduct = (id: string, data: Partial<Product>) => updateSupabase<Product>('products', id, data);
+export const deleteSupabaseProduct = (id: string) => deleteSupabase('products', id);
+
+export const listSupabaseOrders = (options?: Parameters<typeof listSupabase>[1]) => listSupabase<Order>('orders', options);
+export const getSupabaseOrderById = (id: string) => getSupabaseById<Order>('orders', id);
+export const createSupabaseOrder = (data: Partial<Order>) => createSupabase<Order>('orders', data);
+export const updateSupabaseOrder = (id: string, data: Partial<Order>) => updateSupabase<Order>('orders', id, data);
+export const deleteSupabaseOrder = (id: string) => deleteSupabase('orders', id);
+
+export const listSupabaseUsers = (options?: Parameters<typeof listSupabase>[1]) => listSupabase<UserProfile>('profiles', options);
+export const getSupabaseUserById = (id: string) => getSupabaseById<UserProfile>('profiles', id);
+
+export const listSupabaseAgents = (options?: Parameters<typeof listSupabase>[1]) => listSupabase<DeliveryAgent>('delivery_agents', options);
+export const listSupabaseZones = (options?: Parameters<typeof listSupabase>[1]) => listSupabase<DeliveryZone>('delivery_zones', options);
+export const listSupabaseCoupons = (options?: Parameters<typeof listSupabase>[1]) => listSupabase<Coupon>('coupons', options);
+export const listSupabaseReviews = (options?: Parameters<typeof listSupabase>[1]) => listSupabase<Review>('reviews', options);
+export const listSupabaseNotifications = (options?: Parameters<typeof listSupabase>[1]) => listSupabase<NotificationItem>('notifications', options);
+export const listSupabasePayouts = (options?: Parameters<typeof listSupabase>[1]) => listSupabase<Payout>('payouts', options);
+export const listSupabaseActivityLogs = (options?: Parameters<typeof listSupabase>[1]) => listSupabase<ActivityLog>('activity_log', options);
+export const listSupabaseChatMessages = (options?: Parameters<typeof listSupabase>[1]) => listSupabase<ChatMessage>('chat_messages', options);
+
+/* ========================================================================
+ * Real-Time Subscriptions
+ * ======================================================================== */
+
+/**
+ * Subscribe to realtime changes on any table
+ */
+export function subscribeSupabase<T>(
+  table: string,
+  callback: (payload: { eventType: 'INSERT' | 'UPDATE' | 'DELETE'; new: T; old: T }) => void,
+  filter?: string
+): () => void {
+  const channelName = `realtime:${table}:${Math.random().toString(36).slice(2, 9)}`;
+  const channel = supabase.channel(channelName);
+
+  const eventConfig: Record<string, unknown> = {
+    event: '*',
+    schema: 'public',
+    table,
+  };
+
+  if (filter) {
+    eventConfig.filter = filter;
+  }
+
+  channel
+    .on(
+      'postgres_changes' as unknown as 'system',
+      eventConfig as unknown as any,
+      (payload: any) => {
+        callback({
+          eventType: payload.eventType,
+          new: payload.new as T,
+          old: payload.old as T,
+        });
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}
+
+/**
+ * Specialized real-time listener for orders
+ */
+export function subscribeToOrders(callback: (payload: any) => void): () => void {
+  return subscribeSupabase('orders', callback);
+}
+
+/**
+ * Specialized real-time listener for user notifications
+ */
+export function subscribeToNotifications(userId: string, callback: (payload: any) => void): () => void {
+  return subscribeSupabase('notifications', callback, `user_id=eq.${userId}`);
+}
+
+/**
+ * Specialized real-time listener for chat messages in an order
+ */
+export function subscribeToChatMessages(orderId: string, callback: (payload: any) => void): () => void {
+  return subscribeSupabase('chat_messages', callback, `order_id=eq.${orderId}`);
+}
+
+/* ========================================================================
+ * Specialized Query Helpers
+ * ======================================================================== */
+
+/**
+ * Fetch a full order with items and details
+ */
+export async function fetchOrderWithDetails(orderId: string): Promise<Order | null> {
+  try {
+    const orders = await fetchSupabaseOrders();
+    const match = orders.find((o) => o.id === orderId);
+    return match || null;
+  } catch (err) {
+    console.error('Error in fetchOrderWithDetails:', err);
+    return null;
+  }
+}
+
+/**
+ * Fetch store with its products
+ */
+export async function fetchStoreWithProducts(storeId: string): Promise<{ store: Store; products: Product[] } | null> {
+  try {
+    const stores = await fetchSupabaseStores();
+    const store = stores.find((s) => s.id === storeId);
+    if (!store) return null;
+
+    const products = await fetchSupabaseProducts(storeId);
+    return { store, products };
+  } catch (err) {
+    console.error('Error in fetchStoreWithProducts:', err);
+    return null;
+  }
+}
+
+/**
+ * Fetch orders belonging to a specific customer
+ */
+export async function fetchCustomerOrders(
+  customerId: string,
+  options?: { limit?: number; offset?: number }
+): Promise<Order[]> {
+  try {
+    const allOrders = await fetchSupabaseOrders();
+    let customerOrders = allOrders.filter((o) => o.customer_id === customerId);
+    if (options?.offset) {
+      customerOrders = customerOrders.slice(options.offset);
+    }
+    if (options?.limit) {
+      customerOrders = customerOrders.slice(0, options.limit);
+    }
+    return customerOrders;
+  } catch (err) {
+    console.error('Error in fetchCustomerOrders:', err);
+    return [];
+  }
+}
+
+/**
+ * Fetch orders available for delivery agents (ready & unassigned)
+ */
+export async function fetchAgentAvailableOrders(): Promise<Order[]> {
+  try {
+    const allOrders = await fetchSupabaseOrders();
+    return allOrders.filter((o) => o.status === 'ready' && !o.delivery_agent_id);
+  } catch (err) {
+    console.error('Error in fetchAgentAvailableOrders:', err);
+    return [];
+  }
+}
+
+/**
+ * Fetch statistics for a store
+ */
+export async function fetchStoreStats(
+  storeId: string
+): Promise<{ total_orders: number; total_revenue: number; avg_rating: number } | null> {
+  try {
+    const { data, error } = await supabase
+      .from('store_stats')
+      .select('*')
+      .eq('store_id', storeId)
+      .single();
+
+    if (error || !data) {
+      const orders = await fetchSupabaseOrders();
+      const storeOrders = orders.filter((o) => o.store_id === storeId);
+      const total_orders = storeOrders.length;
+      const total_revenue = storeOrders.reduce((sum, o) => sum + o.total, 0);
+      return { total_orders, total_revenue, avg_rating: 4.8 };
+    }
+
+    return {
+      total_orders: Number(data.total_orders || 0),
+      total_revenue: Number(data.total_revenue || 0),
+      avg_rating: Number(data.avg_rating || 4.8),
+    };
+  } catch (err) {
+    console.error('Error in fetchStoreStats:', err);
+    return null;
+  }
+}
+
+/**
+ * Fetch statistics for a delivery agent
+ */
+export async function fetchAgentStats(
+  agentId: string
+): Promise<{ total_trips: number; total_earnings: number; rating: number } | null> {
+  try {
+    const { data, error } = await supabase
+      .from('agent_stats')
+      .select('*')
+      .eq('agent_id', agentId)
+      .single();
+
+    if (error || !data) {
+      const orders = await fetchSupabaseOrders();
+      const agentOrders = orders.filter((o) => o.delivery_agent_id === agentId && o.status === 'delivered');
+      return {
+        total_trips: agentOrders.length,
+        total_earnings: agentOrders.reduce((sum, o) => sum + o.delivery_fee, 0),
+        rating: 4.9,
+      };
+    }
+
+    return {
+      total_trips: Number(data.total_trips || 0),
+      total_earnings: Number(data.total_earnings || 0),
+      rating: Number(data.rating || 4.9),
+    };
+  } catch (err) {
+    console.error('Error in fetchAgentStats:', err);
+    return null;
+  }
+}
+
 

@@ -7,6 +7,16 @@ export type UserRole =
   | 'finance_admin'
   | 'orders_manager';
 
+export const USER_ROLES = [
+  'customer',
+  'store_owner',
+  'delivery_agent',
+  'admin',
+  'delivery_supervisor',
+  'finance_admin',
+  'orders_manager',
+] as const;
+
 export interface UserProfile {
   id: string;
   email: string;
@@ -15,6 +25,7 @@ export interface UserProfile {
   phone: string;
   role: UserRole;
   avatar_url?: string;
+  is_active?: boolean;
   created_at: string;
   associated_store_id?: string; // For store_owner
 }
@@ -152,7 +163,7 @@ export interface Order {
   discount_amount: number;
   coupon_code?: string;
   total: number;
-  payment_method: 'cod' | 'card';
+  payment_method: 'cash' | 'online';
   payment_status: 'pending' | 'paid';
   status: OrderStatus;
   status_history: OrderStatusHistoryItem[];
@@ -198,7 +209,7 @@ export interface DeliveryZone {
 export interface Coupon {
   id: string;
   code: string;
-  discount_type: 'percent' | 'flat' | 'fixed';
+  discount_type: 'percent' | 'fixed';
   discount_value: number;
   min_order_amount: number;
   max_discount_amount?: number;
@@ -260,3 +271,33 @@ export interface Payout {
 }
 
 export type PayoutRequest = Payout;
+
+export interface ActivityLog {
+  id: string;
+  actor_id: string;
+  action: string;
+  entity_type: string;
+  entity_id?: string;
+  metadata?: Record<string, any>;
+  created_at: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  order_id: string;
+  sender_id: string;
+  recipient_id?: string;
+  content: string;
+  is_read?: boolean;
+  created_at: string;
+}
+
+export type PaginatedResult<T> = {
+  data: T[];
+  count: number;
+};
+
+export type DatabaseRow<T> = T & {
+  id: string;
+  created_at: string;
+};

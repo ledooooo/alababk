@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
 import { Product } from '../types/domain';
 
 export interface CartLineItem {
@@ -8,13 +7,25 @@ export interface CartLineItem {
   notes?: string;
 }
 
+export interface CartData {
+  storeId: string | null;
+  storeName: string | null;
+  items: CartLineItem[];
+}
+
 interface CartState {
+  userId: string | null;
   storeId: string | null;
   storeName: string | null;
   items: CartLineItem[];
   isOpen: boolean;
 
-  // Actions
+  // New Actions for User-bound Cart
+  setUserId: (userId: string | null) => void;
+  loadCartForUser: (userId: string) => void;
+  mergeOnLogin: (serverCart?: CartData) => void;
+
+  // Existing Actions
   addItem: (product: Product, storeName: string, quantity?: number, notes?: string) => { success: boolean; requiresConfirm?: boolean };
   forceAddItem: (product: Product, storeName: string, quantity?: number, notes?: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
@@ -22,103 +33,272 @@ interface CartState {
   updateItemNotes: (productId: string, notes: string) => void;
   clearCart: () => void;
   setIsOpen: (isOpen: boolean) => void;
+  openCart: () => void;
+  closeCart: () => void;
   getSubtotal: () => number;
   getItemCount: () => number;
 }
 
-export const useCartStore = create<CartState>()(
-  persist(
-    (set, get) => ({
-      storeId: null,
-      storeName: null,
-      items: [],
-      isOpen: false,
+function getStorageKey(userId: string | null): string {
+  return userId ? `jihat_cart_${userId}` : 'jihat_cart_guest';
+}
 
-      addItem: (product, storeName, quantity = 1, notes = '') => {
-        const { storeId, items } = get();
+function persistCart(userId: string | null, storeId: string | null, storeName: string | null, items: CartLineItem[]): void {
+  if (typeof window === 'undefined') return;
+  const key = getStorageKey(userId);
+  try {
+    localStorage.setItem(key, JSON.stringify({ storeId, storeName, items }));
+  } catch (e) {
+    console.warn('Failed to persist cart:', e);
+  }
+}
 
-        // 1. Check if adding from a different store
-        if (storeId && storeId !== product.store_id && items.length > 0) {
-          return { success: false, requiresConfirm: true };
-        }
+function loadCartData(userId: string | null): CartData {
+  if (typeof window === 'undefined') return { storeId: null, storeName: null, items: [] };
+  const key = getStorageKey(userId);
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return { storeId: null, storeName: null, items: [] };
+    const parsed = JSON.parse(raw);
+    return {
+      storeId: parsed.storeId || null,
+      storeName: parsed.storeName || null,
+      items: Array.isArray(parsed.items) ? parsed.items : [],
+    };
+  } catch {
+    return { storeId: null, storeName: null, items: [] };
+  }
+}
 
-        // 2. Same store or empty cart
-        const existingIndex = items.findIndex((i) => i.product.id === product.id);
-        let updatedItems = [...items];
+function mergeCarts(localCart: CartData, serverCart: CartData): CartData {
+  if (!localCart.items || localCart.items.length === 0) {
+    return serverCart;
+  }
+  if (!serverCart.items || serverCart.items.length === 0) {
+    return localCart;
+  }
+  if (localCart.storeId === serverCart.storeId) {
+    const mergedItems = [...serverCart.items];
+    localCart.items.forEach((localItem) => {
+      const existing = mergedItems.find((i) => i.product.id === localItem.product.id);
+      if (existing) {
+        existing.quantity += localItem.quantity;
+      } else {
+        mergedItems.push(localItem);
+      }
+    });
+    return { storeId: serverCart.storeId, storeName: serverCart.storeName, items: mergedItems };
+  }
+  return serverCart;
+}
 
-        if (existingIndex >= 0) {
-          updatedItems[existingIndex].quantity += quantity;
-          if (notes) updatedItems[existingIndex].notes = notes;
-        } else {
-          updatedItems.push({ product, quantity, notes });
-        }
-
-        set({
-          storeId: product.store_id,
-          storeName: storeName,
-          items: updatedItems,
-        });
-
-        return { success: true };
-      },
-
-      forceAddItem: (product, storeName, quantity = 1, notes = '') => {
-        set({
-          storeId: product.store_id,
-          storeName: storeName,
-          items: [{ product, quantity, notes }],
-        });
-      },
-
-      updateQuantity: (productId, quantity) => {
-        if (quantity <= 0) {
-          get().removeItem(productId);
-          return;
-        }
-
-        const items = get().items.map((item) =>
-          item.product.id === productId ? { ...item, quantity } : item
-        );
-        set({ items });
-      },
-
-      removeItem: (productId) => {
-        const items = get().items.filter((item) => item.product.id !== productId);
-        if (items.length === 0) {
-          set({ storeId: null, storeName: null, items: [] });
-        } else {
-          set({ items });
-        }
-      },
-
-      updateItemNotes: (productId, notes) => {
-        const items = get().items.map((item) =>
-          item.product.id === productId ? { ...item, notes } : item
-        );
-        set({ items });
-      },
-
-      clearCart: () => {
-        set({ storeId: null, storeName: null, items: [] });
-      },
-
-      setIsOpen: (isOpen: boolean) => {
-        set({ isOpen });
-      },
-
-      getSubtotal: () => {
-        return get().items.reduce(
-          (sum, item) => sum + item.product.price * item.quantity,
-          0
-        );
-      },
-
-      getItemCount: () => {
-        return get().items.reduce((sum, item) => sum + item.quantity, 0);
-      },
-    }),
-    {
-      name: 'jihat_cart_storage',
+// Read initial user ID from storage if available
+const getInitialUserId = (): string | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const userRaw = localStorage.getItem('jihat_current_user');
+    if (userRaw) {
+      const user = JSON.parse(userRaw);
+      return user?.id || null;
     }
-  )
-);
+  } catch {
+    // ignore
+  }
+  return null;
+};
+
+const initialUserId = getInitialUserId();
+const initialCart = loadCartData(initialUserId);
+
+export const useCartStore = create<CartState>()((set, get) => ({
+  userId: initialUserId,
+  storeId: initialCart.storeId,
+  storeName: initialCart.storeName,
+  items: initialCart.items,
+  isOpen: false,
+
+  setUserId: (newUserId: string | null) => {
+    const currentUserId = get().userId;
+    if (currentUserId === newUserId) return;
+
+    if (!newUserId) {
+      // Logout: Clear state and return to guest state
+      set({
+        userId: null,
+        storeId: null,
+        storeName: null,
+        items: [],
+      });
+      return;
+    }
+
+    // Login scenario
+    const guestCart = loadCartData(null);
+    const userCart = loadCartData(newUserId);
+    const merged = mergeCarts(guestCart, userCart);
+
+    // Clear guest cart after merging
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('jihat_cart_guest');
+    }
+
+    set({
+      userId: newUserId,
+      storeId: merged.storeId,
+      storeName: merged.storeName,
+      items: merged.items,
+    });
+
+    persistCart(newUserId, merged.storeId, merged.storeName, merged.items);
+  },
+
+  loadCartForUser: (userId: string) => {
+    const data = loadCartData(userId);
+    set({
+      userId,
+      storeId: data.storeId,
+      storeName: data.storeName,
+      items: data.items,
+    });
+  },
+
+  mergeOnLogin: (serverCart?: CartData) => {
+    const state = get();
+    const localCart: CartData = {
+      storeId: state.storeId,
+      storeName: state.storeName,
+      items: state.items,
+    };
+
+    if (!serverCart) {
+      return;
+    }
+
+    const merged = mergeCarts(localCart, serverCart);
+    set({
+      storeId: merged.storeId,
+      storeName: merged.storeName,
+      items: merged.items,
+    });
+
+    persistCart(state.userId, merged.storeId, merged.storeName, merged.items);
+  },
+
+  addItem: (product, storeName, quantity = 1, notes = '') => {
+    const { storeId, items, userId } = get();
+
+    // 1. Check if adding from a different store
+    if (storeId && storeId !== product.store_id && items.length > 0) {
+      return { success: false, requiresConfirm: true };
+    }
+
+    // 2. Same store or empty cart
+    const existingIndex = items.findIndex((i) => i.product.id === product.id);
+    const updatedItems = [...items];
+
+    if (existingIndex >= 0) {
+      updatedItems[existingIndex] = {
+        ...updatedItems[existingIndex],
+        quantity: updatedItems[existingIndex].quantity + quantity,
+        notes: notes || updatedItems[existingIndex].notes,
+      };
+    } else {
+      updatedItems.push({ product, quantity, notes });
+    }
+
+    const newStoreId = product.store_id;
+
+    set({
+      storeId: newStoreId,
+      storeName,
+      items: updatedItems,
+    });
+
+    persistCart(userId, newStoreId, storeName, updatedItems);
+    return { success: true };
+  },
+
+  forceAddItem: (product, storeName, quantity = 1, notes = '') => {
+    const { userId } = get();
+    const updatedItems = [{ product, quantity, notes }];
+    const newStoreId = product.store_id;
+
+    set({
+      storeId: newStoreId,
+      storeName,
+      items: updatedItems,
+    });
+
+    persistCart(userId, newStoreId, storeName, updatedItems);
+  },
+
+  updateQuantity: (productId, quantity) => {
+    const { userId, items } = get();
+
+    if (quantity <= 0) {
+      get().removeItem(productId);
+      return;
+    }
+
+    const updatedItems = items.map((item) =>
+      item.product.id === productId ? { ...item, quantity } : item
+    );
+
+    set({ items: updatedItems });
+    persistCart(userId, get().storeId, get().storeName, updatedItems);
+  },
+
+  removeItem: (productId) => {
+    const { userId, items } = get();
+    const updatedItems = items.filter((item) => item.product.id !== productId);
+
+    if (updatedItems.length === 0) {
+      set({ storeId: null, storeName: null, items: [] });
+      persistCart(userId, null, null, []);
+    } else {
+      set({ items: updatedItems });
+      persistCart(userId, get().storeId, get().storeName, updatedItems);
+    }
+  },
+
+  updateItemNotes: (productId, notes) => {
+    const { userId, items } = get();
+    const updatedItems = items.map((item) =>
+      item.product.id === productId ? { ...item, notes } : item
+    );
+    set({ items: updatedItems });
+    persistCart(userId, get().storeId, get().storeName, updatedItems);
+  },
+
+  clearCart: () => {
+    const { userId } = get();
+    set({ storeId: null, storeName: null, items: [] });
+    if (typeof window !== 'undefined') {
+      const key = getStorageKey(userId);
+      localStorage.removeItem(key);
+    }
+  },
+
+  setIsOpen: (isOpen: boolean) => {
+    set({ isOpen });
+  },
+
+  openCart: () => {
+    set({ isOpen: true });
+  },
+
+  closeCart: () => {
+    set({ isOpen: false });
+  },
+
+  getSubtotal: () => {
+    return get().items.reduce(
+      (sum, item) => sum + item.product.price * item.quantity,
+      0
+    );
+  },
+
+  getItemCount: () => {
+    return get().items.reduce((sum, item) => sum + item.quantity, 0);
+  },
+}));

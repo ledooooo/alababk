@@ -518,7 +518,7 @@ export const CustomerOrderDetailView: React.FC<CustomerOrderDetailViewProps> = (
               <span className="text-emerald-700 text-base">{formatCurrency(order.total)}</span>
             </div>
             <div className="text-[11px] text-slate-500 pt-1">
-              طريقة الدفع: <span className="font-bold text-slate-800">{order.payment_method === 'cod' ? 'نقداً عند الاستلام (COD)' : 'بطاقة ائتمان'}</span>
+              طريقة الدفع: <span className="font-bold text-slate-800">{order.payment_method === 'cash' || (order.payment_method as string) === 'cod' ? 'نقداً عند الاستلام (كاش)' : 'دفع إلكتروني (أونلاين)'}</span>
             </div>
           </div>
         </div>

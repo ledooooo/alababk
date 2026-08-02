@@ -1,3 +1,4 @@
+import { Session } from '@supabase/supabase-js';
 import {
   UserProfile,
   UserRole,
@@ -11,10 +12,12 @@ import {
   Review,
   Category,
   NotificationItem,
-  OrderStatus
+  OrderStatus,
+  Payout,
 } from '../types/domain';
-import { DEFAULT_CATEGORIES, EGYPT_DEFAULT_ZONES, DEFAULT_LAT, DEFAULT_LNG } from './constants';
+import { DEFAULT_CATEGORIES, EGYPT_DEFAULT_ZONES } from './constants';
 import {
+  supabase,
   saveSupabaseUser,
   fetchSupabaseUsers,
   saveSupabaseStore,
@@ -31,6 +34,12 @@ import {
   fetchSupabaseZones,
   fetchSupabaseCoupons,
   fetchSupabaseAgents,
+  listSupabasePayouts,
+  listSupabaseReviews,
+  listSupabaseNotifications,
+  createSupabase,
+  updateSupabase,
+  deleteSupabase,
 } from './supabase';
 
 const STORAGE_KEYS = {
@@ -45,6 +54,7 @@ const STORAGE_KEYS = {
   COUPONS: 'jihat_coupons',
   REVIEWS: 'jihat_reviews',
   NOTIFICATIONS: 'jihat_notifications',
+  PAYOUTS: 'jihat_payouts',
   CART: 'jihat_cart',
   WISHLIST_STORES: 'jihat_wishlist_stores',
   WISHLIST_PRODUCTS: 'jihat_wishlist_products',
@@ -101,48 +111,219 @@ export function subscribeToStorageChange(callback: (detail: { entityType: string
   };
 }
 
-// Initial Sample Seed Data Generator (Clean state - synced directly from Supabase DB)
-function seedDefaultData() {
+// Helpers for cache manipulation
+function getCached<T>(key: string): T[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const data = localStorage.getItem(key);
+    return data ? JSON.parse(data) : [];
+  } catch {
+    return [];
+  }
+}
+
+function setCached<T>(key: string, data: T[]): void {
   if (typeof window === 'undefined') return;
-
-  if (!localStorage.getItem(STORAGE_KEYS.ZONES)) {
-    localStorage.setItem(STORAGE_KEYS.ZONES, JSON.stringify(EGYPT_DEFAULT_ZONES));
-  }
-  if (!localStorage.getItem(STORAGE_KEYS.USERS)) {
-    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify([]));
-  }
-  if (!localStorage.getItem(STORAGE_KEYS.AGENTS)) {
-    localStorage.setItem(STORAGE_KEYS.AGENTS, JSON.stringify([]));
-  }
-  if (!localStorage.getItem(STORAGE_KEYS.STORES)) {
-    localStorage.setItem(STORAGE_KEYS.STORES, JSON.stringify([]));
-  }
-  if (!localStorage.getItem(STORAGE_KEYS.PRODUCTS)) {
-    localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify([]));
-  }
-  if (!localStorage.getItem(STORAGE_KEYS.ADDRESSES)) {
-    localStorage.setItem(STORAGE_KEYS.ADDRESSES, JSON.stringify([]));
-  }
-  if (!localStorage.getItem(STORAGE_KEYS.COUPONS)) {
-    localStorage.setItem(STORAGE_KEYS.COUPONS, JSON.stringify([]));
-  }
-  if (!localStorage.getItem(STORAGE_KEYS.ORDERS)) {
-    localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify([]));
+  try {
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch (err) {
+    console.warn(`Failed to update cache for key '${key}':`, err);
   }
 }
 
-// Initialize Seed Data on module load in browser
-if (typeof window !== 'undefined') {
-  seedDefaultData();
+function mergeById<T extends { id: string }>(items: T[], item: T): T[] {
+  const copy = [...items];
+  const idx = copy.findIndex((i) => i.id === item.id);
+  if (idx >= 0) {
+    copy[idx] = item;
+  } else {
+    copy.unshift(item);
+  }
+  return copy;
 }
 
-// Storage Repository API Functions
 export const StorageRepo = {
+  // --- CACHE HELPERS ---
+  getCachedStores(): Store[] { return getCached<Store>(STORAGE_KEYS.STORES); },
+  getCachedProducts(): Product[] { return getCached<Product>(STORAGE_KEYS.PRODUCTS); },
+  getCachedOrders(): Order[] { return getCached<Order>(STORAGE_KEYS.ORDERS); },
+  getCachedUsers(): UserProfile[] { return getCached<UserProfile>(STORAGE_KEYS.USERS); },
+  getCachedAgents(): DeliveryAgent[] { return getCached<DeliveryAgent>(STORAGE_KEYS.AGENTS); },
+  getCachedZones(): DeliveryZone[] { return getCached<DeliveryZone>(STORAGE_KEYS.ZONES); },
+  getCachedCoupons(): Coupon[] { return getCached<Coupon>(STORAGE_KEYS.COUPONS); },
+  getCachedReviews(): Review[] { return getCached<Review>(STORAGE_KEYS.REVIEWS); },
+  getCachedNotifications(): NotificationItem[] { return getCached<NotificationItem>(STORAGE_KEYS.NOTIFICATIONS); },
+  getCachedPayouts(): Payout[] { return getCached<Payout>(STORAGE_KEYS.PAYOUTS); },
+
+  invalidateCache(key: string) {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(key);
+    }
+  },
+
+  clearAllCaches() {
+    if (typeof window !== 'undefined') {
+      Object.values(STORAGE_KEYS).forEach((key) => localStorage.removeItem(key));
+    }
+  },
+
+  // --- REFRESH FROM SUPABASE ---
+  async refreshStores(): Promise<Store[]> {
+    try {
+      const stores = await fetchSupabaseStores();
+      setCached(STORAGE_KEYS.STORES, stores);
+      notifyStorageChange('store', 'refresh', stores);
+      return stores;
+    } catch (err) {
+      console.error('refreshStores error:', err);
+      return this.getCachedStores();
+    }
+  },
+
+  async refreshProducts(storeId?: string): Promise<Product[]> {
+    try {
+      const products = await fetchSupabaseProducts(storeId);
+      if (storeId) {
+        const allProds = this.getCachedProducts().filter((p) => p.store_id !== storeId);
+        const merged = [...products, ...allProds];
+        setCached(STORAGE_KEYS.PRODUCTS, merged);
+      } else {
+        setCached(STORAGE_KEYS.PRODUCTS, products);
+      }
+      notifyStorageChange('product', 'refresh', products);
+      return products;
+    } catch (err) {
+      console.error('refreshProducts error:', err);
+      return this.getProducts(storeId);
+    }
+  },
+
+  async refreshOrders(): Promise<Order[]> {
+    try {
+      const orders = await fetchSupabaseOrders();
+      setCached(STORAGE_KEYS.ORDERS, orders);
+      notifyStorageChange('order', 'refresh', orders);
+      return orders;
+    } catch (err) {
+      console.error('refreshOrders error:', err);
+      return this.getCachedOrders();
+    }
+  },
+
+  async refreshUsers(): Promise<UserProfile[]> {
+    try {
+      const users = await fetchSupabaseUsers();
+      setCached(STORAGE_KEYS.USERS, users);
+      notifyStorageChange('user', 'refresh', users);
+      return users;
+    } catch (err) {
+      console.error('refreshUsers error:', err);
+      return this.getCachedUsers();
+    }
+  },
+
+  async refreshAgents(): Promise<DeliveryAgent[]> {
+    try {
+      const agents = await fetchSupabaseAgents();
+      setCached(STORAGE_KEYS.AGENTS, agents);
+      notifyStorageChange('agent', 'refresh', agents);
+      return agents;
+    } catch (err) {
+      console.error('refreshAgents error:', err);
+      return this.getCachedAgents();
+    }
+  },
+
+  async refreshZones(): Promise<DeliveryZone[]> {
+    try {
+      const zones = await fetchSupabaseZones();
+      setCached(STORAGE_KEYS.ZONES, zones.length > 0 ? zones : EGYPT_DEFAULT_ZONES);
+      notifyStorageChange('zone', 'refresh', zones);
+      return zones;
+    } catch (err) {
+      console.error('refreshZones error:', err);
+      return this.getZones();
+    }
+  },
+
+  async refreshCoupons(): Promise<Coupon[]> {
+    try {
+      const coupons = await fetchSupabaseCoupons();
+      setCached(STORAGE_KEYS.COUPONS, coupons);
+      notifyStorageChange('coupon', 'refresh', coupons);
+      return coupons;
+    } catch (err) {
+      console.error('refreshCoupons error:', err);
+      return this.getCachedCoupons();
+    }
+  },
+
+  async refreshCategories(): Promise<Category[]> {
+    try {
+      const cats = await fetchSupabaseCategories();
+      const list = cats.length > 0 ? cats : DEFAULT_CATEGORIES;
+      setCached('jihat_categories', list);
+      notifyStorageChange('category', 'refresh', list);
+      return list;
+    } catch (err) {
+      console.error('refreshCategories error:', err);
+      return this.getCategories();
+    }
+  },
+
+  async refreshReviews(storeId?: string): Promise<Review[]> {
+    try {
+      const res = await listSupabaseReviews();
+      const list = res.data;
+      if (storeId) {
+        const filtered = list.filter((r) => r.store_id === storeId);
+        notifyStorageChange('review', 'refresh', filtered);
+        return filtered;
+      }
+      setCached(STORAGE_KEYS.REVIEWS, list);
+      notifyStorageChange('review', 'refresh', list);
+      return list;
+    } catch (err) {
+      console.error('refreshReviews error:', err);
+      return this.getReviews(storeId);
+    }
+  },
+
+  async refreshNotifications(userId?: string): Promise<NotificationItem[]> {
+    try {
+      const res = await listSupabaseNotifications();
+      const list = res.data;
+      setCached(STORAGE_KEYS.NOTIFICATIONS, list);
+      notifyStorageChange('notification', 'refresh', list);
+      if (userId) {
+        return list.filter((n) => n.user_id === userId || n.user_id === 'all');
+      }
+      return list;
+    } catch (err) {
+      console.error('refreshNotifications error:', err);
+      return this.getNotifications(userId);
+    }
+  },
+
+  async refreshPayouts(): Promise<Payout[]> {
+    try {
+      const res = await listSupabasePayouts();
+      const list = res.data;
+      setCached(STORAGE_KEYS.PAYOUTS, list);
+      notifyStorageChange('payout', 'refresh', list);
+      return list;
+    } catch (err) {
+      console.error('refreshPayouts error:', err);
+      return this.getCachedPayouts();
+    }
+  },
+
   // --- USERS & AUTH ---
   getCurrentUser(): UserProfile | null {
     if (typeof window === 'undefined') return null;
     const data = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
-    return data ? JSON.parse(data) : null;
+    if (data) return JSON.parse(data);
+    return null;
   },
 
   setCurrentUser(user: UserProfile | null) {
@@ -155,155 +336,228 @@ export const StorageRepo = {
     notifyStorageChange('user', 'switch', user);
   },
 
+  async getCurrentSession(): Promise<Session | null> {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session;
+  },
+
+  onAuthChange(callback: (event: string, session: Session | null) => void): () => void {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      callback(event, session);
+    });
+    return () => subscription.unsubscribe();
+  },
+
   logout() {
     if (typeof window === 'undefined') return;
     localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+    supabase.auth.signOut().catch((err) => console.error('SignOut error:', err));
     notifyStorageChange('user', 'switch', null);
   },
 
-  getUsers(): UserProfile[] {
-    if (typeof window === 'undefined') return [];
-    const data = localStorage.getItem(STORAGE_KEYS.USERS);
-    return data ? JSON.parse(data) : [];
+  switchRole(role: UserRole) {
+    const users = this.getCachedUsers();
+    let target = users.find((u) => u.role === role);
+    if (!target) {
+      target = {
+        id: `usr-${role}-1`,
+        email: `${role}@jihat.app`,
+        name: `مستخدم (${role})`,
+        phone: '01000000000',
+        role,
+        created_at: new Date().toISOString(),
+      };
+    }
+    this.setCurrentUser(target);
   },
 
-  saveUser(user: UserProfile) {
-    const users = this.getUsers();
-    const idx = users.findIndex(u => u.id === user.id);
-    if (idx >= 0) {
-      users[idx] = user;
-    } else {
-      users.push(user);
-    }
-    localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(users));
+  getUsers(): UserProfile[] {
+    const cached = this.getCachedUsers();
+    this.refreshUsers();
+    return cached;
+  },
+
+  async saveUser(user: UserProfile): Promise<UserProfile> {
+    const users = mergeById(this.getCachedUsers(), user);
+    setCached(STORAGE_KEYS.USERS, users);
     if (this.getCurrentUser()?.id === user.id) {
       this.setCurrentUser(user);
     }
     notifyStorageChange('user', 'save', user);
-    saveSupabaseUser(user);
+
+    try {
+      await saveSupabaseUser(user);
+      return user;
+    } catch (err) {
+      console.error('Failed to save user to Supabase:', err);
+      this.refreshUsers();
+      throw err;
+    }
   },
 
   // --- STORES ---
   getStores(): Store[] {
-    if (typeof window === 'undefined') return [];
-    const data = localStorage.getItem(STORAGE_KEYS.STORES);
-    return data ? JSON.parse(data) : [];
+    const cached = this.getCachedStores();
+    this.refreshStores();
+    return cached;
   },
 
   getStoreById(id: string): Store | null {
-    return this.getStores().find(s => s.id === id) || null;
+    return this.getCachedStores().find((s) => s.id === id) || null;
   },
 
   getStoreBySlug(slug: string): Store | null {
-    return this.getStores().find(s => s.slug === slug) || null;
+    return this.getCachedStores().find((s) => s.slug === slug) || null;
   },
 
-  saveStore(store: Store) {
-    const stores = this.getStores();
-    const idx = stores.findIndex(s => s.id === store.id);
-    if (idx >= 0) {
-      stores[idx] = store;
-    } else {
-      stores.unshift(store);
-    }
-    localStorage.setItem(STORAGE_KEYS.STORES, JSON.stringify(stores));
+  async saveStore(store: Store): Promise<Store> {
+    const stores = mergeById(this.getCachedStores(), store);
+    setCached(STORAGE_KEYS.STORES, stores);
     notifyStorageChange('store', 'save', store);
-    saveSupabaseStore(store);
+
+    try {
+      await saveSupabaseStore(store);
+      await this.refreshStores();
+      return store;
+    } catch (err) {
+      console.error('Failed to save store:', err);
+      this.invalidateCache(STORAGE_KEYS.STORES);
+      throw err;
+    }
+  },
+
+  async deleteStore(id: string): Promise<void> {
+    const stores = this.getCachedStores().filter((s) => s.id !== id);
+    setCached(STORAGE_KEYS.STORES, stores);
+    notifyStorageChange('store', 'delete', { id });
+
+    try {
+      await deleteSupabase('stores', id);
+    } catch (err) {
+      console.error('Failed to delete store from Supabase:', err);
+      this.refreshStores();
+      throw err;
+    }
   },
 
   // --- PRODUCTS ---
   getProducts(storeId?: string): Product[] {
-    if (typeof window === 'undefined') return [];
-    const data = localStorage.getItem(STORAGE_KEYS.PRODUCTS);
-    const list: Product[] = data ? JSON.parse(data) : [];
+    const cached = this.getCachedProducts();
+    this.refreshProducts(storeId);
     if (storeId) {
-      return list.filter(p => p.store_id === storeId);
+      return cached.filter((p) => p.store_id === storeId);
     }
-    return list;
+    return cached;
   },
 
   getProductById(id: string): Product | null {
-    return this.getProducts().find(p => p.id === id) || null;
+    return this.getCachedProducts().find((p) => p.id === id) || null;
   },
 
-  saveProduct(product: Product) {
-    const products = this.getProducts();
-    const idx = products.findIndex(p => p.id === product.id);
-    if (idx >= 0) {
-      products[idx] = product;
-    } else {
-      products.unshift(product);
-    }
-    localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
+  async saveProduct(product: Product): Promise<Product> {
+    const products = mergeById(this.getCachedProducts(), product);
+    setCached(STORAGE_KEYS.PRODUCTS, products);
     notifyStorageChange('product', 'save', product);
-    saveSupabaseProduct(product);
+
+    try {
+      await saveSupabaseProduct(product);
+      await this.refreshProducts(product.store_id);
+      return product;
+    } catch (err) {
+      console.error('Failed to save product:', err);
+      this.invalidateCache(STORAGE_KEYS.PRODUCTS);
+      throw err;
+    }
   },
 
-  deleteProduct(id: string) {
-    const products = this.getProducts().filter(p => p.id !== id);
-    localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(products));
+  async deleteProduct(id: string): Promise<void> {
+    const products = this.getCachedProducts().filter((p) => p.id !== id);
+    setCached(STORAGE_KEYS.PRODUCTS, products);
     notifyStorageChange('product', 'delete', { id });
+
+    try {
+      await deleteSupabase('products', id);
+    } catch (err) {
+      console.error('Failed to delete product from Supabase:', err);
+      this.refreshProducts();
+      throw err;
+    }
   },
 
   // --- ADDRESSES ---
   getAddresses(userId?: string): CustomerAddress[] {
-    if (typeof window === 'undefined') return [];
-    const data = localStorage.getItem(STORAGE_KEYS.ADDRESSES);
-    const list: CustomerAddress[] = data ? JSON.parse(data) : [];
+    const list = getCached<CustomerAddress>(STORAGE_KEYS.ADDRESSES);
     if (userId) {
-      return list.filter(a => a.user_id === userId);
+      return list.filter((a) => a.user_id === userId);
     }
     return list;
   },
 
-  saveAddress(address: CustomerAddress) {
-    const addresses = this.getAddresses();
+  async saveAddress(address: CustomerAddress): Promise<CustomerAddress> {
+    const addresses = getCached<CustomerAddress>(STORAGE_KEYS.ADDRESSES);
     if (address.is_default) {
-      addresses.forEach(a => {
+      addresses.forEach((a) => {
         if (a.user_id === address.user_id) a.is_default = false;
       });
     }
-    const idx = addresses.findIndex(a => a.id === address.id);
-    if (idx >= 0) {
-      addresses[idx] = address;
-    } else {
-      addresses.unshift(address);
-    }
-    localStorage.setItem(STORAGE_KEYS.ADDRESSES, JSON.stringify(addresses));
+    const updated = mergeById(addresses, address);
+    setCached(STORAGE_KEYS.ADDRESSES, updated);
     notifyStorageChange('address', 'save', address);
+
+    try {
+      const saved = await createSupabase<CustomerAddress>('addresses', address);
+      return saved;
+    } catch (err) {
+      console.error('Failed to save address to Supabase:', err);
+      return address;
+    }
   },
 
-  deleteAddress(id: string) {
-    const addresses = this.getAddresses().filter(a => a.id !== id);
-    localStorage.setItem(STORAGE_KEYS.ADDRESSES, JSON.stringify(addresses));
+  async deleteAddress(id: string): Promise<void> {
+    const addresses = getCached<CustomerAddress>(STORAGE_KEYS.ADDRESSES).filter((a) => a.id !== id);
+    setCached(STORAGE_KEYS.ADDRESSES, addresses);
     notifyStorageChange('address', 'delete', { id });
+
+    try {
+      await deleteSupabase('addresses', id);
+    } catch (err) {
+      console.error('Failed to delete address:', err);
+    }
   },
 
   // --- ORDERS ---
   getOrders(): Order[] {
-    if (typeof window === 'undefined') return [];
-    const data = localStorage.getItem(STORAGE_KEYS.ORDERS);
-    return data ? JSON.parse(data) : [];
+    const cached = this.getCachedOrders();
+    this.refreshOrders();
+    return cached;
   },
 
   getOrderById(id: string): Order | null {
-    return this.getOrders().find(o => o.id === id) || null;
+    return this.getCachedOrders().find((o) => o.id === id) || null;
   },
 
-  saveOrder(order: Order) {
-    const orders = this.getOrders();
-    const idx = orders.findIndex(o => o.id === order.id);
-    if (idx >= 0) {
-      orders[idx] = order;
-    } else {
-      orders.unshift(order);
-    }
-    localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(orders));
+  async saveOrder(order: Order): Promise<Order> {
+    const orders = mergeById(this.getCachedOrders(), order);
+    setCached(STORAGE_KEYS.ORDERS, orders);
     notifyStorageChange('order', 'save', order);
-    saveSupabaseOrder(order);
+
+    try {
+      await saveSupabaseOrder(order);
+      await this.refreshOrders();
+      return order;
+    } catch (err) {
+      console.error('Failed to save order to Supabase:', err);
+      this.refreshOrders();
+      throw err;
+    }
   },
 
-  updateOrderStatus(orderId: string, status: OrderStatus, note?: string, agentInfo?: Partial<Order>) {
+  async updateOrderStatus(
+    orderId: string,
+    status: OrderStatus,
+    note?: string,
+    agentInfo?: Partial<Order>
+  ): Promise<Order | null> {
     const order = this.getOrderById(orderId);
     if (!order) return null;
 
@@ -323,16 +577,18 @@ export const StorageRepo = {
       order.payment_status = 'paid';
     }
 
-    this.saveOrder(order);
+    await this.saveOrder(order);
 
-    // Auto-generate mock push notification for customer
+    // Generate push notification for customer
     const agentName = agentInfo?.delivery_agent_name || order.delivery_agent_name || 'الكابتن';
     const statusNotifTitles: Record<string, string> = {
       pending: `تم استلام طلبك (#${order.order_number})`,
-      confirmed: `تم تأكيد طلبك من المتجر (#${order.order_number}) ✅`,
+      accepted: `تم قبول طلبك من المتجر (#${order.order_number}) ✅`,
       preparing: `جاري تحضير وتجهيز وجبتك 🍳 (#${order.order_number})`,
+      ready: `الطلب جاهز للتسليم لكابتن التوصيل 📦 (#${order.order_number})`,
       assigned: `تم إسناد الطلب للكابتن ${agentName} 🛵`,
       picked_up: `الكابتن استلم شحنتك وفي الطريق إليك! 🚀`,
+      on_the_way: `الكابتن في الطريق إليك الآن 🛵`,
       delivered: `تم توصيل طلبك بنجاح! نتمنى لك أكلة شهية 🎉`,
       cancelled: `تم إلغاء الطلب (#${order.order_number}) ❌`,
       rejected: `اعتذر المتجر عن قبول الطلب (#${order.order_number}) ⚠️`,
@@ -340,10 +596,12 @@ export const StorageRepo = {
 
     const statusNotifMsgs: Record<string, string> = {
       pending: `تم إرسال طلبك إلى ${order.store_name} وهو قيد المراجعة.`,
-      confirmed: `قام متجر ${order.store_name} بتأكيد الطلب وبدء التحضير.`,
+      accepted: `قام متجر ${order.store_name} بقبول الطلب وبدء التحضير.`,
       preparing: `المطبخ يعمل على إعداد طلبك لتغليفه بدقة.`,
+      ready: `الطلب جاهز وفي انتظار الكابتن لاستلامه.`,
       assigned: note || `سيتولى الكابتن ${agentName} توصيل طلبك.`,
       picked_up: `الكابتن استلم الطلب من ${order.store_name} وينطلق إلى عنوانك.`,
+      on_the_way: `الكابتن في طريقه للعنوان المقترن بالطلب.`,
       delivered: `تم تسليم الطلب إلى ${order.delivery_address?.street || 'عنوانك'}. شكراً لاختيارك على بابك!`,
       cancelled: note || `تم إلغاء الطلب.`,
       rejected: note || `تواصل مع المتجر للمزيد من التفاصيل.`,
@@ -357,16 +615,15 @@ export const StorageRepo = {
       type: 'order_status',
       is_read: false,
       created_at: new Date().toISOString(),
-      link_url: `customer-order-detail:${order.id}`
+      link_url: `customer-order-detail:${order.id}`,
     };
 
-    this.saveNotification(newNotif);
-
-    updateSupabaseOrderStatus(orderId, status, note);
+    await this.saveNotification(newNotif);
+    await updateSupabaseOrderStatus(orderId, status, note);
     return order;
   },
 
-  assignOrderToAgent(orderId: string, agentId: string, agentName: string, agentPhone: string) {
+  async assignOrderToAgent(orderId: string, agentId: string, agentName: string, agentPhone: string) {
     return this.updateOrderStatus(orderId, 'assigned', `تم إسناد الطلب للكابتن ${agentName}`, {
       delivery_agent_id: agentId,
       delivery_agent_name: agentName,
@@ -374,7 +631,7 @@ export const StorageRepo = {
     });
   },
 
-  updateDeliveryAgentLocation(orderId: string, lat: number, lng: number) {
+  async updateDeliveryAgentLocation(orderId: string, lat: number, lng: number) {
     const order = this.getOrderById(orderId);
     if (!order) return null;
 
@@ -382,331 +639,247 @@ export const StorageRepo = {
     order.delivery_agent_lng = lng;
     order.updated_at = new Date().toISOString();
 
-    this.saveOrder(order);
-    return order;
+    return this.saveOrder(order);
   },
 
   // --- PAYOUTS ---
-  getPayouts() {
-    if (typeof window === 'undefined') return [];
-    const data = localStorage.getItem('jihat_payouts');
-    if (data) return JSON.parse(data);
-
-    // Initial demo payouts if empty
-    const demoPayouts = [
-      {
-        id: 'payout-101',
-        recipient_id: 'usr-store-owner-1',
-        recipient_name: 'سوبرماركت أبو علي',
-        recipient_type: 'store',
-        store_name: 'سوبرماركت أبو علي المعادي',
-        user_name: 'خالد عبد السلام',
-        amount: 3850,
-        status: 'pending',
-        payment_method: 'فودافون كاش (Vodafone Cash)',
-        account_details: '01012345678',
-        created_at: new Date(Date.now() - 3600000 * 4).toISOString(),
-      },
-      {
-        id: 'payout-102',
-        recipient_id: 'usr-agent-1',
-        recipient_name: 'الكابتن مصطفى علي',
-        recipient_type: 'agent',
-        store_name: 'كابتن أسطول التوصيل',
-        user_name: 'الكابتن مصطفى علي',
-        amount: 1250,
-        status: 'pending',
-        payment_method: 'أنستا باي (InstaPay)',
-        account_details: 'mustafa@instapay',
-        created_at: new Date(Date.now() - 3600000 * 12).toISOString(),
-      },
-      {
-        id: 'payout-103',
-        recipient_id: 'usr-store-owner-2',
-        recipient_name: 'صيدلية النيل الحديثة',
-        recipient_type: 'store',
-        store_name: 'صيدلية النيل الحديثة',
-        user_name: 'د. طارق السعيد',
-        amount: 5400,
-        status: 'approved',
-        payment_method: 'تحويل بنكي (CIB)',
-        account_details: 'EG120000010023450001',
-        created_at: new Date(Date.now() - 3600000 * 48).toISOString(),
-      }
-    ];
-
-    localStorage.setItem('jihat_payouts', JSON.stringify(demoPayouts));
-    return demoPayouts;
+  getPayouts(): Payout[] {
+    const cached = this.getCachedPayouts();
+    this.refreshPayouts();
+    return cached;
   },
 
-  updatePayoutStatus(payoutId: string, status: 'approved' | 'rejected' | 'pending') {
-    const payouts = this.getPayouts();
-    const idx = payouts.findIndex((p: { id: string }) => p.id === payoutId);
+  async updatePayoutStatus(payoutId: string, status: 'approved' | 'rejected' | 'pending'): Promise<void> {
+    const payouts = this.getCachedPayouts();
+    const idx = payouts.findIndex((p) => p.id === payoutId);
     if (idx >= 0) {
       payouts[idx].status = status;
-      localStorage.setItem('jihat_payouts', JSON.stringify(payouts));
+      setCached(STORAGE_KEYS.PAYOUTS, payouts);
       notifyStorageChange('payout', 'save', payouts[idx]);
+    }
+
+    try {
+      await updateSupabase('payouts', payoutId, { status });
+    } catch (err) {
+      console.error('Failed to update payout status in Supabase:', err);
     }
   },
 
   // --- DELIVERY AGENTS ---
   getAgents(): DeliveryAgent[] {
-    if (typeof window === 'undefined') return [];
-    const data = localStorage.getItem(STORAGE_KEYS.AGENTS);
-    return data ? JSON.parse(data) : [];
+    const cached = this.getCachedAgents();
+    this.refreshAgents();
+    return cached;
   },
 
   getAgentByUserId(userId: string): DeliveryAgent | null {
-    return this.getAgents().find(a => a.user_id === userId) || null;
+    return this.getCachedAgents().find((a) => a.user_id === userId) || null;
   },
 
-  saveAgent(agent: DeliveryAgent) {
-    const agents = this.getAgents();
-    const idx = agents.findIndex(a => a.id === agent.id);
-    if (idx >= 0) {
-      agents[idx] = agent;
-    } else {
-      agents.unshift(agent);
-    }
-    localStorage.setItem(STORAGE_KEYS.AGENTS, JSON.stringify(agents));
+  async saveAgent(agent: DeliveryAgent): Promise<DeliveryAgent> {
+    const agents = mergeById(this.getCachedAgents(), agent);
+    setCached(STORAGE_KEYS.AGENTS, agents);
     notifyStorageChange('agent', 'save', agent);
-    saveSupabaseAgent(agent);
+
+    try {
+      await saveSupabaseAgent(agent);
+      await this.refreshAgents();
+      return agent;
+    } catch (err) {
+      console.error('Failed to save agent to Supabase:', err);
+      this.refreshAgents();
+      throw err;
+    }
   },
 
   // --- CATEGORIES & ZONES & COUPONS ---
   getCategories(): Category[] {
-    if (typeof window === 'undefined') return DEFAULT_CATEGORIES;
-    const data = localStorage.getItem('jihat_categories');
-    return data ? JSON.parse(data) : DEFAULT_CATEGORIES;
+    const data = getCached<Category>('jihat_categories');
+    this.refreshCategories();
+    return data.length > 0 ? data : DEFAULT_CATEGORIES;
   },
 
-  saveCategory(category: Category) {
-    const cats = this.getCategories();
-    const idx = cats.findIndex((c) => c.id === category.id);
-    if (idx >= 0) {
-      cats[idx] = category;
-    } else {
-      cats.push(category);
-    }
-    localStorage.setItem('jihat_categories', JSON.stringify(cats));
+  async saveCategory(category: Category): Promise<Category> {
+    const cats = mergeById(this.getCategories(), category);
+    setCached('jihat_categories', cats);
     notifyStorageChange('category', 'save', category);
+
+    try {
+      await createSupabase<Category>('categories', category);
+      return category;
+    } catch (err) {
+      console.error('Failed to save category:', err);
+      return category;
+    }
   },
 
   getZones(): DeliveryZone[] {
-    if (typeof window === 'undefined') return EGYPT_DEFAULT_ZONES;
-    const data = localStorage.getItem(STORAGE_KEYS.ZONES);
-    return data ? JSON.parse(data) : EGYPT_DEFAULT_ZONES;
+    const cached = this.getCachedZones();
+    this.refreshZones();
+    return cached.length > 0 ? cached : EGYPT_DEFAULT_ZONES;
   },
 
-  saveZone(zone: DeliveryZone) {
-    const zones = this.getZones();
-    const idx = zones.findIndex(z => z.id === zone.id);
-    if (idx >= 0) {
-      zones[idx] = zone;
-    } else {
-      zones.push(zone);
-    }
-    localStorage.setItem(STORAGE_KEYS.ZONES, JSON.stringify(zones));
+  async saveZone(zone: DeliveryZone): Promise<DeliveryZone> {
+    const zones = mergeById(this.getCachedZones(), zone);
+    setCached(STORAGE_KEYS.ZONES, zones);
     notifyStorageChange('zone', 'save', zone);
-    saveSupabaseZone(zone);
+
+    try {
+      await saveSupabaseZone(zone);
+      await this.refreshZones();
+      return zone;
+    } catch (err) {
+      console.error('Failed to save zone:', err);
+      this.refreshZones();
+      throw err;
+    }
   },
 
   getCoupons(): Coupon[] {
-    if (typeof window === 'undefined') return [];
-    const data = localStorage.getItem(STORAGE_KEYS.COUPONS);
-    return data ? JSON.parse(data) : [];
+    const cached = this.getCachedCoupons();
+    this.refreshCoupons();
+    return cached;
   },
 
-  saveCoupon(coupon: Coupon) {
-    const coupons = this.getCoupons();
-    const idx = coupons.findIndex(c => c.id === coupon.id);
-    if (idx >= 0) {
-      coupons[idx] = coupon;
-    } else {
-      coupons.push(coupon);
-    }
-    localStorage.setItem(STORAGE_KEYS.COUPONS, JSON.stringify(coupons));
+  async saveCoupon(coupon: Coupon): Promise<Coupon> {
+    const coupons = mergeById(this.getCachedCoupons(), coupon);
+    setCached(STORAGE_KEYS.COUPONS, coupons);
     notifyStorageChange('coupon', 'save', coupon);
-    saveSupabaseCoupon(coupon);
-  },
 
-  switchRole(role: UserRole) {
-    const users = this.getUsers();
-    let target = users.find((u) => u.role === role);
-
-    if (!target) {
-      // Fallback default users per role
-      if (role === 'customer') {
-        target = {
-          id: 'usr-customer-1',
-          email: 'customer@jihat.app',
-          name: 'أحمد محمود العبد',
-          phone: '01012345678',
-          role: 'customer',
-          created_at: new Date().toISOString(),
-        };
-      } else if (role === 'store_owner') {
-        target = {
-          id: 'usr-store-owner-1',
-          email: 'khaled@supermarket.app',
-          name: 'خالد عبد السلام',
-          phone: '01123456789',
-          role: 'store_owner',
-          associated_store_id: 'store-1',
-          created_at: new Date().toISOString(),
-        };
-      } else if (role === 'delivery_agent') {
-        target = {
-          id: 'usr-agent-1',
-          email: 'captain.mustafa@jihat.app',
-          name: 'الكابتن مصطفى علي',
-          phone: '01234567890',
-          role: 'delivery_agent',
-          created_at: new Date().toISOString(),
-        };
-      } else if (role === 'delivery_supervisor') {
-        target = {
-          id: 'usr-supervisor-1',
-          email: 'supervisor@jihat.app',
-          name: 'الكابتن حسام حسن (مسؤول المندوبين)',
-          phone: '01099887766',
-          role: 'delivery_supervisor',
-          created_at: new Date().toISOString(),
-        };
-      } else if (role === 'finance_admin') {
-        target = {
-          id: 'usr-finance-1',
-          email: 'finance@jihat.app',
-          name: 'الأستاذ سامح فؤاد (المسؤول المالي)',
-          phone: '01155443322',
-          role: 'finance_admin',
-          created_at: new Date().toISOString(),
-        };
-      } else if (role === 'orders_manager') {
-        target = {
-          id: 'usr-orders-1',
-          email: 'dispatcher@jihat.app',
-          name: 'م. عمر الشريف (مسؤول التحكم والطلبات)',
-          phone: '01222334455',
-          role: 'orders_manager',
-          created_at: new Date().toISOString(),
-        };
-      } else {
-        target = {
-          id: 'usr-admin-1',
-          email: 'admin@jihat.app',
-          name: 'المهندس طارق السعيد (الإدارة العامة)',
-          phone: '01000000000',
-          role: 'admin',
-          created_at: new Date().toISOString(),
-        };
-      }
+    try {
+      await saveSupabaseCoupon(coupon);
+      await this.refreshCoupons();
+      return coupon;
+    } catch (err) {
+      console.error('Failed to save coupon:', err);
+      this.refreshCoupons();
+      throw err;
     }
-
-    this.setCurrentUser(target);
   },
 
-  deleteStore(id: string) {
-    const stores = this.getStores().filter((s) => s.id !== id);
-    localStorage.setItem(STORAGE_KEYS.STORES, JSON.stringify(stores));
-    notifyStorageChange('store', 'delete', { id });
-  },
-
-  deleteCoupon(id: string) {
-    const coupons = this.getCoupons().filter((c) => c.id !== id);
-    localStorage.setItem(STORAGE_KEYS.COUPONS, JSON.stringify(coupons));
+  async deleteCoupon(id: string): Promise<void> {
+    const coupons = this.getCachedCoupons().filter((c) => c.id !== id);
+    setCached(STORAGE_KEYS.COUPONS, coupons);
     notifyStorageChange('coupon', 'delete', { id });
+
+    try {
+      await deleteSupabase('coupons', id);
+    } catch (err) {
+      console.error('Failed to delete coupon:', err);
+    }
   },
 
   getCurrentStore(): Store | null {
     const user = this.getCurrentUser();
-    if (!user) return this.getStores()[0] || null;
+    const stores = this.getStores();
+    if (!user) return stores[0] || null;
     if (user.associated_store_id) {
-      return this.getStoreById(user.associated_store_id) || this.getStores()[0] || null;
+      return this.getStoreById(user.associated_store_id) || stores[0] || null;
     }
-    return this.getStores().find((s) => s.owner_id === user.id) || this.getStores()[0] || null;
+    return stores.find((s) => s.owner_id === user.id) || stores[0] || null;
   },
 
   getCurrentAgent(): DeliveryAgent | null {
     const user = this.getCurrentUser();
-    if (!user) return this.getAgents()[0] || null;
-    return this.getAgentByUserId(user.id) || this.getAgents()[0] || null;
+    const agents = this.getAgents();
+    if (!user) return agents[0] || null;
+    return this.getAgentByUserId(user.id) || agents[0] || null;
   },
 
   getReviews(storeId?: string): Review[] {
-    if (typeof window === 'undefined') return [];
-    const data = localStorage.getItem(STORAGE_KEYS.REVIEWS);
-    const list: Review[] = data ? JSON.parse(data) : [];
+    const cached = this.getCachedReviews();
+    this.refreshReviews(storeId);
     if (storeId) {
-      return list.filter((r) => r.store_id === storeId);
+      return cached.filter((r) => r.store_id === storeId);
     }
-    return list;
+    return cached;
   },
 
-  saveReview(review: Review) {
-    const reviews = this.getReviews();
-    const idx = reviews.findIndex((r) => r.id === review.id);
-    if (idx >= 0) {
-      reviews[idx] = review;
-    } else {
-      reviews.unshift(review);
-    }
-    localStorage.setItem(STORAGE_KEYS.REVIEWS, JSON.stringify(reviews));
+  async saveReview(review: Review): Promise<Review> {
+    const reviews = mergeById(this.getCachedReviews(), review);
+    setCached(STORAGE_KEYS.REVIEWS, reviews);
     notifyStorageChange('review', 'save', review);
+
+    try {
+      await createSupabase<Review>('reviews', review);
+      return review;
+    } catch (err) {
+      console.error('Failed to save review:', err);
+      return review;
+    }
   },
 
   getNotifications(userId?: string): NotificationItem[] {
-    if (typeof window === 'undefined') return [];
-    const data = localStorage.getItem(STORAGE_KEYS.NOTIFICATIONS);
-    const list: NotificationItem[] = data ? JSON.parse(data) : [];
+    const cached = this.getCachedNotifications();
+    this.refreshNotifications(userId);
     if (userId) {
-      return list.filter((n) => n.user_id === userId || n.user_id === 'all');
+      return cached.filter((n) => n.user_id === userId || n.user_id === 'all');
     }
-    return list;
+    return cached;
   },
 
-  saveNotification(notification: NotificationItem) {
-    const list = this.getNotifications();
+  async saveNotification(notification: NotificationItem): Promise<NotificationItem> {
+    const list = this.getCachedNotifications();
     list.unshift(notification);
-    localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(list));
+    setCached(STORAGE_KEYS.NOTIFICATIONS, list);
     notifyStorageChange('notification', 'save', notification);
+
+    try {
+      await createSupabase<NotificationItem>('notifications', notification);
+      return notification;
+    } catch (err) {
+      console.error('Failed to save notification to Supabase:', err);
+      return notification;
+    }
   },
 
-  markNotificationRead(id: string) {
-    const list = this.getNotifications();
+  async markNotificationRead(id: string): Promise<void> {
+    const list = this.getCachedNotifications();
     const target = list.find((n) => n.id === id);
     if (target) {
       target.is_read = true;
-      localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(list));
+      setCached(STORAGE_KEYS.NOTIFICATIONS, list);
       notifyStorageChange('notification', 'update', target);
+    }
+
+    try {
+      await updateSupabase('notifications', id, { is_read: true });
+    } catch (err) {
+      console.error('Failed to mark notification read in Supabase:', err);
     }
   },
 
-  markAllNotificationsRead(userId?: string) {
-    const list = this.getNotifications();
+  async markAllNotificationsRead(userId?: string): Promise<void> {
+    const list = this.getCachedNotifications();
     list.forEach((n) => {
       if (!userId || n.user_id === userId || n.user_id === 'all') {
         n.is_read = true;
       }
     });
-    localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(list));
+    setCached(STORAGE_KEYS.NOTIFICATIONS, list);
     notifyStorageChange('notification', 'mark_all_read', { userId });
   },
 
-  deleteNotification(id: string) {
-    const list = this.getNotifications().filter((n) => n.id !== id);
-    localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(list));
+  async deleteNotification(id: string): Promise<void> {
+    const list = this.getCachedNotifications().filter((n) => n.id !== id);
+    setCached(STORAGE_KEYS.NOTIFICATIONS, list);
     notifyStorageChange('notification', 'delete', { id });
+
+    try {
+      await deleteSupabase('notifications', id);
+    } catch (err) {
+      console.error('Failed to delete notification:', err);
+    }
   },
 
-  clearNotifications(userId?: string) {
+  async clearNotifications(userId?: string): Promise<void> {
     if (userId) {
-      const remaining = this.getNotifications().filter(
+      const remaining = this.getCachedNotifications().filter(
         (n) => n.user_id !== userId && n.user_id !== 'all'
       );
-      localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(remaining));
+      setCached(STORAGE_KEYS.NOTIFICATIONS, remaining);
     } else {
-      localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify([]));
+      setCached(STORAGE_KEYS.NOTIFICATIONS, []);
     }
     notifyStorageChange('notification', 'clear', { userId });
   },
@@ -809,29 +982,29 @@ export const StorageRepo = {
       ]);
 
       if (dbCats && dbCats.length > 0) {
-        localStorage.setItem('jihat_categories', JSON.stringify(dbCats));
+        setCached('jihat_categories', dbCats);
       }
-      localStorage.setItem(STORAGE_KEYS.STORES, JSON.stringify(dbStores || []));
-      localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(dbProds || []));
-      localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(dbOrders || []));
-      localStorage.setItem(STORAGE_KEYS.AGENTS, JSON.stringify(dbAgents || []));
+      setCached(STORAGE_KEYS.STORES, dbStores || []);
+      setCached(STORAGE_KEYS.PRODUCTS, dbProds || []);
+      setCached(STORAGE_KEYS.ORDERS, dbOrders || []);
+      setCached(STORAGE_KEYS.AGENTS, dbAgents || []);
 
       if (dbZones && dbZones.length > 0) {
-        localStorage.setItem(STORAGE_KEYS.ZONES, JSON.stringify(dbZones));
+        setCached(STORAGE_KEYS.ZONES, dbZones);
       }
       if (dbCoupons && dbCoupons.length > 0) {
-        localStorage.setItem(STORAGE_KEYS.COUPONS, JSON.stringify(dbCoupons));
+        setCached(STORAGE_KEYS.COUPONS, dbCoupons);
       }
 
       if (dbUsers && dbUsers.length > 0) {
-        const localUsers = this.getUsers();
+        const localUsers = this.getCachedUsers();
         const mergedUsers = [...localUsers];
         dbUsers.forEach((u) => {
           if (!mergedUsers.some((lu) => lu.id === u.id)) {
             mergedUsers.push(u);
           }
         });
-        localStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(mergedUsers));
+        setCached(STORAGE_KEYS.USERS, mergedUsers);
       }
 
       notifyStorageChange('supabase', 'sync');
@@ -841,8 +1014,7 @@ export const StorageRepo = {
   },
 };
 
-// Initialize Seed Data and Sync with Supabase on startup
+// Sync with Supabase on startup
 if (typeof window !== 'undefined') {
   StorageRepo.syncWithSupabase();
 }
-
