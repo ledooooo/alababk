@@ -5,6 +5,7 @@ import { Navbar } from './components/layout/Navbar';
 import { SplashScreen } from './components/layout/SplashScreen';
 import { CartDrawer } from './components/cart/CartDrawer';
 import { PushNotificationToast } from './components/shared/PushNotificationToast';
+import { PwaInstallPrompt } from './components/pwa/PwaInstallPrompt';
 import { useCartStore } from './stores/cart-store';
 
 // Customer Views
@@ -155,6 +156,9 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans antialiased dir-rtl selection:bg-emerald-500 selection:text-white flex flex-col">
+      {/* Smart PWA Progressive Web App Install Banner */}
+      <PwaInstallPrompt />
+
       {/* Real-time Push Notification Toast Overlay */}
       <PushNotificationToast
         onNavigate={(tab, param) => {
