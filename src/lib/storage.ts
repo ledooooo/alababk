@@ -46,6 +46,8 @@ const STORAGE_KEYS = {
   REVIEWS: 'jihat_reviews',
   NOTIFICATIONS: 'jihat_notifications',
   CART: 'jihat_cart',
+  WISHLIST_STORES: 'jihat_wishlist_stores',
+  WISHLIST_PRODUCTS: 'jihat_wishlist_products',
 };
 
 // Broadcast Channel for live multi-tab & cross-role reactive updates
@@ -322,6 +324,44 @@ export const StorageRepo = {
     }
 
     this.saveOrder(order);
+
+    // Auto-generate mock push notification for customer
+    const agentName = agentInfo?.delivery_agent_name || order.delivery_agent_name || 'الكابتن';
+    const statusNotifTitles: Record<string, string> = {
+      pending: `تم استلام طلبك (#${order.order_number})`,
+      confirmed: `تم تأكيد طلبك من المتجر (#${order.order_number}) ✅`,
+      preparing: `جاري تحضير وتجهيز وجبتك 🍳 (#${order.order_number})`,
+      assigned: `تم إسناد الطلب للكابتن ${agentName} 🛵`,
+      picked_up: `الكابتن استلم شحنتك وفي الطريق إليك! 🚀`,
+      delivered: `تم توصيل طلبك بنجاح! نتمنى لك أكلة شهية 🎉`,
+      cancelled: `تم إلغاء الطلب (#${order.order_number}) ❌`,
+      rejected: `اعتذر المتجر عن قبول الطلب (#${order.order_number}) ⚠️`,
+    };
+
+    const statusNotifMsgs: Record<string, string> = {
+      pending: `تم إرسال طلبك إلى ${order.store_name} وهو قيد المراجعة.`,
+      confirmed: `قام متجر ${order.store_name} بتأكيد الطلب وبدء التحضير.`,
+      preparing: `المطبخ يعمل على إعداد طلبك لتغليفه بدقة.`,
+      assigned: note || `سيتولى الكابتن ${agentName} توصيل طلبك.`,
+      picked_up: `الكابتن استلم الطلب من ${order.store_name} وينطلق إلى عنوانك.`,
+      delivered: `تم تسليم الطلب إلى ${order.delivery_address?.street || 'عنوانك'}. شكراً لاختيارك على بابك!`,
+      cancelled: note || `تم إلغاء الطلب.`,
+      rejected: note || `تواصل مع المتجر للمزيد من التفاصيل.`,
+    };
+
+    const newNotif: NotificationItem = {
+      id: `notif-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      user_id: order.customer_id || 'all',
+      title: statusNotifTitles[status] || `تحديث على الطلب (#${order.order_number})`,
+      message: note || statusNotifMsgs[status] || `تغيرت حالة الطلب إلى ${status}`,
+      type: 'order_status',
+      is_read: false,
+      created_at: new Date().toISOString(),
+      link_url: `customer-order-detail:${order.id}`
+    };
+
+    this.saveNotification(newNotif);
+
     updateSupabaseOrderStatus(orderId, status, note);
     return order;
   },
@@ -332,6 +372,18 @@ export const StorageRepo = {
       delivery_agent_name: agentName,
       delivery_agent_phone: agentPhone,
     });
+  },
+
+  updateDeliveryAgentLocation(orderId: string, lat: number, lng: number) {
+    const order = this.getOrderById(orderId);
+    if (!order) return null;
+
+    order.delivery_agent_lat = lat;
+    order.delivery_agent_lng = lng;
+    order.updated_at = new Date().toISOString();
+
+    this.saveOrder(order);
+    return order;
   },
 
   // --- PAYOUTS ---
@@ -618,6 +670,124 @@ export const StorageRepo = {
     list.unshift(notification);
     localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(list));
     notifyStorageChange('notification', 'save', notification);
+  },
+
+  markNotificationRead(id: string) {
+    const list = this.getNotifications();
+    const target = list.find((n) => n.id === id);
+    if (target) {
+      target.is_read = true;
+      localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(list));
+      notifyStorageChange('notification', 'update', target);
+    }
+  },
+
+  markAllNotificationsRead(userId?: string) {
+    const list = this.getNotifications();
+    list.forEach((n) => {
+      if (!userId || n.user_id === userId || n.user_id === 'all') {
+        n.is_read = true;
+      }
+    });
+    localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(list));
+    notifyStorageChange('notification', 'mark_all_read', { userId });
+  },
+
+  deleteNotification(id: string) {
+    const list = this.getNotifications().filter((n) => n.id !== id);
+    localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(list));
+    notifyStorageChange('notification', 'delete', { id });
+  },
+
+  clearNotifications(userId?: string) {
+    if (userId) {
+      const remaining = this.getNotifications().filter(
+        (n) => n.user_id !== userId && n.user_id !== 'all'
+      );
+      localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify(remaining));
+    } else {
+      localStorage.setItem(STORAGE_KEYS.NOTIFICATIONS, JSON.stringify([]));
+    }
+    notifyStorageChange('notification', 'clear', { userId });
+  },
+
+  // --- WISHLIST ---
+  getWishlistStoreIds(userId?: string): string[] {
+    if (typeof window === 'undefined') return [];
+    const targetUserId = userId || this.getCurrentUser()?.id || 'guest';
+    const data = localStorage.getItem(`${STORAGE_KEYS.WISHLIST_STORES}_${targetUserId}`);
+    return data ? JSON.parse(data) : [];
+  },
+
+  getWishlistProductIds(userId?: string): string[] {
+    if (typeof window === 'undefined') return [];
+    const targetUserId = userId || this.getCurrentUser()?.id || 'guest';
+    const data = localStorage.getItem(`${STORAGE_KEYS.WISHLIST_PRODUCTS}_${targetUserId}`);
+    return data ? JSON.parse(data) : [];
+  },
+
+  isStoreWishlisted(storeId: string, userId?: string): boolean {
+    const list = this.getWishlistStoreIds(userId);
+    return list.includes(storeId);
+  },
+
+  isProductWishlisted(productId: string, userId?: string): boolean {
+    const list = this.getWishlistProductIds(userId);
+    return list.includes(productId);
+  },
+
+  toggleWishlistStore(storeId: string, userId?: string): boolean {
+    if (typeof window === 'undefined') return false;
+    const targetUserId = userId || this.getCurrentUser()?.id || 'guest';
+    const key = `${STORAGE_KEYS.WISHLIST_STORES}_${targetUserId}`;
+    const list = this.getWishlistStoreIds(targetUserId);
+    const index = list.indexOf(storeId);
+    let isAdded = false;
+
+    if (index > -1) {
+      list.splice(index, 1);
+      isAdded = false;
+    } else {
+      list.push(storeId);
+      isAdded = true;
+    }
+
+    localStorage.setItem(key, JSON.stringify(list));
+    notifyStorageChange('wishlist', 'toggle_store', { storeId, isAdded });
+    return isAdded;
+  },
+
+  toggleWishlistProduct(productId: string, userId?: string): boolean {
+    if (typeof window === 'undefined') return false;
+    const targetUserId = userId || this.getCurrentUser()?.id || 'guest';
+    const key = `${STORAGE_KEYS.WISHLIST_PRODUCTS}_${targetUserId}`;
+    const list = this.getWishlistProductIds(targetUserId);
+    const index = list.indexOf(productId);
+    let isAdded = false;
+
+    if (index > -1) {
+      list.splice(index, 1);
+      isAdded = false;
+    } else {
+      list.push(productId);
+      isAdded = true;
+    }
+
+    localStorage.setItem(key, JSON.stringify(list));
+    notifyStorageChange('wishlist', 'toggle_product', { productId, isAdded });
+    return isAdded;
+  },
+
+  getWishlistedStores(userId?: string): Store[] {
+    const storeIds = this.getWishlistStoreIds(userId);
+    const stores = this.getStores();
+    return stores.filter((s) => storeIds.includes(s.id));
+  },
+
+  getWishlistedProducts(userId?: string): Product[] {
+    const productIds = this.getWishlistProductIds(userId);
+    const products = this.getProducts();
+    return products.filter((p) => productIds.includes(p.id));
   },
 
   /**

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StorageRepo } from '../../../lib/storage';
+import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
 import { Store, Product } from '../../../types/domain';
 import { useCartStore } from '../../../stores/cart-store';
 import { ProductCard } from '../../product/ProductCard';
@@ -14,7 +14,8 @@ import {
   Search,
   ShoppingBag,
   AlertTriangle,
-  Info
+  Info,
+  Heart
 } from 'lucide-react';
 
 interface CustomerStoreDetailViewProps {
@@ -32,6 +33,9 @@ export const CustomerStoreDetailView: React.FC<CustomerStoreDetailViewProps> = (
   const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCat, setSelectedCat] = useState<string>('all');
+  const [isWishlisted, setIsWishlisted] = useState<boolean>(
+    StorageRepo.isStoreWishlisted(storeId)
+  );
   const [confirmDialogProduct, setConfirmDialogProduct] = useState<{
     product: Product;
     storeName: string;
@@ -42,8 +46,22 @@ export const CustomerStoreDetailView: React.FC<CustomerStoreDetailViewProps> = (
   useEffect(() => {
     if (storeId) {
       setProducts(StorageRepo.getProducts(storeId));
+      setIsWishlisted(StorageRepo.isStoreWishlisted(storeId));
     }
   }, [storeId]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToStorageChange(() => {
+      setIsWishlisted(StorageRepo.isStoreWishlisted(storeId));
+    });
+    return unsubscribe;
+  }, [storeId]);
+
+  const handleToggleStoreWishlist = () => {
+    if (!storeId) return;
+    const updated = StorageRepo.toggleWishlistStore(storeId);
+    setIsWishlisted(updated);
+  };
 
   if (!store) {
     return (
@@ -132,6 +150,20 @@ export const CustomerStoreDetailView: React.FC<CustomerStoreDetailViewProps> = (
                 <h1 className="text-xl sm:text-2xl font-black text-slate-900">
                   {store.name}
                 </h1>
+
+                <button
+                  onClick={handleToggleStoreWishlist}
+                  className={`px-3 py-1 rounded-full text-xs font-bold transition-all border flex items-center gap-1.5 shadow-xs ${
+                    isWishlisted
+                      ? 'bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100'
+                      : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
+                  }`}
+                  title={isWishlisted ? 'إزالة المتجر من المفضلة' : 'حفظ المتجر في المفضلة'}
+                >
+                  <Heart className={`w-3.5 h-3.5 ${isWishlisted ? 'fill-rose-600 text-rose-600' : ''}`} />
+                  <span>{isWishlisted ? 'في المفضلة' : 'إضافة للمفضلة'}</span>
+                </button>
+
                 {store.is_open ? (
                   <span className="bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
                     <span className="w-1.5 h-1.5 bg-emerald-600 rounded-full animate-ping" />

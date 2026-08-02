@@ -1,5 +1,6 @@
 import React from 'react';
 import { StorageRepo } from '../../../lib/storage';
+import { PromoCarousel } from '../../shared/PromoCarousel';
 import {
   ShoppingBag,
   Store,
@@ -111,6 +112,11 @@ export const LandingView: React.FC<LandingViewProps> = ({ onNavigate }) => {
             </div>
           </div>
         </div>
+      </section>
+
+      {/* Interactive Promotions & Featured Banners Carousel */}
+      <section>
+        <PromoCarousel onNavigate={onNavigate} />
       </section>
 
       {/* Quick Categories Bar */}

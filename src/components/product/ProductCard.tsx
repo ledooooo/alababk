@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Product } from '../../types/domain';
 import { useCartStore } from '../../stores/cart-store';
+import { StorageRepo, subscribeToStorageChange } from '../../lib/storage';
 import { formatCurrency } from '../../lib/formatters';
-import { Plus, Minus, Check, ShoppingCart, AlertCircle } from 'lucide-react';
+import { Plus, Minus, Check, ShoppingCart, AlertCircle, Heart } from 'lucide-react';
 
 interface ProductCardProps {
   product: Product;
@@ -19,6 +20,22 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   const cartItem = items.find((i) => i.product.id === product.id);
   const currentQuantity = cartItem ? cartItem.quantity : 0;
   const [isAddedAnim, setIsAddedAnim] = useState(false);
+  const [isWishlisted, setIsWishlisted] = useState<boolean>(
+    StorageRepo.isProductWishlisted(product.id)
+  );
+
+  useEffect(() => {
+    const unsubscribe = subscribeToStorageChange(() => {
+      setIsWishlisted(StorageRepo.isProductWishlisted(product.id));
+    });
+    return unsubscribe;
+  }, [product.id]);
+
+  const handleWishlistToggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updated = StorageRepo.toggleWishlistProduct(product.id);
+    setIsWishlisted(updated);
+  };
 
   const handleAdd = () => {
     const res = addItem(product, storeName, 1);
@@ -60,6 +77,20 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             alt={product.name}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
           />
+
+          {/* Wishlist Heart Button */}
+          <button
+            onClick={handleWishlistToggle}
+            className={`absolute top-2 left-2 p-1.5 rounded-full backdrop-blur-md transition-all border shadow-xs z-10 ${
+              isWishlisted
+                ? 'bg-rose-500 text-white border-rose-400 scale-110'
+                : 'bg-black/40 hover:bg-black/60 text-white border-white/20'
+            }`}
+            title={isWishlisted ? 'إزالة من المفضلة' : 'إضافة للمفضلة'}
+          >
+            <Heart className={`w-3.5 h-3.5 ${isWishlisted ? 'fill-current' : ''}`} />
+          </button>
+
           {product.stock <= 0 && (
             <div className="absolute inset-0 bg-slate-900/70 backdrop-blur-xs flex items-center justify-center">
               <span className="text-white text-xs font-bold px-2.5 py-1 bg-rose-600 rounded-lg">

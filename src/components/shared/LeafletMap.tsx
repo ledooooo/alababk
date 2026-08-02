@@ -60,6 +60,8 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   const selectedMarkerRef = useRef<L.Marker | null>(null);
   const markersGroupRef = useRef<L.LayerGroup | null>(null);
   const routeLineRef = useRef<L.Polyline | null>(null);
+  const hasFittedBoundsRef = useRef<boolean>(false);
+  const prevMarkerCountRef = useRef<number>(0);
 
   useEffect(() => {
     if (!mapContainerRef.current) return;
@@ -139,6 +141,9 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
       latLngs.push([m.lat, m.lng]);
     });
 
+    const isNewMarkerSet = prevMarkerCountRef.current !== markers.length;
+    prevMarkerCountRef.current = markers.length;
+
     if (showRoute && latLngs.length >= 2) {
       routeLineRef.current = L.polyline(latLngs, {
         color: '#2563eb',
@@ -147,11 +152,17 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         dashArray: '8, 8',
       }).addTo(map);
 
-      const bounds = L.latLngBounds(latLngs);
-      map.fitBounds(bounds, { padding: [40, 40] });
+      if (!hasFittedBoundsRef.current || isNewMarkerSet) {
+        const bounds = L.latLngBounds(latLngs);
+        map.fitBounds(bounds, { padding: [40, 40] });
+        hasFittedBoundsRef.current = true;
+      }
     } else if (markers.length > 0 && !interactiveSelect) {
-      const bounds = L.latLngBounds(latLngs);
-      map.fitBounds(bounds, { padding: [30, 30], maxZoom: 16 });
+      if (!hasFittedBoundsRef.current || isNewMarkerSet) {
+        const bounds = L.latLngBounds(latLngs);
+        map.fitBounds(bounds, { padding: [30, 30], maxZoom: 16 });
+        hasFittedBoundsRef.current = true;
+      }
     } else {
       map.setView([centerLat, centerLng], zoom);
     }

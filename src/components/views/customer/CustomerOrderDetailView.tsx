@@ -36,12 +36,51 @@ export const CustomerOrderDetailView: React.FC<CustomerOrderDetailViewProps> = (
   const [reviewComment, setReviewComment] = useState('');
   const [ratingSubmitted, setRatingSubmitted] = useState(false);
 
+  // Real-time Tracking & Agent Simulation State
+  const [isSimulating, setIsSimulating] = useState(true);
+  const [progressPct, setProgressPct] = useState(40); // 40% along the path
+
   useEffect(() => {
     const unsubscribe = subscribeToStorageChange(() => {
       setOrder(StorageRepo.getOrderById(orderId));
     });
     return unsubscribe;
   }, [orderId]);
+
+  // Fallback coordinates for store and customer if missing
+  const storeLat = order?.store_lat || 29.9602;
+  const storeLng = order?.store_lng || 31.2569;
+  const custLat = order?.delivery_address?.lat || 29.9750;
+  const custLng = order?.delivery_address?.lng || 31.2780;
+
+  // Real-time tracking movement timer effect
+  useEffect(() => {
+    if (!order || !isSimulating || ['delivered', 'cancelled', 'rejected'].includes(order.status)) {
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setProgressPct((prev) => {
+        const next = prev + 2.5;
+        if (next >= 95) {
+          return 15; // loop smoothly for continuous live demo
+        }
+        return next;
+      });
+    }, 2000);
+
+    return () => clearInterval(timer);
+  }, [isSimulating, order?.status]);
+
+  // Update Agent location in storage whenever progressPct changes
+  useEffect(() => {
+    if (!order || ['delivered', 'cancelled', 'rejected'].includes(order.status)) return;
+
+    const currentLat = storeLat + (custLat - storeLat) * (progressPct / 100);
+    const currentLng = storeLng + (custLng - storeLng) * (progressPct / 100);
+
+    StorageRepo.updateDeliveryAgentLocation(order.id, currentLat, currentLng);
+  }, [progressPct, order?.id, storeLat, custLat, storeLng, custLng, order?.status]);
 
   if (!order) {
     return (
@@ -248,20 +287,110 @@ export const CustomerOrderDetailView: React.FC<CustomerOrderDetailViewProps> = (
         )}
       </div>
 
-      {/* Live Route Map (Store -> Agent -> Customer) */}
-      <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-xs space-y-3">
-        <div className="flex items-center justify-between">
-          <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-            <Truck className="w-5 h-5 text-emerald-600" />
-            <span>خريطة ومسار التوصيل المباشر</span>
-          </h3>
-          <span className="text-xs text-slate-500 font-medium">المعادي والقاهرة</span>
+      {/* Live Real-time Route Map (Store -> Agent -> Customer) */}
+      <div className="bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2.5 bg-amber-50 text-amber-600 rounded-2xl border border-amber-200">
+              <Bike className="w-6 h-6 animate-pulse" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-extrabold text-slate-900 text-sm sm:text-base">
+                  خريطة ومسار التتبع الحي للمندوب
+                </h3>
+                {isSimulating && !['delivered', 'cancelled', 'rejected'].includes(order.status) && (
+                  <span className="bg-rose-100 text-rose-700 text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 animate-pulse">
+                    <span className="w-2 h-2 rounded-full bg-rose-600" />
+                    بث مباشر حي
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                تتبع موقع الكابتن {order.delivery_agent_name || 'الكابتن'} لحظياً على الخريطة التفاعلية
+              </p>
+            </div>
+          </div>
+
+          {/* Simulation Toggle Controls */}
+          {!['delivered', 'cancelled', 'rejected'].includes(order.status) && (
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              <button
+                onClick={() => setIsSimulating(!isSimulating)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border ${
+                  isSimulating
+                    ? 'bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100'
+                    : 'bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700'
+                }`}
+              >
+                <span>{isSimulating ? 'إيقاف المؤقت' : 'تفعيل التتبع المباشر'}</span>
+              </button>
+              <button
+                onClick={() => setProgressPct(15)}
+                className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl border border-slate-200 transition-colors"
+                title="إعادة الكابتن إلى المتجر"
+              >
+                إعادة
+              </button>
+            </div>
+          )}
         </div>
 
+        {/* Live Real-time Metrics Card */}
+        {!['delivered', 'cancelled', 'rejected'].includes(order.status) && (
+          <div className="bg-slate-900 text-white rounded-2xl p-4 space-y-3 shadow-md border border-slate-800">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center border-b border-slate-800 pb-3">
+              <div>
+                <span className="text-[10px] text-slate-400 font-medium block">الوقت المتوقع للوصول</span>
+                <span className="font-black text-amber-400 text-sm sm:text-base">
+                  {Math.max(2, Math.round((100 - progressPct) * 0.15))} دقائق ⏱️
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 font-medium block">المسافة المتبقية</span>
+                <span className="font-black text-emerald-400 text-sm sm:text-base">
+                  {(Math.round((100 - progressPct) * 22) / 10).toFixed(1)} كم
+                </span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 font-medium block">سرعة الكابتن</span>
+                <span className="font-black text-blue-400 text-sm sm:text-base">28 كم/ساعة 🛵</span>
+              </div>
+              <div>
+                <span className="text-[10px] text-slate-400 font-medium block">حالة البطارية والشبكة</span>
+                <span className="font-black text-teal-300 text-sm sm:text-base">92% | ممتازة 📶</span>
+              </div>
+            </div>
+
+            {/* Live Distance Progress Bar */}
+            <div className="space-y-1.5 pt-1">
+              <div className="flex justify-between text-xs font-bold text-slate-300">
+                <span className="flex items-center gap-1">
+                  <span>🏪</span>
+                  <span>المتجر ({order.store_name})</span>
+                </span>
+                <span className="text-amber-300 font-black">{Math.round(progressPct)}% تم قطعها</span>
+                <span className="flex items-center gap-1">
+                  <span>🏠</span>
+                  <span>عنوان التوصيل</span>
+                </span>
+              </div>
+
+              <div className="w-full bg-slate-800 rounded-full h-3 overflow-hidden p-0.5 border border-slate-700">
+                <div
+                  className="bg-gradient-to-r from-emerald-500 via-teal-400 to-amber-400 h-full rounded-full transition-all duration-700 ease-out shadow-sm"
+                  style={{ width: `${Math.min(100, Math.max(5, progressPct))}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Leaflet Map Display */}
         <LeafletMap
           markers={mapMarkers}
           showRoute={true}
-          height="320px"
+          height="340px"
         />
       </div>
 

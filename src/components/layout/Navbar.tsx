@@ -19,7 +19,8 @@ import {
   Menu,
   X,
   LogIn,
-  UserPlus
+  UserPlus,
+  Bell
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -37,12 +38,19 @@ export const Navbar: React.FC<NavbarProps> = ({
   const [activeOrders, setActiveOrders] = useState<Order[]>([]);
   const [selectedZone, setSelectedZone] = useState('المعادي وشارع 9');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
   const cartItemCount = useCartStore((state) => state.getItemCount());
 
   useEffect(() => {
-    const checkOrders = () => {
+    const checkOrdersAndNotifications = () => {
       const user = StorageRepo.getCurrentUser();
       setCurrentUser(user);
+
+      // Check unread notifications count
+      const notifications = StorageRepo.getNotifications(user?.id);
+      const unread = notifications.filter((n) => !n.is_read).length;
+      setUnreadNotifCount(unread);
+
       if (user) {
         const allOrders = StorageRepo.getOrders();
         let userActive: Order[] = [];
@@ -63,9 +71,9 @@ export const Navbar: React.FC<NavbarProps> = ({
       }
     };
 
-    checkOrders();
+    checkOrdersAndNotifications();
     const unsubscribe = subscribeToStorageChange(() => {
-      checkOrders();
+      checkOrdersAndNotifications();
     });
     return unsubscribe;
   }, []);
@@ -395,6 +403,24 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span className="sm:hidden">دخول</span>
               </button>
             )}
+
+            {/* Notification Bell Button with Badge Counter */}
+            <button
+              onClick={() => onNavigate('notifications')}
+              className={`relative p-2 rounded-xl transition-all border flex items-center justify-center ${
+                currentTab === 'notifications'
+                  ? 'bg-purple-100 text-purple-800 border-purple-300'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
+              }`}
+              title="الإشعارات والتنبيهات"
+            >
+              <Bell className="w-5 h-5 text-purple-700" />
+              {unreadNotifCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-rose-600 text-white font-black text-[10px] w-4.5 h-4.5 px-1 rounded-full flex items-center justify-center animate-bounce shadow-xs">
+                  {unreadNotifCount > 9 ? '9+' : unreadNotifCount}
+                </span>
+              )}
+            </button>
 
             {/* Cart Trigger Button for Customer */}
             {role === 'customer' && (

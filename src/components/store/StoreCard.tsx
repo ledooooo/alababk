@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Store } from '../../types/domain';
 import { formatCurrency } from '../../lib/formatters';
-import { Star, MapPin, Clock, Truck, ShoppingBag, ShieldCheck } from 'lucide-react';
+import { StorageRepo, subscribeToStorageChange } from '../../lib/storage';
+import { Star, MapPin, Clock, Truck, ShoppingBag, Heart } from 'lucide-react';
 
 interface StoreCardProps {
   store: Store;
@@ -9,10 +10,27 @@ interface StoreCardProps {
 }
 
 export const StoreCard: React.FC<StoreCardProps> = ({ store, onSelect }) => {
+  const [isWishlisted, setIsWishlisted] = useState<boolean>(
+    StorageRepo.isStoreWishlisted(store.id)
+  );
+
+  useEffect(() => {
+    const unsubscribe = subscribeToStorageChange(() => {
+      setIsWishlisted(StorageRepo.isStoreWishlisted(store.id));
+    });
+    return unsubscribe;
+  }, [store.id]);
+
+  const handleWishlistToggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updated = StorageRepo.toggleWishlistStore(store.id);
+    setIsWishlisted(updated);
+  };
+
   return (
     <div
       onClick={() => onSelect(store)}
-      className="group bg-white rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-xl hover:border-emerald-300 transition-all duration-200 overflow-hidden cursor-pointer flex flex-col h-full"
+      className="group bg-white rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-xl hover:border-emerald-300 transition-all duration-200 overflow-hidden cursor-pointer flex flex-col h-full relative"
     >
       {/* Banner & Cover */}
       <div className="relative h-32 bg-slate-100 overflow-hidden">
@@ -43,14 +61,25 @@ export const StoreCard: React.FC<StoreCardProps> = ({ store, onSelect }) => {
           )}
         </div>
 
-        {/* Category Badge */}
-        {store.category_name && (
-          <div className="absolute top-3 left-3 z-10">
+        {/* Wishlist Heart Button & Category Badge */}
+        <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5">
+          <button
+            onClick={handleWishlistToggle}
+            className={`p-1.5 rounded-full backdrop-blur-md transition-all border shadow-sm ${
+              isWishlisted
+                ? 'bg-rose-500 text-white border-rose-400 scale-110'
+                : 'bg-black/40 hover:bg-black/60 text-white border-white/20'
+            }`}
+            title={isWishlisted ? 'إزالة من المفضلة' : 'إضافة إلى المفضلة'}
+          >
+            <Heart className={`w-4 h-4 ${isWishlisted ? 'fill-current' : ''}`} />
+          </button>
+          {store.category_name && (
             <span className="bg-slate-900/80 backdrop-blur-md text-white text-[11px] font-semibold px-2.5 py-1 rounded-lg">
               {store.category_name}
             </span>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Main Content Body */}

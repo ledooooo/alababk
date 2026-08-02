@@ -1,6 +1,23 @@
-import React, { useState } from 'react';
-import { StorageRepo } from '../../../lib/storage';
-import { User, Phone, Mail, Camera, ShieldCheck, MapPin, ShoppingBag, LogOut, CheckCircle2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
+import { Store, Product } from '../../../types/domain';
+import { StoreCard } from '../../store/StoreCard';
+import { ProductCard } from '../../product/ProductCard';
+import {
+  User,
+  Phone,
+  Mail,
+  Camera,
+  ShieldCheck,
+  MapPin,
+  ShoppingBag,
+  LogOut,
+  CheckCircle2,
+  Heart,
+  Store as StoreIcon,
+  Package,
+  Trash2
+} from 'lucide-react';
 
 interface ProfileViewProps {
   onNavigate: (tab: string, param?: string) => void;
@@ -15,8 +32,26 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onNavigate, onLogout }
   const [avatarUrl, setAvatarUrl] = useState(currentUser?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200');
   const [isSaved, setIsSaved] = useState(false);
 
+  // Wishlist state
+  const [activeWishlistTab, setActiveWishlistTab] = useState<'stores' | 'products'>('stores');
+  const [wishlistStores, setWishlistStores] = useState<Store[]>(StorageRepo.getWishlistedStores());
+  const [wishlistProducts, setWishlistProducts] = useState<Product[]>(StorageRepo.getWishlistedProducts());
+
   const orders = StorageRepo.getOrders().filter((o) => o.customer_id === currentUser?.id || o.customer_phone === phone);
   const addresses = StorageRepo.getAddresses(currentUser?.id);
+
+  useEffect(() => {
+    const updateWishlists = () => {
+      setWishlistStores(StorageRepo.getWishlistedStores());
+      setWishlistProducts(StorageRepo.getWishlistedProducts());
+    };
+
+    updateWishlists();
+    const unsubscribe = subscribeToStorageChange(() => {
+      updateWishlists();
+    });
+    return unsubscribe;
+  }, []);
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,8 +70,12 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onNavigate, onLogout }
     setTimeout(() => setIsSaved(false), 3000);
   };
 
+  const handleSelectStore = (store: Store) => {
+    onNavigate('store-detail', store.id);
+  };
+
   return (
-    <div className="max-w-3xl mx-auto space-y-6 dir-rtl pb-16">
+    <div className="max-w-4xl mx-auto space-y-6 dir-rtl pb-16">
       {/* Header Banner */}
       <div className="bg-gradient-to-r from-purple-900 to-indigo-900 text-white rounded-3xl p-6 sm:p-8 flex flex-col sm:flex-row items-center gap-6 shadow-md">
         <div className="relative">
@@ -100,13 +139,117 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onNavigate, onLogout }
           <p className="text-[11px] text-slate-500 font-bold">العناوين المحفوظة</p>
         </div>
 
-        <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs text-center space-y-1 col-span-2 sm:col-span-1">
-          <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto">
-            <ShieldCheck className="w-5 h-5" />
+        <div
+          onClick={() => {
+            const el = document.getElementById('wishlist-section');
+            if (el) el.scrollIntoView({ behavior: 'smooth' });
+          }}
+          className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs cursor-pointer hover:border-rose-300 transition-all text-center space-y-1 col-span-2 sm:col-span-1"
+        >
+          <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+            <Heart className="w-5 h-5 fill-rose-600" />
           </div>
-          <p className="text-lg font-black text-slate-900">نشط</p>
-          <p className="text-[11px] text-slate-500 font-bold">حالة الحساب</p>
+          <p className="text-lg font-black text-slate-900">{wishlistStores.length + wishlistProducts.length}</p>
+          <p className="text-[11px] text-slate-500 font-bold">العناصر المفضلة</p>
         </div>
+      </div>
+
+      {/* Wishlist Section */}
+      <div id="wishlist-section" className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2.5 bg-rose-50 text-rose-600 rounded-2xl border border-rose-100">
+              <Heart className="w-6 h-6 fill-rose-600" />
+            </div>
+            <div>
+              <h2 className="text-lg font-black text-slate-900">قائمة المفضلة الخاصة بك</h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                المتاجر والمنتجات التي قمت بحفظها للوصول السريع
+              </p>
+            </div>
+          </div>
+
+          {/* Wishlist Sub-tabs */}
+          <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-2xl self-start sm:self-auto">
+            <button
+              onClick={() => setActiveWishlistTab('stores')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                activeWishlistTab === 'stores'
+                  ? 'bg-white text-rose-700 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <StoreIcon className="w-4 h-4" />
+              <span>المتاجر ({wishlistStores.length})</span>
+            </button>
+            <button
+              onClick={() => setActiveWishlistTab('products')}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                activeWishlistTab === 'products'
+                  ? 'bg-white text-rose-700 shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Package className="w-4 h-4" />
+              <span>المنتجات ({wishlistProducts.length})</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Tab Content */}
+        {activeWishlistTab === 'stores' ? (
+          wishlistStores.length === 0 ? (
+            <div className="text-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200 space-y-2">
+              <StoreIcon className="w-10 h-10 text-slate-300 mx-auto" />
+              <p className="font-bold text-slate-700 text-sm">لا توجد متاجر في المفضلة بعد</p>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                يمكنك الضغط على أيقونة القلب في أي كارت متجر لإضافته إلى قائمتك المفضلة هنا.
+              </p>
+              <button
+                onClick={() => onNavigate('customer-stores')}
+                className="mt-2 inline-flex items-center gap-1 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition-colors shadow-xs"
+              >
+                تصفح المتاجر الآن
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {wishlistStores.map((store) => (
+                <StoreCard
+                  key={store.id}
+                  store={store}
+                  onSelect={handleSelectStore}
+                />
+              ))}
+            </div>
+          )
+        ) : (
+          wishlistProducts.length === 0 ? (
+            <div className="text-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200 space-y-2">
+              <Package className="w-10 h-10 text-slate-300 mx-auto" />
+              <p className="font-bold text-slate-700 text-sm">لا توجد منتجات في المفضلة بعد</p>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                اضغط على أيقونة القلب الموجودة على أي كارت منتج لإضافته إلى قائمتك المفضلة.
+              </p>
+              <button
+                onClick={() => onNavigate('customer-stores')}
+                className="mt-2 inline-flex items-center gap-1 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition-colors shadow-xs"
+              >
+                تصفح المنتجات الآن
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              {wishlistProducts.map((product) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  storeName={product.category_name || 'المتجر'}
+                />
+              ))}
+            </div>
+          )
+        )}
       </div>
 
       {/* Edit Profile Form */}

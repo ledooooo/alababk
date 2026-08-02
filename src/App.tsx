@@ -4,6 +4,7 @@ import { UserRole } from './types/domain';
 import { Navbar } from './components/layout/Navbar';
 import { SplashScreen } from './components/layout/SplashScreen';
 import { CartDrawer } from './components/cart/CartDrawer';
+import { PushNotificationToast } from './components/shared/PushNotificationToast';
 import { useCartStore } from './stores/cart-store';
 
 // Customer Views
@@ -154,6 +155,17 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans antialiased dir-rtl selection:bg-emerald-500 selection:text-white flex flex-col">
+      {/* Real-time Push Notification Toast Overlay */}
+      <PushNotificationToast
+        onNavigate={(tab, param) => {
+          if (param) {
+            if (tab === 'customer-store-detail') setSelectedStoreId(param);
+            if (tab === 'customer-order-detail' || tab === 'order-confirmation') setSelectedOrderId(param);
+          }
+          setActiveTab(tab);
+        }}
+      />
+
       {/* 5-Second Splash Screen */}
       {showSplash && (
         <SplashScreen
