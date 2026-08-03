@@ -124,11 +124,19 @@ export function subscribeToStorageChange(callback: (detail: { entityType: string
   };
 }
 
+const SESSION_STORAGE_KEYS = [STORAGE_KEYS.ORDERS, STORAGE_KEYS.PAYOUTS];
+
+function getStorageForKey(key: string): Storage | null {
+  if (typeof window === 'undefined') return null;
+  return SESSION_STORAGE_KEYS.includes(key) ? sessionStorage : localStorage;
+}
+
 // Helpers for cache manipulation
 function getCached<T>(key: string): T[] {
-  if (typeof window === 'undefined') return [];
+  const storage = getStorageForKey(key);
+  if (!storage) return [];
   try {
-    const data = localStorage.getItem(key);
+    const data = storage.getItem(key);
     return data ? JSON.parse(data) : [];
   } catch {
     return [];
@@ -136,9 +144,10 @@ function getCached<T>(key: string): T[] {
 }
 
 function setCached<T>(key: string, data: T[]): void {
-  if (typeof window === 'undefined') return;
+  const storage = getStorageForKey(key);
+  if (!storage) return;
   try {
-    localStorage.setItem(key, JSON.stringify(data));
+    storage.setItem(key, JSON.stringify(data));
   } catch (err) {
     console.warn(`Failed to update cache for key '${key}':`, err);
   }
@@ -178,12 +187,16 @@ export const StorageRepo = {
   invalidateCache(key: string) {
     if (typeof window !== 'undefined') {
       localStorage.removeItem(key);
+      sessionStorage.removeItem(key);
     }
   },
 
   clearAllCaches() {
     if (typeof window !== 'undefined') {
-      Object.values(STORAGE_KEYS).forEach((key) => localStorage.removeItem(key));
+      Object.values(STORAGE_KEYS).forEach((key) => {
+        localStorage.removeItem(key);
+        sessionStorage.removeItem(key);
+      });
     }
   },
 
@@ -354,6 +367,13 @@ export const StorageRepo = {
 
   setCurrentUser(user: UserProfile | null) {
     if (typeof window === 'undefined') return;
+    const prev = this.getCurrentUser();
+    if (prev?.id !== user?.id) {
+      SESSION_STORAGE_KEYS.forEach((key) => {
+        sessionStorage.removeItem(key);
+        localStorage.removeItem(key);
+      });
+    }
     if (user) {
       localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
     } else {
@@ -377,6 +397,10 @@ export const StorageRepo = {
   logout() {
     if (typeof window === 'undefined') return;
     localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+    SESSION_STORAGE_KEYS.forEach((key) => {
+      sessionStorage.removeItem(key);
+      localStorage.removeItem(key);
+    });
     supabase.auth.signOut().catch((err) => console.error('SignOut error:', err));
     notifyStorageChange('user', 'switch', null);
   },
@@ -688,16 +712,14 @@ export const StorageRepo = {
 
   async updatePayoutStatus(
     payoutId: string,
-    status: 'approved' | 'rejected' | 'pending' | 'completed' | 'failed',
+    status: 'completed' | 'failed',
     notes?: string
   ): Promise<Payout> {
-    const currentUser = this.getCurrentUser();
     try {
-      // 1. Await atomic Supabase update first
+      // 1. Await atomic RPC update first
       const updated = await updateSupabasePayoutStatus(
         payoutId,
         status,
-        currentUser?.id,
         notes
       );
 

@@ -71,7 +71,7 @@ export const FinanceAdminDashboardView: React.FC = () => {
 
   const handleApprovePayout = async (payoutId: string) => {
     try {
-      await StorageRepo.updatePayoutStatus(payoutId, 'approved');
+      await StorageRepo.updatePayoutStatus(payoutId, 'completed');
       showToast('تمت موافقة المحاسب المالي وتمرير السحب بنجاح');
     } catch (err: any) {
       alert(`تعذر الموافقة على السحب: ${err.message || 'خطأ غير معروف'}`);
@@ -80,7 +80,7 @@ export const FinanceAdminDashboardView: React.FC = () => {
 
   const handleRejectPayout = async (payoutId: string) => {
     try {
-      await StorageRepo.updatePayoutStatus(payoutId, 'rejected');
+      await StorageRepo.updatePayoutStatus(payoutId, 'failed');
       showToast('تم رفض السحب وإعادة المبلغ لرصيد الحساب');
     } catch (err: any) {
       alert(`تعذر رفض السحب: ${err.message || 'خطأ غير معروف'}`);

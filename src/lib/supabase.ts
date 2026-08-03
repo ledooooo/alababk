@@ -622,51 +622,18 @@ export async function fetchSupabasePayouts(): Promise<Payout[]> {
 }
 
 /**
- * Update payout status atomically with WHERE status = 'pending' check and audit trail
+ * Update payout status via process_payout_secure RPC (enforces admin check, status='pending' atomic lock, and audit log)
  */
 export async function updateSupabasePayoutStatus(
   payoutId: string,
-  newStatus: 'approved' | 'rejected' | 'completed' | 'failed' | 'processing' | 'pending',
-  processedBy?: string,
+  newStatus: 'completed' | 'failed',
   notes?: string
 ): Promise<Payout> {
-  const validId = ensureUUID(payoutId);
-  const now = new Date().toISOString();
-
-  // 1. Prepare payload with audit info
-  const payloadWithAudit: Record<string, any> = {
-    status: newStatus,
-    processed_at: now,
-    updated_at: now,
-  };
-  if (processedBy) payloadWithAudit.processed_by = ensureUUID(processedBy);
-  if (notes) payloadWithAudit.notes = notes;
-
-  let { data, error } = await supabase
-    .from('payouts')
-    .update(payloadWithAudit)
-    .eq('id', validId)
-    .eq('status', 'pending')
-    .select('*, profiles(full_name)');
-
-  // Fallback if processed_at/processed_by columns do not exist in table yet
-  if (error && (error.message.includes('processed_at') || error.message.includes('processed_by'))) {
-    const fallbackPayload: Record<string, any> = {
-      status: newStatus,
-      updated_at: now,
-    };
-    if (notes) fallbackPayload.notes = notes;
-
-    const fallbackRes = await supabase
-      .from('payouts')
-      .update(fallbackPayload)
-      .eq('id', validId)
-      .eq('status', 'pending')
-      .select('*, profiles(full_name)');
-
-    data = fallbackRes.data;
-    error = fallbackRes.error;
-  }
+  const { data, error } = await supabase.rpc('process_payout_secure', {
+    p_payout_id: ensureUUID(payoutId),
+    p_new_status: newStatus,
+    p_notes: notes || null,
+  });
 
   if (error) {
     let msg = error.message || 'فشل تحديث حالة التسوية';
@@ -674,52 +641,7 @@ export async function updateSupabasePayoutStatus(
     throw new Error(msg);
   }
 
-  // Atomic check: If no rows were returned, payout was already processed
-  if (!data || data.length === 0) {
-    throw new Error('تمت معالجة طلب التسوية هذا بالفعل مسبقاً من قِبل مسؤول آخر');
-  }
-
-  const p = data[0];
-
-  // Record audit log entry in activity_log table
-  try {
-    await supabase.from('activity_log').insert([
-      {
-        id: ensureUUID(`log-${Date.now()}`),
-        actor_id: processedBy ? ensureUUID(processedBy) : '00000000-0000-0000-0000-000000000000',
-        action: `payout_${newStatus}`,
-        entity_type: 'payout',
-        entity_id: validId,
-        details: JSON.stringify({
-          status: newStatus,
-          amount: p.amount,
-          recipient_id: p.recipient_id,
-          processed_at: now,
-          notes: notes || null,
-        }),
-        created_at: now,
-      },
-    ]);
-  } catch (logErr) {
-    console.warn('Failed to insert payout audit log:', logErr);
-  }
-
-  return {
-    id: p.id,
-    recipient_id: p.recipient_id,
-    recipient_name: p.profiles?.full_name || 'مستفيد',
-    recipient_type: p.recipient_type,
-    amount: Number(p.amount),
-    status: p.status,
-    method: p.method,
-    reference: p.reference,
-    period_start: p.period_start,
-    period_end: p.period_end,
-    notes: p.notes,
-    created_at: p.created_at || now,
-    processed_at: p.processed_at || now,
-    processed_by: p.processed_by || processedBy,
-  };
+  return data as Payout;
 }
 
 /**
