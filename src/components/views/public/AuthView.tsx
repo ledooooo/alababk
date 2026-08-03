@@ -1,23 +1,19 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../../../lib/supabase';
 import { StorageRepo } from '../../../lib/storage';
-import { ensureUUID } from '../../../lib/supabase';
 import { UserRole, UserProfile } from '../../../types/domain';
 import {
   User,
-  Store,
-  Bike,
-  Shield,
   Lock,
   Mail,
   Phone,
-  ArrowRight,
-  Sparkles,
   CheckCircle2,
   AlertCircle,
   Eye,
   EyeOff,
   UserPlus,
-  LogIn
+  LogIn,
+  Loader2
 } from 'lucide-react';
 
 interface AuthViewProps {
@@ -27,14 +23,15 @@ interface AuthViewProps {
   onNavigate: (tab: string) => void;
 }
 
+// ملاحظة هامة: حسابات المسؤولين (admin) لا يمكن إنشاؤها أو ترقيتها من التطبيق تلقائياً.
+// يتم منح صلاحية الأدمن يدويًا من قاعدة البيانات (UPDATE profiles SET role = 'admin' WHERE id = '...') أو من قبل أدمن موجود بالفعل.
+
 export const AuthView: React.FC<AuthViewProps> = ({
   initialMode = 'login',
-  initialRole = 'customer',
   onSuccess,
   onNavigate
 }) => {
   const [mode, setMode] = useState<'login' | 'register'>(initialMode);
-  const [role, setRole] = useState<UserRole>(initialRole);
 
   // Form Fields
   const [name, setName] = useState('');
@@ -49,14 +46,20 @@ export const AuthView: React.FC<AuthViewProps> = ({
   const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
 
+  // Realtime Auth State Listener
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        setError('');
+        setSuccessMsg('');
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
   // Utility helpers for validation
   const normalizeDigits = (str: string) => {
     return str.replace(/[٠-٩]/g, (d) => (d.charCodeAt(0) - 1632).toString());
-  };
-
-  const isValid11DigitPhone = (phoneStr: string) => {
-    const cleanDigits = normalizeDigits(phoneStr).replace(/\D/g, '');
-    return cleanDigits.length === 11;
   };
 
   const isValidEmailFormat = (emailStr: string) => {
@@ -64,85 +67,126 @@ export const AuthView: React.FC<AuthViewProps> = ({
     return emailRegex.test(emailStr.trim());
   };
 
-  // Existing accounts for quick login
-  const existingUsers = StorageRepo.getUsers();
+  // Helper to translate Supabase Auth error messages into clear Arabic
+  const translateAuthError = (message: string): string => {
+    const lower = message.toLowerCase();
+    if (lower.includes('invalid login credentials') || lower.includes('invalid_credentials')) {
+      return 'بيانات الدخول غير صحيحة، يرجى التأكد من البريد الإلكتروني/رقم الهاتف وكلمة المرور.';
+    }
+    if (lower.includes('email not confirmed')) {
+      return 'البريد الإلكتروني لم يتم تأكيده بعد. يرجى مراجعة بريدك الإلكتروني.';
+    }
+    if (lower.includes('user already registered') || lower.includes('email_exists') || lower.includes('already exists')) {
+      return 'البريد الإلكتروني أو رقم الهاتف مسجل بالفعل. يمكنك تسجيل الدخول بدلاً من ذلك.';
+    }
+    if (lower.includes('password should be at least') || lower.includes('weak password')) {
+      return 'كلمة المرور ضعيفة جداً. يجب أن تتكون من 6 أحرف أو أرقام على الأقل.';
+    }
+    if (lower.includes('too many requests') || lower.includes('rate limit')) {
+      return 'تم تجاوز عدد المحاولات المسموح بها، يرجى الانتظار قليلاً ثم إعادة المحاولة.';
+    }
+    return `حدث خطأ أثناء العملية: ${message}`;
+  };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccessMsg('');
 
     const rawInput = phone.trim();
     if (!rawInput) {
-      setError('يرجى إدخال رقم الهاتف الجوال أو البريد الإلكتروني');
+      setError('يرجى إدخال رقم الهاتف الجوال أو البريد الإلكتروني.');
       return;
     }
     if (!password) {
-      setError('يرجى إدخال كلمة المرور');
+      setError('يرجى إدخال كلمة المرور.');
       return;
     }
 
     const isEmailInput = rawInput.includes('@');
-    let validatedPhone = '';
     let validatedEmail = '';
-
-    if (isEmailInput) {
-      if (!isValidEmailFormat(rawInput)) {
-        setError('صيغة البريد الإلكتروني غير صحيحة (مثال: name@example.com)');
-        return;
-      }
-      validatedEmail = rawInput.toLowerCase();
-    } else {
-      const cleanDigits = normalizeDigits(rawInput).replace(/\D/g, '');
-      if (cleanDigits.length !== 11) {
-        setError('رقم الهاتف يجب أن يتكون من 11 رقماً بالضبط (مثال: 01012345678)');
-        return;
-      }
-      validatedPhone = cleanDigits;
-    }
 
     setLoading(true);
 
-    setTimeout(() => {
-      // Match against stored users
-      const users = StorageRepo.getUsers();
-      const user = users.find((u) => {
-        if (isEmailInput) {
-          return u.email.toLowerCase() === validatedEmail;
-        } else {
-          return normalizeDigits(u.phone).replace(/\D/g, '') === validatedPhone;
+    try {
+      if (isEmailInput) {
+        if (!isValidEmailFormat(rawInput)) {
+          setError('صيغة البريد الإلكتروني غير صحيحة (مثال: name@example.com)');
+          setLoading(false);
+          return;
         }
+        validatedEmail = rawInput.toLowerCase();
+      } else {
+        const cleanDigits = normalizeDigits(rawInput).replace(/\D/g, '');
+        if (cleanDigits.length !== 11) {
+          setError('رقم الهاتف يجب أن يتكون من 11 رقماً (مثال: 01012345678)');
+          setLoading(false);
+          return;
+        }
+
+        // Search profiles table by phone to find corresponding email
+        const { data: profileMatch, error: phoneSearchErr } = await supabase
+          .from('profiles')
+          .select('id, email, phone')
+          .eq('phone', cleanDigits)
+          .maybeSingle();
+
+        if (phoneSearchErr || !profileMatch || !profileMatch.email) {
+          setError('رقم الهاتف غير مسجل لدينا. يمكنك إنشاء حساب جديد أولاً.');
+          setLoading(false);
+          return;
+        }
+        validatedEmail = profileMatch.email.toLowerCase();
+      }
+
+      // Perform real Supabase authentication with password
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email: validatedEmail,
+        password,
       });
 
-      if (user) {
-        StorageRepo.setCurrentUser(user);
-        setSuccessMsg(`أهلاً بك مجدداً يا ${user.name}! جاري تحويلك...`);
-        setTimeout(() => {
-          onSuccess(user);
-        }, 800);
-      } else {
-        // Create user dynamically if logging in for first time with valid format
-        const newUser: UserProfile = {
-          id: ensureUUID(),
-          name: isEmailInput ? validatedEmail.split('@')[0] : `مستخدم ${validatedPhone.slice(-4)}`,
-          email: isEmailInput ? validatedEmail : `${validatedPhone}@alababak.app`,
-          phone: validatedPhone || '01000000000',
-          role: role,
-          created_at: new Date().toISOString()
-        };
-        StorageRepo.saveUser(newUser);
-        StorageRepo.setCurrentUser(newUser);
-        setSuccessMsg(`تم تسجيل دخولك بنجاح! جاري التوجيه...`);
-        setTimeout(() => {
-          onSuccess(newUser);
-        }, 800);
+      if (authError || !data.user) {
+        setError(translateAuthError(authError?.message || 'فشل تسجيل الدخول'));
+        setLoading(false);
+        return;
       }
+
+      // Fetch user's profile from database
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', data.user.id)
+        .maybeSingle();
+
+      const userProfile: UserProfile = {
+        id: data.user.id,
+        email: data.user.email || profile?.email || validatedEmail,
+        name: profile?.full_name || data.user.user_metadata?.full_name || 'مستخدم',
+        phone: profile?.phone || data.user.user_metadata?.phone || '',
+        role: (profile?.role as UserRole) || 'customer',
+        avatar_url: profile?.avatar_url,
+        associated_store_id: profile?.associated_store_id,
+        is_active: profile?.is_active ?? true,
+        created_at: profile?.created_at || data.user.created_at,
+      };
+
+      StorageRepo.setCurrentUser(userProfile);
+      setSuccessMsg(`أهلاً بك مجدداً يا ${userProfile.name}! جاري تحويلك...`);
+
+      setTimeout(() => {
+        onSuccess(userProfile);
+      }, 600);
+    } catch (err: any) {
+      setError(`حدث خطأ غير متوقع: ${err?.message || String(err)}`);
+    } finally {
       setLoading(false);
-    }, 400);
+    }
   };
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccessMsg('');
 
     const cleanPhone = normalizeDigits(phone).replace(/\D/g, '');
 
@@ -151,23 +195,13 @@ export const AuthView: React.FC<AuthViewProps> = ({
       return;
     }
 
-    if (!cleanPhone) {
-      setError('يرجى إدخال رقم الهاتف الجوال');
-      return;
-    }
-
-    if (cleanPhone.length !== 11) {
+    if (!cleanPhone || cleanPhone.length !== 11) {
       setError('رقم الهاتف يجب أن يتكون من 11 رقماً بالضبط (مثال: 01012345678)');
       return;
     }
 
-    if (!email.trim()) {
-      setError('يرجى إدخال البريد الإلكتروني');
-      return;
-    }
-
-    if (!isValidEmailFormat(email)) {
-      setError('صيغة البريد الإلكتروني غير صحيحة، يرجى كتابتها بالشكل الصحيح (مثال: name@example.com)');
+    if (!email.trim() || !isValidEmailFormat(email)) {
+      setError('يرجى كتابة البريد الإلكتروني بالشكل الصحيح (مثال: name@example.com)');
       return;
     }
 
@@ -183,48 +217,52 @@ export const AuthView: React.FC<AuthViewProps> = ({
 
     setLoading(true);
 
-    setTimeout(() => {
-      // Check if user already exists
-      const users = StorageRepo.getUsers();
-      const existing = users.find(
-        (u) =>
-          normalizeDigits(u.phone).replace(/\D/g, '') === cleanPhone ||
-          u.email.toLowerCase() === email.trim().toLowerCase()
-      );
+    try {
+      // Create user using Supabase Auth
+      // Note: role is not passed in metadata to avoid privilege escalation.
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email: email.trim().toLowerCase(),
+        password,
+        options: {
+          data: {
+            full_name: name.trim(),
+            phone: cleanPhone,
+          },
+        },
+      });
 
-      if (existing) {
-        setError('رقم الهاتف أو البريد الإلكتروني مستخدم بالفعل. يمكنك تسجيل الدخول.');
+      if (signUpError) {
+        setError(translateAuthError(signUpError.message));
+        setLoading(false);
+        return;
+      }
+
+      if (!data.user) {
+        setError('تعذر إنشاء الحساب، يرجى المحاولة مرة أخرى.');
         setLoading(false);
         return;
       }
 
       const newUser: UserProfile = {
-        id: ensureUUID(),
-        name: name.trim(),
+        id: data.user.id,
         email: email.trim().toLowerCase(),
+        name: name.trim(),
         phone: cleanPhone,
-        role: role,
-        created_at: new Date().toISOString()
+        role: 'customer',
+        created_at: data.user.created_at || new Date().toISOString(),
       };
 
-      StorageRepo.saveUser(newUser);
       StorageRepo.setCurrentUser(newUser);
-
-      setSuccessMsg('تم إنشاء حسابك بنجاح! جاري تحويلك إلى حسابك الجديد...');
-      setLoading(false);
+      setSuccessMsg('تم إنشاء حسابك بنجاح! جاري تحويلك إلى واجهة التطبيق...');
 
       setTimeout(() => {
         onSuccess(newUser);
-      }, 1000);
-    }, 400);
-  };
-
-  const handleQuickSwitch = (u: UserProfile) => {
-    StorageRepo.setCurrentUser(u);
-    setSuccessMsg(`تم تسجيل الدخول بصفتك: ${u.name}`);
-    setTimeout(() => {
-      onSuccess(u);
-    }, 500);
+      }, 800);
+    } catch (err: any) {
+      setError(`حدث خطأ أثناء إنشاء الحساب: ${err?.message || String(err)}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -232,12 +270,9 @@ export const AuthView: React.FC<AuthViewProps> = ({
       <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xl overflow-hidden p-6 sm:p-8 space-y-6">
         {/* Header Branding */}
         <div className="text-center space-y-2">
-          <img
-            src="/icon.png"
-            alt="على بابك"
-            className="w-16 h-16 rounded-2xl object-cover mx-auto shadow-md shadow-emerald-600/20"
-            referrerPolicy="no-referrer"
-          />
+          <div className="w-16 h-16 rounded-2xl bg-emerald-600 text-white font-black text-2xl flex items-center justify-center mx-auto shadow-md shadow-emerald-600/20">
+            على بابك
+          </div>
           <h1 className="text-2xl font-black text-slate-900">
             {mode === 'login' ? 'تسجيل الدخول إلى حسابك' : 'إنشاء حساب جديد'}
           </h1>
@@ -252,6 +287,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
         <div className="flex bg-slate-100 p-1 rounded-2xl">
           <button
             type="button"
+            disabled={loading}
             onClick={() => {
               setMode('login');
               setError('');
@@ -269,6 +305,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
 
           <button
             type="button"
+            disabled={loading}
             onClick={() => {
               setMode('register');
               setError('');
@@ -303,62 +340,9 @@ export const AuthView: React.FC<AuthViewProps> = ({
         {/* Form Body */}
         {mode === 'register' ? (
           <form onSubmit={handleRegister} className="space-y-4">
-            {/* Account Role Selector */}
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-2">نوع الحساب المطلوب</label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setRole('customer')}
-                  className={`p-3 rounded-2xl border text-center transition-all flex flex-col items-center gap-1 ${
-                    role === 'customer'
-                      ? 'border-emerald-600 bg-emerald-50/80 text-emerald-900 font-extrabold ring-1 ring-emerald-600'
-                      : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  <User className="w-5 h-5 text-emerald-600" />
-                  <span className="text-[11px]">عميل (مشتري)</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setRole('store_owner')}
-                  className={`p-3 rounded-2xl border text-center transition-all flex flex-col items-center gap-1 ${
-                    role === 'store_owner'
-                      ? 'border-blue-600 bg-blue-50/80 text-blue-900 font-extrabold ring-1 ring-blue-600'
-                      : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  <Store className="w-5 h-5 text-blue-600" />
-                  <span className="text-[11px]">صاحب متجر</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setRole('delivery_agent')}
-                  className={`p-3 rounded-2xl border text-center transition-all flex flex-col items-center gap-1 ${
-                    role === 'delivery_agent'
-                      ? 'border-orange-600 bg-orange-50/80 text-orange-900 font-extrabold ring-1 ring-orange-600'
-                      : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  <Bike className="w-5 h-5 text-orange-600" />
-                  <span className="text-[11px]">كابتن توصيل</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setRole('admin')}
-                  className={`p-3 rounded-2xl border text-center transition-all flex flex-col items-center gap-1 ${
-                    role === 'admin'
-                      ? 'border-purple-600 bg-purple-50/80 text-purple-900 font-extrabold ring-1 ring-purple-600'
-                      : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
-                  }`}
-                >
-                  <Shield className="w-5 h-5 text-purple-600" />
-                  <span className="text-[11px]">مدير نظام</span>
-                </button>
-              </div>
+            {/* Notice for Store Owner & Delivery Agent Application */}
+            <div className="p-3.5 bg-emerald-50/60 border border-emerald-100 rounded-2xl text-[11px] text-emerald-950 leading-relaxed font-medium">
+              💡 <span className="font-bold text-emerald-900">تنويه هام:</span> يتم تسجيل جميع الحسابات الجديدة كحسابات عملاء تلقائياً. إذا كنت ترغب بالانضمام كصاحب متجر أو كابتن توصيل، يمكنك تقديم طلب بعد التسجيل عبر خيار "انضم كمتجر" أو "انضم ككابتن".
             </div>
 
             {/* Name Input */}
@@ -368,10 +352,11 @@ export const AuthView: React.FC<AuthViewProps> = ({
                 <input
                   type="text"
                   required
+                  disabled={loading}
                   placeholder="مثال: أحمد محمود"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full p-3 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                  className="w-full p-3 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none disabled:opacity-50"
                 />
                 <User className="w-4 h-4 text-slate-400 absolute right-3 top-3.5" />
               </div>
@@ -389,15 +374,16 @@ export const AuthView: React.FC<AuthViewProps> = ({
                 <input
                   type="tel"
                   required
+                  disabled={loading}
                   maxLength={11}
                   placeholder="01012345678"
                   value={phone}
                   onChange={(e) => setPhone(normalizeDigits(e.target.value).replace(/\D/g, '').slice(0, 11))}
-                  className="w-full p-3 pl-10 text-right bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                  className="w-full p-3 pl-10 text-right bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none disabled:opacity-50"
                 />
                 <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
               </div>
-              <p className="text-[10px] text-slate-400 mt-1">يجب أن يتكون من 11 رقماً بالضبط (مثل: 01012345678)</p>
+              <p className="text-[10px] text-slate-400 mt-1">يجب أن يتكون من 11 رقماً (مثال: 01012345678)</p>
             </div>
 
             {/* Email Input */}
@@ -410,10 +396,11 @@ export const AuthView: React.FC<AuthViewProps> = ({
                 <input
                   type="email"
                   required
+                  disabled={loading}
                   placeholder="name@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full p-3 pl-10 text-right bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                  className="w-full p-3 pl-10 text-right bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none disabled:opacity-50"
                 />
                 <Mail className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
               </div>
@@ -426,10 +413,11 @@ export const AuthView: React.FC<AuthViewProps> = ({
                 <input
                   type={showPassword ? 'text' : 'password'}
                   required
+                  disabled={loading}
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full p-3 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                  className="w-full p-3 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none disabled:opacity-50"
                 />
                 <Lock className="w-4 h-4 text-slate-400 absolute right-3 top-3.5" />
                 <button
@@ -449,10 +437,11 @@ export const AuthView: React.FC<AuthViewProps> = ({
                 <input
                   type={showPassword ? 'text' : 'password'}
                   required
+                  disabled={loading}
                   placeholder="••••••••"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full p-3 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                  className="w-full p-3 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none disabled:opacity-50"
                 />
                 <Lock className="w-4 h-4 text-slate-400 absolute right-3 top-3.5" />
               </div>
@@ -461,10 +450,13 @@ export const AuthView: React.FC<AuthViewProps> = ({
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center gap-2"
+              className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
             >
               {loading ? (
-                <span>جاري إنشاء الحساب...</span>
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>جاري إنشاء الحساب...</span>
+                </>
               ) : (
                 <>
                   <UserPlus className="w-4 h-4" />
@@ -485,10 +477,11 @@ export const AuthView: React.FC<AuthViewProps> = ({
                 <input
                   type="text"
                   required
+                  disabled={loading}
                   placeholder="01012345678 أو name@example.com"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  className="w-full p-3 pl-10 text-right bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                  className="w-full p-3 pl-10 text-right bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none disabled:opacity-50"
                 />
                 <Phone className="w-4 h-4 text-slate-400 absolute left-3 top-3.5" />
               </div>
@@ -510,10 +503,11 @@ export const AuthView: React.FC<AuthViewProps> = ({
                 <input
                   type={showPassword ? 'text' : 'password'}
                   required
+                  disabled={loading}
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full p-3 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                  className="w-full p-3 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none disabled:opacity-50"
                 />
                 <Lock className="w-4 h-4 text-slate-400 absolute right-3 top-3.5" />
                 <button
@@ -529,10 +523,13 @@ export const AuthView: React.FC<AuthViewProps> = ({
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center gap-2"
+              className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 disabled:opacity-60"
             >
               {loading ? (
-                <span>جاري تسجيل الدخول...</span>
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>جاري تسجيل الدخول...</span>
+                </>
               ) : (
                 <>
                   <LogIn className="w-4 h-4" />

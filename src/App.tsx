@@ -116,38 +116,101 @@ export default function App() {
   const [showResetModal, setShowResetModal] = useState(false);
   const { isOpen, setIsOpen } = useCartStore();
 
-  useEffect(() => {
-    // 1. Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setIsLoading(false);
-      if (session?.user) {
-        useCartStore.getState().setUserId(session.user.id);
+  const syncUserProfileFromSession = async (currentSession: Session | null) => {
+    if (!currentSession?.user) {
+      setCurrentUser(null);
+      StorageRepo.setCurrentUser(null);
+      useCartStore.getState().setUserId(null);
+      return null;
+    }
+
+    const userId = currentSession.user.id;
+    useCartStore.getState().setUserId(userId);
+
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (profile) {
+        const userProfile: UserProfile = {
+          id: profile.id,
+          email: profile.email || currentSession.user.email || '',
+          name: profile.full_name || currentSession.user.user_metadata?.full_name || 'مستخدم',
+          full_name: profile.full_name,
+          phone: profile.phone || currentSession.user.user_metadata?.phone || '',
+          role: (profile.role as UserRole) || 'customer',
+          avatar_url: profile.avatar_url,
+          associated_store_id: profile.associated_store_id,
+          is_active: profile.is_active ?? true,
+          created_at: profile.created_at || currentSession.user.created_at,
+        };
+        setCurrentUser(userProfile);
+        StorageRepo.setCurrentUser(userProfile);
+        return userProfile;
       } else {
-        useCartStore.getState().setUserId(null);
+        const fallbackUser: UserProfile = {
+          id: userId,
+          email: currentSession.user.email || '',
+          name: currentSession.user.user_metadata?.full_name || 'مستخدم',
+          phone: currentSession.user.user_metadata?.phone || '',
+          role: 'customer',
+          created_at: currentSession.user.created_at,
+        };
+        setCurrentUser(fallbackUser);
+        StorageRepo.setCurrentUser(fallbackUser);
+        return fallbackUser;
       }
+    } catch (err) {
+      console.error('Error fetching user profile from database:', err);
+      const cached = StorageRepo.getCurrentUser();
+      if (cached && cached.id === userId) {
+        setCurrentUser(cached);
+        return cached;
+      }
+    }
+    return null;
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    // 1. Initial Session Check
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!isMounted) return;
+      setSession(session);
+      syncUserProfileFromSession(session).finally(() => {
+        if (isMounted) setIsLoading(false);
+      });
     });
 
-    // 2. Listen for auth changes
+    // 2. Real-time Auth State Change Listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      async (event, session) => {
+        if (!isMounted) return;
         setSession(session);
-        setIsLoading(false);
 
-        if (event === 'SIGNED_IN' && session?.user) {
-          useCartStore.getState().setUserId(session.user.id);
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+          await syncUserProfileFromSession(session);
         } else if (event === 'SIGNED_OUT') {
+          setCurrentUser(null);
+          StorageRepo.setCurrentUser(null);
           useCartStore.getState().setUserId(null);
-          StorageRepo.logout();
+          setActiveTab('landing');
         }
+        setIsLoading(false);
       }
     );
 
     const unsubscribeStorage = subscribeToStorageChange(() => {
-      setCurrentUser(StorageRepo.getCurrentUser());
+      const user = StorageRepo.getCurrentUser();
+      setCurrentUser(user);
     });
 
     return () => {
+      isMounted = false;
       subscription.unsubscribe();
       unsubscribeStorage();
     };
@@ -159,7 +222,7 @@ export default function App() {
   ];
 
   const isPublicTab = PUBLIC_TABS.includes(activeTab);
-  const isLoggedIn = !!session || !!currentUser;
+  const isLoggedIn = !!session && !!currentUser;
 
   // AuthGuard for protected routes
   useEffect(() => {
@@ -168,16 +231,7 @@ export default function App() {
     }
   }, [isLoading, isLoggedIn, isPublicTab, activeTab]);
 
-  const activeUserProfile: UserProfile | null = session ? {
-    id: session.user.id,
-    email: session.user.email || '',
-    name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email || 'مستخدم',
-    full_name: session.user.user_metadata?.full_name || session.user.user_metadata?.name,
-    phone: session.user.user_metadata?.phone || '',
-    role: (session.user.user_metadata?.role as UserRole) || 'customer',
-    avatar_url: session.user.user_metadata?.avatar_url,
-    created_at: session.user.created_at,
-  } : currentUser;
+  const activeUserProfile = currentUser;
 
   const handleLogout = async () => {
     await supabase.auth.signOut().catch(() => {});
@@ -185,33 +239,6 @@ export default function App() {
     useCartStore.getState().setUserId(null);
     setCurrentUser(null);
     setActiveTab('landing');
-  };
-
-  const handleRoleChange = async (role: UserRole) => {
-    if (session?.user) {
-      try {
-        await supabase.auth.updateUser({
-          data: { role }
-        });
-      } catch (e) {
-        console.warn('Could not update role in Supabase auth metadata:', e);
-      }
-    }
-    StorageRepo.switchRole(role);
-    const updatedUser = StorageRepo.getCurrentUser();
-    setCurrentUser(updatedUser);
-
-    // Set default tab for new role
-    if (role === 'customer') setActiveTab('customer-stores');
-    else if (role === 'store_owner') setActiveTab('store-dashboard');
-    else if (role === 'delivery_agent') setActiveTab('delivery-dashboard');
-    else if (role === 'delivery_supervisor') setActiveTab('delivery-supervisor-dashboard');
-    else if (role === 'finance_admin') setActiveTab('finance-admin-dashboard');
-    else if (role === 'orders_manager') setActiveTab('orders-manager-dashboard');
-    else if (role === 'admin') setActiveTab('admin-dashboard');
-
-    setSelectedStoreId(null);
-    setSelectedOrderId(null);
   };
 
   const handleSelectStore = (storeId: string) => {

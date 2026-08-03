@@ -355,22 +355,6 @@ export const StorageRepo = {
     notifyStorageChange('user', 'switch', null);
   },
 
-  switchRole(role: UserRole) {
-    const users = this.getCachedUsers();
-    let target = users.find((u) => u.role === role);
-    if (!target) {
-      target = {
-        id: `usr-${role}-1`,
-        email: `${role}@jihat.app`,
-        name: `مستخدم (${role})`,
-        phone: '01000000000',
-        role,
-        created_at: new Date().toISOString(),
-      };
-    }
-    this.setCurrentUser(target);
-  },
-
   getUsers(): UserProfile[] {
     const cached = this.getCachedUsers();
     this.refreshUsers();
@@ -537,17 +521,34 @@ export const StorageRepo = {
   },
 
   async saveOrder(order: Order): Promise<Order> {
-    const orders = mergeById(this.getCachedOrders(), order);
-    setCached(STORAGE_KEYS.ORDERS, orders);
-    notifyStorageChange('order', 'save', order);
-
     try {
-      await saveSupabaseOrder(order);
-      await this.refreshOrders();
-      return order;
+      // 1. Invoke secure order creation RPC via saveSupabaseOrder
+      const secureResult = await saveSupabaseOrder(order);
+
+      // 2. Build updated order with server-calculated fields from RPC
+      const serverConfirmedOrder: Order = {
+        ...order,
+        id: secureResult.order_id,
+        order_number: secureResult.code,
+        subtotal: secureResult.subtotal,
+        delivery_fee: secureResult.delivery_fee,
+        discount_amount: secureResult.discount,
+        total: secureResult.total,
+        status: (secureResult.status as any) || 'pending',
+        updated_at: new Date().toISOString(),
+      };
+
+      // 3. Cache only upon server confirmation
+      const orders = mergeById(this.getCachedOrders(), serverConfirmedOrder);
+      setCached(STORAGE_KEYS.ORDERS, orders);
+      notifyStorageChange('order', 'save', serverConfirmedOrder);
+
+      // Refresh orders list in background
+      this.refreshOrders().catch(() => {});
+
+      return serverConfirmedOrder;
     } catch (err) {
-      console.error('Failed to save order to Supabase:', err);
-      this.refreshOrders();
+      console.error('Failed to create order via secure RPC:', err);
       throw err;
     }
   },

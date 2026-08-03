@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../lib/storage';
 import { useCartStore } from '../../stores/cart-store';
-import { RoleSwitcher } from '../shared/RoleSwitcher';
 import { SidebarDrawer } from './SidebarDrawer';
 import { UserProfile, Order } from '../../types/domain';
 import {
@@ -438,8 +437,26 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
-            {/* Role Switcher & Account Profile Badge */}
-            <RoleSwitcher onRoleChange={() => onNavigate(`${StorageRepo.getCurrentUser()?.role || 'customer'}-dashboard`)} />
+            {/* Account Profile Badge */}
+            {currentUser && (
+              <button
+                onClick={() => {
+                  if (role === 'customer') onNavigate('profile');
+                  else if (role === 'store_owner') onNavigate('store-settings');
+                  else if (role === 'delivery_agent') onNavigate('delivery-profile');
+                  else onNavigate('admin-dashboard');
+                }}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs font-bold text-slate-800 transition-colors"
+                title="الحساب الشخصي"
+              >
+                <div className="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center font-black text-[10px]">
+                  {currentUser.name ? currentUser.name.charAt(0) : 'م'}
+                </div>
+                <span className="hidden sm:inline text-xs font-bold max-w-[100px] truncate">
+                  {currentUser.name}
+                </span>
+              </button>
+            )}
 
             {/* Side Menu Bar Toggle Button (Drawer Trigger) */}
             <button

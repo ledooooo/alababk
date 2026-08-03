@@ -650,83 +650,142 @@ export async function saveSupabaseAgent(agent: Partial<DeliveryAgent>) {
 }
 
 /**
- * Save/Upsert Order in Supabase
+ * Secure Order creation payload interface
  */
-export async function saveSupabaseOrder(order: Partial<Order>) {
-  try {
-    const validId = ensureUUID(order.id);
-    order.id = validId;
-    const validCustomerId = order.customer_id ? ensureUUID(order.customer_id) : ensureUUID();
-    const validStoreId = order.store_id ? ensureUUID(order.store_id) : '';
-    if (!validStoreId) return;
+export interface SecureOrderPayload {
+  store_id: string;
+  address: CustomerAddress;
+  payment_method: 'cash' | 'online';
+  items: Array<{
+    product_id: string;
+    quantity: number;
+    options?: any;
+    notes?: string;
+  }>;
+  coupon_code?: string;
+  customer_notes?: string;
+  tip_amount?: number;
+}
 
-    let validAddressId = order.delivery_address?.id ? ensureUUID(order.delivery_address.id) : '';
-    if (validAddressId) {
-      const addressPayload = {
-        id: validAddressId,
-        user_id: validCustomerId,
-        label: order.delivery_address?.title || 'عنوان التوصيل',
-        street: order.delivery_address?.address_line || 'القاهرة',
-        building: order.delivery_address?.building || null,
-        floor: order.delivery_address?.floor || null,
-        apartment: order.delivery_address?.apartment || null,
-        notes: order.delivery_address?.notes || null,
-      };
-      try {
-        await supabase.from('addresses').upsert(addressPayload, { onConflict: 'id' });
-      } catch {
-        // Ignore
-      }
-    } else {
-      validAddressId = ensureUUID();
-    }
+export interface SecureOrderResponse {
+  order_id: string;
+  code: string;
+  subtotal: number;
+  delivery_fee: number;
+  tip_amount: number;
+  discount: number;
+  total: number;
+  status: string;
+}
 
-    const payload: Record<string, any> = {
-      id: validId,
-      code: order.order_number || `JHT-${Date.now().toString().slice(-4)}`,
-      customer_id: validCustomerId,
-      store_id: validStoreId,
-      address_id: validAddressId,
-      subtotal: order.subtotal || 0,
-      delivery_fee: order.delivery_fee || 0,
-      discount: order.discount_amount || 0,
-      total: order.total || 0,
-      payment_method: order.payment_method === 'online' ? 'online' : 'cash',
-      payment_status: order.payment_status === 'paid' ? 'paid' : 'pending',
-      status: order.status || 'pending',
-      customer_notes: order.customer_notes || null,
-      updated_at: new Date().toISOString(),
-    };
-
-    if (order.delivery_agent_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(order.delivery_agent_id)) {
-      payload.delivery_agent_id = order.delivery_agent_id;
-    }
-
-    const { error } = await supabase.from('orders').upsert(payload, { onConflict: 'id' });
-    if (error) {
-      console.warn('Supabase order save info:', error.message);
-    }
-
-    if (order.items && order.items.length > 0) {
-      const itemsPayload = order.items.map((item) => ({
-        id: ensureUUID(item.id),
-        order_id: validId,
-        product_id: item.product_id ? ensureUUID(item.product_id) : null,
-        name: item.product_name,
-        price: item.unit_price,
-        quantity: item.quantity,
-        subtotal: item.total_price,
-        notes: item.notes || null,
-      }));
-      try {
-        await supabase.from('order_items').upsert(itemsPayload, { onConflict: 'id' });
-      } catch {
-        // Ignore
-      }
-    }
-  } catch (err) {
-    console.warn('Sync order error:', err);
+/**
+ * Call secure order creation RPC function in Supabase
+ */
+export async function createSecureOrder(params: SecureOrderPayload): Promise<SecureOrderResponse> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.user) {
+    throw new Error('يجب تسجيل الدخول لإنشاء طلب');
   }
+  const userId = session.user.id;
+
+  // 1. Ensure address exists in Supabase addresses table for auth.uid()
+  const validAddressId = ensureUUID(params.address.id);
+  const addressPayload = {
+    id: validAddressId,
+    user_id: userId,
+    label: params.address.title || 'عنوان التوصيل',
+    street: params.address.address_line || 'القاهرة',
+    building: params.address.building || null,
+    floor: params.address.floor || null,
+    apartment: params.address.apartment || null,
+    notes: params.address.notes || null,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { error: addrErr } = await supabase.from('addresses').upsert(addressPayload, { onConflict: 'id' });
+  if (addrErr) {
+    console.warn('Address upsert prior to secure order creation warning:', addrErr.message);
+  }
+
+  // 2. Prepare items for RPC
+  const formattedItems = params.items.map((item) => ({
+    product_id: ensureUUID(item.product_id),
+    quantity: Math.max(1, Number(item.quantity) || 1),
+    options: item.options || {},
+    notes: item.notes ? String(item.notes).trim() : null,
+  }));
+
+  // 3. Invoke create_order_secure RPC
+  const { data, error } = await supabase.rpc('create_order_secure', {
+    p_store_id: ensureUUID(params.store_id),
+    p_address_id: validAddressId,
+    p_payment_method: params.payment_method === 'online' ? 'online' : 'cash',
+    p_items: formattedItems,
+    p_coupon_code: params.coupon_code ? params.coupon_code.trim() : null,
+    p_customer_notes: params.customer_notes ? params.customer_notes.trim() : null,
+    p_tip_amount: params.tip_amount ? Number(params.tip_amount) : 0,
+  });
+
+  if (error) {
+    let msg = error.message || 'تعذر إنشاء الطلب على السيرفر';
+    msg = msg.replace(/^ERROR:\s*/i, '').replace(/^[A-Z0-9]{5}:\s*/, '');
+    throw new Error(msg);
+  }
+
+  if (!data || !data.order_id) {
+    throw new Error('حدث خطأ غير متوقع أثناء معالجة الطلب على السيرفر.');
+  }
+
+  return {
+    order_id: data.order_id,
+    code: data.code,
+    subtotal: Number(data.subtotal || 0),
+    delivery_fee: Number(data.delivery_fee || 0),
+    tip_amount: Number(data.tip_amount || 0),
+    discount: Number(data.discount || 0),
+    total: Number(data.total || 0),
+    status: data.status || 'pending',
+  };
+}
+
+/**
+ * Save/Create Order in Supabase via create_order_secure RPC
+ */
+export async function saveSupabaseOrder(order: Partial<Order>): Promise<SecureOrderResponse> {
+  if (!order.store_id) {
+    throw new Error('المتجر غير محدد في الطلب');
+  }
+
+  if (!order.items || order.items.length === 0) {
+    throw new Error('السلة فارغة');
+  }
+
+  const result = await createSecureOrder({
+    store_id: order.store_id,
+    address: order.delivery_address || {
+      id: ensureUUID(),
+      user_id: order.customer_id || '',
+      title: 'عنوان التوصيل',
+      address_line: 'القاهرة',
+      building: '',
+      floor: '',
+      apartment: '',
+      lat: 30.0444,
+      lng: 31.2357,
+      is_default: false,
+    },
+    payment_method: order.payment_method === 'online' ? 'online' : 'cash',
+    items: order.items.map((i) => ({
+      product_id: i.product_id,
+      quantity: i.quantity,
+      notes: i.notes,
+    })),
+    coupon_code: order.coupon_code,
+    customer_notes: order.customer_notes,
+    tip_amount: order.tip_amount || 0,
+  });
+
+  return result;
 }
 
 /**

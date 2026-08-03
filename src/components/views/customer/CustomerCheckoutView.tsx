@@ -51,6 +51,7 @@ export const CustomerCheckoutView: React.FC<CustomerCheckoutViewProps> = ({
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'online'>('cash');
   const [customerNotes, setCustomerNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string>('');
 
   const subtotal = getSubtotal();
   const deliveryFee = subtotal > 0 ? 15 : 0;
@@ -94,9 +95,11 @@ export const CustomerCheckoutView: React.FC<CustomerCheckoutViewProps> = ({
     });
   };
 
-  const handlePlaceOrder = () => {
+  const handlePlaceOrder = async () => {
+    setCheckoutError('');
+
     if (!storeId || !store) {
-      alert('خطأ: المتجر غير محدد');
+      setCheckoutError('خطأ: المتجر غير محدد');
       return;
     }
 
@@ -104,7 +107,7 @@ export const CustomerCheckoutView: React.FC<CustomerCheckoutViewProps> = ({
 
     if (selectedAddressId === 'new') {
       if (!newAddressLine.trim()) {
-        alert('يرجى كتابة تفاصيل العنوان');
+        setCheckoutError('يرجى كتابة تفاصيل العنوان');
         return;
       }
       finalAddress = {
@@ -119,11 +122,11 @@ export const CustomerCheckoutView: React.FC<CustomerCheckoutViewProps> = ({
         lng: mapLng,
         is_default: false,
       };
-      StorageRepo.saveAddress(finalAddress);
+      await StorageRepo.saveAddress(finalAddress);
     } else {
       const found = savedAddresses.find((a) => a.id === selectedAddressId);
       if (!found) {
-        alert('يرجى تحديد عنوان توصيل صالح');
+        setCheckoutError('يرجى تحديد عنوان توصيل صالح');
         return;
       }
       finalAddress = found;
@@ -177,13 +180,17 @@ export const CustomerCheckoutView: React.FC<CustomerCheckoutViewProps> = ({
       updated_at: nowIso,
     };
 
-    StorageRepo.saveOrder(newOrder);
-    clearCart();
-
-    setTimeout(() => {
+    try {
+      const confirmedOrder = await StorageRepo.saveOrder(newOrder);
+      clearCart();
       setIsSubmitting(false);
-      onOrderPlaced(newOrder.id);
-    }, 600);
+      onOrderPlaced(confirmedOrder.id);
+    } catch (err: any) {
+      console.error('Checkout failed:', err);
+      const msg = err?.message || 'فشل إرسال الطلب، يرجى إعادة المحاولة.';
+      setCheckoutError(msg);
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -200,6 +207,17 @@ export const CustomerCheckoutView: React.FC<CustomerCheckoutViewProps> = ({
 
         <h1 className="text-lg font-black text-slate-900">إتمام وتأكيد الطلب</h1>
       </div>
+
+      {/* Checkout Error Banner */}
+      {checkoutError && (
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-3 text-rose-800 text-xs font-bold animate-fadeIn">
+          <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p className="font-extrabold text-rose-900">تعذر تنفيذ وتأكيد الطلب:</p>
+            <p className="text-rose-700 font-medium leading-relaxed">{checkoutError}</p>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left 2 Cols: Address & Options */}
