@@ -124,19 +124,15 @@ export const AuthView: React.FC<AuthViewProps> = ({
           return;
         }
 
-        // Search profiles table by phone to find corresponding email
-        const { data: profileMatch, error: phoneSearchErr } = await supabase
-          .from('profiles')
-          .select('id, email, phone')
-          .eq('phone', cleanDigits)
-          .maybeSingle();
+        const { data: email, error: phoneSearchErr } = await supabase
+          .rpc('get_email_by_phone', { p_phone: cleanDigits });
 
-        if (phoneSearchErr || !profileMatch || !profileMatch.email) {
+        if (phoneSearchErr || !email) {
           setError('رقم الهاتف غير مسجل لدينا. يمكنك إنشاء حساب جديد أولاً.');
           setLoading(false);
           return;
         }
-        validatedEmail = profileMatch.email.toLowerCase();
+        validatedEmail = email.toLowerCase();
       }
 
       // Perform real Supabase authentication with password
