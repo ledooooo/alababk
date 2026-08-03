@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
+import { subscribeSupabase } from '../../../lib/supabase';
 import { Order, OrderStatus, DeliveryAgent } from '../../../types/domain';
 import {
   ShoppingBag,
@@ -33,11 +34,32 @@ export const OrdersManagerDashboardView: React.FC = () => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    const unsubscribe = subscribeToStorageChange(() => {
+    const sync = () => {
       setOrders(StorageRepo.getOrders());
       setAgents(StorageRepo.getAgents());
+    };
+
+    sync();
+    StorageRepo.refreshOrders();
+    StorageRepo.refreshAgents();
+
+    const unsubscribeStorage = subscribeToStorageChange(() => {
+      sync();
     });
-    return unsubscribe;
+
+    const unsubscribeRealtimeOrders = subscribeSupabase<Order>('orders', () => {
+      StorageRepo.refreshOrders();
+    });
+
+    const unsubscribeRealtimeAgents = subscribeSupabase<DeliveryAgent>('delivery_agents', () => {
+      StorageRepo.refreshAgents();
+    });
+
+    return () => {
+      unsubscribeStorage();
+      unsubscribeRealtimeOrders();
+      unsubscribeRealtimeAgents();
+    };
   }, []);
 
   const showToast = (msg: string) => {
@@ -47,20 +69,29 @@ export const OrdersManagerDashboardView: React.FC = () => {
 
   const availableAgents = agents.filter((a) => a.is_online && a.is_approved);
 
-  const handleUpdateStatus = (orderId: string, newStatus: OrderStatus) => {
-    StorageRepo.updateOrderStatus(orderId, newStatus);
-    showToast(`تم تغيير حالة الطلب بنجاح إلى (${getStatusLabel(newStatus)})`);
-    if (selectedOrder && selectedOrder.id === orderId) {
-      setSelectedOrder({ ...selectedOrder, status: newStatus });
+  const handleUpdateStatus = async (orderId: string, newStatus: OrderStatus) => {
+    try {
+      await StorageRepo.updateOrderStatus(orderId, newStatus);
+      showToast(`تم تغيير حالة الطلب بنجاح إلى (${getStatusLabel(newStatus)})`);
+      if (selectedOrder && selectedOrder.id === orderId) {
+        setSelectedOrder({ ...selectedOrder, status: newStatus });
+      }
+    } catch (err: any) {
+      alert(`تعذر تحديث حالة الطلب: ${err.message || 'خطأ غير معروف'}`);
     }
   };
 
-  const handleAssignAgent = (orderId: string, agentId: string) => {
+  const handleAssignAgent = async (orderId: string, agentId: string) => {
     const agent = agents.find((a) => a.id === agentId);
     if (!agent) return;
-    StorageRepo.assignOrderToAgent(orderId, agentId, agent.name, agent.phone);
-    showToast(`تم إسناد الطلب للكابتن "${agent.name}" بنجاح`);
-    setAssignAgentModalOrder(null);
+
+    try {
+      await StorageRepo.assignOrderToAgent(orderId, agentId, agent.name, agent.phone);
+      showToast(`تم إسناد الطلب للكابتن "${agent.name}" بنجاح`);
+      setAssignAgentModalOrder(null);
+    } catch (err: any) {
+      alert(`تعذر إسناد الطلب: ${err.message || 'خطأ غير معروف'}`);
+    }
   };
 
   const getStatusLabel = (status: OrderStatus) => {

@@ -1,20 +1,62 @@
-import React, { useState } from 'react';
-import { StorageRepo } from '../../../lib/storage';
-import { Star, MessageSquare, CornerDownLeft, Store, CheckCircle2, ThumbsUp } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
+import { subscribeSupabase } from '../../../lib/supabase';
+import { Review } from '../../../types/domain';
+import { Star, MessageSquare, CornerDownLeft, CheckCircle2, ThumbsUp, Loader2 } from 'lucide-react';
 
 export const StoreReviewsView: React.FC = () => {
   const currentStore = StorageRepo.getCurrentStore();
-  const reviews = StorageRepo.getReviews().filter((r) => !currentStore || r.store_id === currentStore.id);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [replyText, setReplyText] = useState<Record<string, string>>({});
-  const [repliedIds, setRepliedIds] = useState<string[]>([]);
+  const [submittingId, setSubmittingId] = useState<string | null>(null);
 
-  const handleReplySubmit = (reviewId: string) => {
-    if (!replyText[reviewId]?.trim()) return;
-    setRepliedIds((prev) => [...prev, reviewId]);
+  useEffect(() => {
+    const sync = () => {
+      const list = StorageRepo.getReviews(currentStore?.id);
+      setReviews(list);
+    };
+
+    sync();
+    if (currentStore?.id) {
+      StorageRepo.refreshReviews(currentStore.id);
+    }
+
+    const unsubStorage = subscribeToStorageChange(() => {
+      sync();
+    });
+
+    const unsubRealtime = subscribeSupabase<Review>(
+      'reviews',
+      () => {
+        if (currentStore?.id) {
+          StorageRepo.refreshReviews(currentStore.id);
+        }
+      },
+      currentStore?.id ? `store_id=eq.${currentStore.id}` : undefined
+    );
+
+    return () => {
+      unsubStorage();
+      unsubRealtime();
+    };
+  }, [currentStore?.id]);
+
+  const handleReplySubmit = async (reviewId: string) => {
+    const text = replyText[reviewId]?.trim();
+    if (!text) return;
+
+    try {
+      setSubmittingId(reviewId);
+      await StorageRepo.replyToReview(reviewId, text);
+    } catch (err: any) {
+      alert(`تعذر إرسال الرد: ${err.message || 'خطأ غير معروف'}`);
+    } finally {
+      setSubmittingId(null);
+    }
   };
 
   const averageRating = reviews.length > 0
-    ? (reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length).toFixed(1)
+    ? (reviews.reduce((acc, r) => acc + (r.store_rating || r.rating || 5), 0) / reviews.length).toFixed(1)
     : '5.0';
 
   return (
@@ -60,7 +102,7 @@ export const StoreReviewsView: React.FC = () => {
           </div>
           <div>
             <p className="text-2xl font-black text-slate-900">
-              {reviews.filter((r) => r.rating >= 4).length}
+              {reviews.filter((r) => (r.store_rating || r.rating || 5) >= 4).length}
             </p>
             <p className="text-xs font-bold text-slate-500">تقييمات إيجابية (4-5 نجوم)</p>
           </div>
@@ -78,24 +120,25 @@ export const StoreReviewsView: React.FC = () => {
         ) : (
           <div className="space-y-4 divide-y divide-slate-100">
             {reviews.map((rev) => {
-              const isReplied = repliedIds.includes(rev.id);
+              const hasResponse = Boolean(rev.store_response);
+              const isReplying = submittingId === rev.id;
 
               return (
                 <div key={rev.id} className="pt-4 first:pt-0 space-y-3">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-700 font-extrabold flex items-center justify-center text-xs">
-                        {rev.customer_name.slice(0, 1)}
+                        {(rev.customer_name || 'ع').slice(0, 1)}
                       </div>
                       <div>
-                        <h3 className="font-extrabold text-slate-900 text-xs">{rev.customer_name}</h3>
-                        <p className="text-[10px] text-slate-500">{rev.created_at.slice(0, 10)}</p>
+                        <h3 className="font-extrabold text-slate-900 text-xs">{rev.customer_name || 'عميل'}</h3>
+                        <p className="text-[10px] text-slate-500">{(rev.created_at || '').slice(0, 10)}</p>
                       </div>
                     </div>
 
                     <div className="flex items-center gap-1 bg-amber-50 px-2.5 py-1 rounded-lg text-amber-700 font-bold text-xs">
                       <Star className="w-3.5 h-3.5 fill-amber-400" />
-                      <span>{rev.rating} / 5</span>
+                      <span>{rev.store_rating || rev.rating || 5} / 5</span>
                     </div>
                   </div>
 
@@ -104,13 +147,13 @@ export const StoreReviewsView: React.FC = () => {
                   </p>
 
                   {/* Store Response section */}
-                  {isReplied ? (
+                  {hasResponse ? (
                     <div className="mr-6 p-3 bg-purple-50 rounded-2xl border border-purple-100 space-y-1">
                       <div className="flex items-center gap-1.5 text-purple-900 text-[11px] font-bold">
                         <CornerDownLeft className="w-3.5 h-3.5 text-purple-600" />
                         <span>رد المتجر:</span>
                       </div>
-                      <p className="text-xs text-slate-800 pr-5">{replyText[rev.id]}</p>
+                      <p className="text-xs text-slate-800 pr-5">{rev.store_response}</p>
                     </div>
                   ) : (
                     <div className="mr-6 space-y-2 pt-1">
@@ -126,9 +169,17 @@ export const StoreReviewsView: React.FC = () => {
                         />
                         <button
                           onClick={() => handleReplySubmit(rev.id)}
-                          className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-xs shadow-xs"
+                          disabled={isReplying}
+                          className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-xl font-bold text-xs shadow-xs flex items-center gap-1.5"
                         >
-                          إرسال الرد
+                          {isReplying ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <span>جاري إرسال الرد...</span>
+                            </>
+                          ) : (
+                            <span>إرسال الرد</span>
+                          )}
                         </button>
                       </div>
                     </div>

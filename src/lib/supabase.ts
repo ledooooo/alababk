@@ -386,11 +386,13 @@ export async function fetchSupabaseCoupons(): Promise<Coupon[]> {
 /**
  * Fetch Reviews from Supabase
  */
-export async function fetchSupabaseReviews(): Promise<Review[]> {
+export async function fetchSupabaseReviews(storeId?: string): Promise<Review[]> {
   try {
-    const { data, error } = await supabase
-      .from('reviews')
-      .select('*, profiles(full_name)');
+    let query = supabase.from('reviews').select('*, profiles(full_name)');
+    if (storeId) {
+      query = query.eq('store_id', storeId);
+    }
+    const { data, error } = await query;
 
     if (error || !data) return [];
 
@@ -400,15 +402,94 @@ export async function fetchSupabaseReviews(): Promise<Review[]> {
       store_id: r.store_id || '',
       customer_id: r.customer_id,
       customer_name: r.profiles?.full_name || 'عميل',
-      store_rating: r.store_rating || 5,
+      store_rating: r.store_rating || r.rating || 5,
       delivery_rating: r.agent_rating || 5,
-      comment: r.store_comment || r.agent_comment || '',
-      store_response: r.store_reply,
+      rating: r.store_rating || r.rating || 5,
+      comment: r.store_comment || r.agent_comment || r.comment || '',
+      store_response: r.store_reply || r.store_response,
       created_at: r.created_at || new Date().toISOString(),
     }));
   } catch {
     return [];
   }
+}
+
+/**
+ * Save new review to Supabase
+ */
+export async function saveSupabaseReview(review: Partial<Review>): Promise<Review> {
+  const validId = ensureUUID(review.id);
+
+  const payload: Record<string, any> = {
+    id: validId,
+    order_id: review.order_id ? ensureUUID(review.order_id) : null,
+    store_id: review.store_id ? ensureUUID(review.store_id) : null,
+    customer_id: review.customer_id ? ensureUUID(review.customer_id) : null,
+    store_rating: review.store_rating || review.rating || 5,
+    agent_rating: review.delivery_rating || 5,
+    store_comment: review.comment || '',
+    created_at: new Date().toISOString(),
+  };
+
+  const { data, error } = await supabase.from('reviews').insert([payload]).select('*, profiles(full_name)').single();
+  if (error) {
+    let msg = error.message || 'فشل إضافة التقييم في قاعدة البيانات';
+    msg = msg.replace(/^ERROR:\s*/i, '').replace(/^[A-Z0-9]{5}:\s*/, '');
+    throw new Error(msg);
+  }
+
+  return {
+    id: data.id,
+    order_id: data.order_id,
+    store_id: data.store_id || '',
+    customer_id: data.customer_id,
+    customer_name: data.profiles?.full_name || review.customer_name || 'عميل',
+    store_rating: data.store_rating || 5,
+    delivery_rating: data.agent_rating || 5,
+    rating: data.store_rating || 5,
+    comment: data.store_comment || data.agent_comment || '',
+    store_response: data.store_reply,
+    created_at: data.created_at || new Date().toISOString(),
+  };
+}
+
+/**
+ * Reply to review in Supabase (updates ONLY store_reply to avoid protect_review_columns trigger rejection)
+ */
+export async function replySupabaseReview(reviewId: string, replyText: string): Promise<Review> {
+  const validId = ensureUUID(reviewId);
+
+  const payload = {
+    store_reply: replyText,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { data, error } = await supabase
+    .from('reviews')
+    .update(payload)
+    .eq('id', validId)
+    .select('*, profiles(full_name)')
+    .single();
+
+  if (error) {
+    let msg = error.message || 'فشل إرسال الرد على التقييم';
+    msg = msg.replace(/^ERROR:\s*/i, '').replace(/^[A-Z0-9]{5}:\s*/, '');
+    throw new Error(msg);
+  }
+
+  return {
+    id: data.id,
+    order_id: data.order_id,
+    store_id: data.store_id || '',
+    customer_id: data.customer_id,
+    customer_name: data.profiles?.full_name || 'عميل',
+    store_rating: data.store_rating || 5,
+    delivery_rating: data.agent_rating || 5,
+    rating: data.store_rating || 5,
+    comment: data.store_comment || data.agent_comment || '',
+    store_response: data.store_reply,
+    created_at: data.created_at || new Date().toISOString(),
+  };
 }
 
 /**
@@ -439,6 +520,75 @@ export async function fetchSupabaseNotifications(userId: string): Promise<Notifi
 }
 
 /**
+ * Mark a single notification read in Supabase
+ */
+export async function markSupabaseNotificationRead(id: string): Promise<void> {
+  const validId = ensureUUID(id);
+  const payload = {
+    read_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+  const { error } = await supabase.from('notifications').update(payload).eq('id', validId);
+  if (error) {
+    let msg = error.message || 'فشل تحديث الإشعار';
+    msg = msg.replace(/^ERROR:\s*/i, '').replace(/^[A-Z0-9]{5}:\s*/, '');
+    throw new Error(msg);
+  }
+}
+
+/**
+ * Mark all notifications read in Supabase
+ */
+export async function markAllSupabaseNotificationsRead(userId?: string): Promise<void> {
+  let query = supabase.from('notifications').update({
+    read_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  });
+  if (userId && userId !== 'all') {
+    query = query.eq('user_id', ensureUUID(userId));
+  } else {
+    query = query.is('read_at', null);
+  }
+  const { error } = await query;
+  if (error) {
+    let msg = error.message || 'فشل تحديث جميع الإشعارات';
+    msg = msg.replace(/^ERROR:\s*/i, '').replace(/^[A-Z0-9]{5}:\s*/, '');
+    throw new Error(msg);
+  }
+}
+
+/**
+ * Delete a notification in Supabase
+ */
+export async function deleteSupabaseNotification(id: string): Promise<void> {
+  const validId = ensureUUID(id);
+  const { error } = await supabase.from('notifications').delete().eq('id', validId);
+  if (error) {
+    let msg = error.message || 'فشل حذف الإشعار';
+    msg = msg.replace(/^ERROR:\s*/i, '').replace(/^[A-Z0-9]{5}:\s*/, '');
+    throw new Error(msg);
+  }
+}
+
+/**
+ * Clear notifications in Supabase
+ */
+export async function clearSupabaseNotifications(userId?: string): Promise<void> {
+  let query = supabase.from('notifications').delete();
+  if (userId && userId !== 'all') {
+    query = query.eq('user_id', ensureUUID(userId));
+  } else {
+    query = query.neq('id', '00000000-0000-0000-0000-000000000000');
+  }
+  const { error } = await query;
+  if (error) {
+    let msg = error.message || 'فشل مسح الإشعارات';
+    msg = msg.replace(/^ERROR:\s*/i, '').replace(/^[A-Z0-9]{5}:\s*/, '');
+    throw new Error(msg);
+  }
+}
+
+/**
  * Fetch Payouts from Supabase
  */
 export async function fetchSupabasePayouts(): Promise<Payout[]> {
@@ -463,10 +613,113 @@ export async function fetchSupabasePayouts(): Promise<Payout[]> {
       period_end: p.period_end,
       notes: p.notes,
       created_at: p.created_at || new Date().toISOString(),
+      processed_at: p.processed_at,
+      processed_by: p.processed_by,
     }));
   } catch {
     return [];
   }
+}
+
+/**
+ * Update payout status atomically with WHERE status = 'pending' check and audit trail
+ */
+export async function updateSupabasePayoutStatus(
+  payoutId: string,
+  newStatus: 'approved' | 'rejected' | 'completed' | 'failed' | 'processing' | 'pending',
+  processedBy?: string,
+  notes?: string
+): Promise<Payout> {
+  const validId = ensureUUID(payoutId);
+  const now = new Date().toISOString();
+
+  // 1. Prepare payload with audit info
+  const payloadWithAudit: Record<string, any> = {
+    status: newStatus,
+    processed_at: now,
+    updated_at: now,
+  };
+  if (processedBy) payloadWithAudit.processed_by = ensureUUID(processedBy);
+  if (notes) payloadWithAudit.notes = notes;
+
+  let { data, error } = await supabase
+    .from('payouts')
+    .update(payloadWithAudit)
+    .eq('id', validId)
+    .eq('status', 'pending')
+    .select('*, profiles(full_name)');
+
+  // Fallback if processed_at/processed_by columns do not exist in table yet
+  if (error && (error.message.includes('processed_at') || error.message.includes('processed_by'))) {
+    const fallbackPayload: Record<string, any> = {
+      status: newStatus,
+      updated_at: now,
+    };
+    if (notes) fallbackPayload.notes = notes;
+
+    const fallbackRes = await supabase
+      .from('payouts')
+      .update(fallbackPayload)
+      .eq('id', validId)
+      .eq('status', 'pending')
+      .select('*, profiles(full_name)');
+
+    data = fallbackRes.data;
+    error = fallbackRes.error;
+  }
+
+  if (error) {
+    let msg = error.message || 'فشل تحديث حالة التسوية';
+    msg = msg.replace(/^ERROR:\s*/i, '').replace(/^[A-Z0-9]{5}:\s*/, '');
+    throw new Error(msg);
+  }
+
+  // Atomic check: If no rows were returned, payout was already processed
+  if (!data || data.length === 0) {
+    throw new Error('تمت معالجة طلب التسوية هذا بالفعل مسبقاً من قِبل مسؤول آخر');
+  }
+
+  const p = data[0];
+
+  // Record audit log entry in activity_log table
+  try {
+    await supabase.from('activity_log').insert([
+      {
+        id: ensureUUID(`log-${Date.now()}`),
+        actor_id: processedBy ? ensureUUID(processedBy) : '00000000-0000-0000-0000-000000000000',
+        action: `payout_${newStatus}`,
+        entity_type: 'payout',
+        entity_id: validId,
+        details: JSON.stringify({
+          status: newStatus,
+          amount: p.amount,
+          recipient_id: p.recipient_id,
+          processed_at: now,
+          notes: notes || null,
+        }),
+        created_at: now,
+      },
+    ]);
+  } catch (logErr) {
+    console.warn('Failed to insert payout audit log:', logErr);
+  }
+
+  return {
+    id: p.id,
+    recipient_id: p.recipient_id,
+    recipient_name: p.profiles?.full_name || 'مستفيد',
+    recipient_type: p.recipient_type,
+    amount: Number(p.amount),
+    status: p.status,
+    method: p.method,
+    reference: p.reference,
+    period_start: p.period_start,
+    period_end: p.period_end,
+    notes: p.notes,
+    created_at: p.created_at || now,
+    processed_at: p.processed_at || now,
+    processed_by: p.processed_by || processedBy,
+  };
 }
 
 /**
@@ -516,137 +769,198 @@ export async function seedSupabaseDatabase() {
 /**
  * Save/Upsert Store in Supabase
  */
-export async function saveSupabaseStore(store: Partial<Store>) {
+export async function saveSupabaseStore(store: Partial<Store>): Promise<Store> {
+  const validId = ensureUUID(store.id);
+  store.id = validId;
+  let ownerId = store.owner_id ? ensureUUID(store.owner_id) : '';
+
   try {
-    const validId = ensureUUID(store.id);
-    store.id = validId;
-    let ownerId = store.owner_id ? ensureUUID(store.owner_id) : '';
-
-    try {
-      const { data: authData } = await supabase.auth.getUser();
-      if (authData?.user?.id) {
-        ownerId = authData.user.id;
-      }
-    } catch {
-      // Ignore
+    const { data: authData } = await supabase.auth.getUser();
+    if (authData?.user?.id) {
+      ownerId = authData.user.id;
     }
-
-    if (!ownerId) {
-      ownerId = ensureUUID();
-    }
-
-    const payload: Record<string, any> = {
-      id: validId,
-      owner_id: ownerId,
-      name: store.name || 'متجر جديد',
-      slug: store.slug || (store.name || 'store').toLowerCase().replace(/\s+/g, '-') + '-' + validId.slice(0, 4),
-      description: store.description || '',
-      phone: store.phone || '01000000000',
-      address: store.address || 'القاهرة، مصر',
-      logo_url: store.logo_url || null,
-      cover_url: store.banner_url || null,
-      is_active: store.is_open ?? true,
-      is_approved: store.is_approved ?? true,
-      commission_pct: store.commission_rate ?? 15,
-      min_order_amount: store.min_order_amount ?? 0,
-      updated_at: new Date().toISOString(),
-    };
-
-    if (store.category_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(store.category_id)) {
-      payload.category_id = store.category_id;
-    }
-
-    const { error } = await supabase.from('stores').upsert(payload, { onConflict: 'id' });
-    if (error) {
-      console.warn('Supabase store save info:', error.message);
-    }
-  } catch (err) {
-    console.warn('Sync store error:', err);
+  } catch {
+    // Ignore
   }
+
+  if (!ownerId) {
+    ownerId = ensureUUID();
+  }
+
+  const payload: Record<string, any> = {
+    id: validId,
+    owner_id: ownerId,
+    name: store.name || 'متجر جديد',
+    slug: store.slug || (store.name || 'store').toLowerCase().replace(/\s+/g, '-') + '-' + validId.slice(0, 4),
+    description: store.description || '',
+    phone: store.phone || '01000000000',
+    address: store.address || 'القاهرة، مصر',
+    logo_url: store.logo_url || null,
+    cover_url: store.banner_url || null,
+    is_active: store.is_open ?? true,
+    min_order_amount: store.min_order_amount ?? 0,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (store.is_approved !== undefined) {
+    payload.is_approved = store.is_approved;
+  }
+  if (store.commission_rate !== undefined) {
+    payload.commission_pct = store.commission_rate;
+  }
+
+  if (store.category_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(store.category_id)) {
+    payload.category_id = store.category_id;
+  }
+
+  const { data, error } = await supabase.from('stores').upsert(payload, { onConflict: 'id' }).select('*, categories(name)').single();
+  if (error) {
+    let msg = error.message || 'فشل حفظ بيانات المتجر في قاعدة البيانات';
+    msg = msg.replace(/^ERROR:\s*/i, '').replace(/^[A-Z0-9]{5}:\s*/, '');
+    throw new Error(msg);
+  }
+
+  return {
+    id: data.id,
+    name: data.name,
+    slug: data.slug || data.name,
+    owner_id: data.owner_id,
+    category_id: data.category_id || '',
+    category_name: data.categories?.name || store.category_name || 'عام',
+    description: data.description || '',
+    logo_url: data.logo_url || 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=300',
+    banner_url: data.cover_url,
+    address: data.address || 'القاهرة، مصر',
+    lat: 30.0444,
+    lng: 31.2357,
+    phone: data.phone || '',
+    is_approved: data.is_approved ?? true,
+    is_open: data.is_active ?? true,
+    rating: Number(data.rating_avg) || 4.8,
+    reviews_count: data.rating_count || 12,
+    commission_rate: Number(data.commission_pct) || 15,
+    min_order_amount: Number(data.min_order_amount) || 0,
+    delivery_fee: 15,
+    opening_hours: data.working_hours || { everyday: { open: '08:00', close: '23:00' } },
+    created_at: data.created_at || new Date().toISOString(),
+  };
 }
 
 /**
  * Save/Upsert Product in Supabase
  */
-export async function saveSupabaseProduct(product: Partial<Product>) {
-  try {
-    const validId = ensureUUID(product.id);
-    product.id = validId;
-    const validStoreId = product.store_id ? ensureUUID(product.store_id) : '';
-    if (!validStoreId) return;
-
-    const payload: Record<string, any> = {
-      id: validId,
-      store_id: validStoreId,
-      name: product.name || 'منتج جديد',
-      slug: (product.name || 'prod').toLowerCase().replace(/\s+/g, '-') + '-' + validId.slice(0, 4),
-      description: product.description || '',
-      price: product.price || 0,
-      old_price: product.original_price || null,
-      stock: product.stock ?? 50,
-      images: product.image_url ? [product.image_url] : [],
-      is_active: product.is_active ?? true,
-      updated_at: new Date().toISOString(),
-    };
-
-    const { error } = await supabase.from('products').upsert(payload, { onConflict: 'id' });
-    if (error) {
-      console.warn('Supabase product save info:', error.message);
-    }
-  } catch (err) {
-    console.warn('Sync product error:', err);
+export async function saveSupabaseProduct(product: Partial<Product>): Promise<Product> {
+  const validId = ensureUUID(product.id);
+  product.id = validId;
+  const validStoreId = product.store_id ? ensureUUID(product.store_id) : '';
+  if (!validStoreId) {
+    throw new Error('المتجر غير محدد للمنتج');
   }
+
+  const payload: Record<string, any> = {
+    id: validId,
+    store_id: validStoreId,
+    name: product.name || 'منتج جديد',
+    slug: (product.name || 'prod').toLowerCase().replace(/\s+/g, '-') + '-' + validId.slice(0, 4),
+    description: product.description || '',
+    price: product.price || 0,
+    old_price: product.original_price || null,
+    stock: product.stock ?? 50,
+    images: product.image_url ? [product.image_url] : [],
+    is_active: product.is_active ?? true,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { data, error } = await supabase.from('products').upsert(payload, { onConflict: 'id' }).select('*').single();
+  if (error) {
+    let msg = error.message || 'فشل حفظ المنتج في قاعدة البيانات';
+    msg = msg.replace(/^ERROR:\s*/i, '').replace(/^[A-Z0-9]{5}:\s*/, '');
+    throw new Error(msg);
+  }
+
+  return {
+    id: data.id,
+    store_id: data.store_id,
+    name: data.name,
+    description: data.description || '',
+    price: Number(data.price),
+    original_price: data.old_price ? Number(data.old_price) : undefined,
+    category_name: product.category_name || 'عام',
+    image_url: data.images?.[0] || 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=300',
+    stock: data.stock ?? 50,
+    is_active: data.is_active ?? true,
+    unit: product.unit || 'قطعة',
+    created_at: data.created_at || new Date().toISOString(),
+  };
 }
 
 /**
  * Save/Upsert Delivery Agent in Supabase
  */
-export async function saveSupabaseAgent(agent: Partial<DeliveryAgent>) {
+export async function saveSupabaseAgent(agent: Partial<DeliveryAgent>): Promise<DeliveryAgent> {
+  const validId = ensureUUID(agent.id);
+  agent.id = validId;
+  let userId = agent.user_id ? ensureUUID(agent.user_id) : '';
+
   try {
-    const validId = ensureUUID(agent.id);
-    agent.id = validId;
-    let userId = agent.user_id ? ensureUUID(agent.user_id) : '';
-
-    try {
-      const { data: authData } = await supabase.auth.getUser();
-      if (authData?.user?.id) {
-        userId = authData.user.id;
-      }
-    } catch {
-      // Ignore
+    const { data: authData } = await supabase.auth.getUser();
+    if (authData?.user?.id) {
+      userId = authData.user.id;
     }
-
-    if (!userId) {
-      userId = ensureUUID();
-    }
-
-    const vehicleMap: Record<string, string> = {
-      motorcycle: 'motorcycle',
-      scooter: 'motorcycle',
-      bicycle: 'bicycle',
-      car: 'car',
-      walking: 'walking',
-    };
-
-    const payload = {
-      id: validId,
-      user_id: userId,
-      vehicle_type: vehicleMap[agent.vehicle_type || ''] || 'motorcycle',
-      plate_number: agent.license_plate || null,
-      id_number: agent.national_id || null,
-      is_online: agent.is_online ?? true,
-      is_approved: agent.is_approved ?? true,
-      is_active: true,
-      updated_at: new Date().toISOString(),
-    };
-
-    const { error } = await supabase.from('delivery_agents').upsert(payload, { onConflict: 'id' });
-    if (error) {
-      console.warn('Supabase agent save info:', error.message);
-    }
-  } catch (err) {
-    console.warn('Sync agent error:', err);
+  } catch {
+    // Ignore
   }
+
+  if (!userId) {
+    userId = ensureUUID();
+  }
+
+  const vehicleMap: Record<string, string> = {
+    motorcycle: 'motorcycle',
+    scooter: 'motorcycle',
+    bicycle: 'bicycle',
+    car: 'car',
+    walking: 'walking',
+  };
+
+  const payload: Record<string, any> = {
+    id: validId,
+    user_id: userId,
+    vehicle_type: vehicleMap[agent.vehicle_type || ''] || 'motorcycle',
+    plate_number: agent.license_plate || null,
+    id_number: agent.national_id || null,
+    is_online: agent.is_online ?? true,
+    is_active: true,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (agent.is_approved !== undefined) {
+    payload.is_approved = agent.is_approved;
+  }
+
+  const { data, error } = await supabase.from('delivery_agents').upsert(payload, { onConflict: 'id' }).select('*, profiles(full_name, phone, avatar_url)').single();
+  if (error) {
+    let msg = error.message || 'فشل حفظ بيانات كابتن التوصيل في قاعدة البيانات';
+    msg = msg.replace(/^ERROR:\s*/i, '').replace(/^[A-Z0-9]{5}:\s*/, '');
+    throw new Error(msg);
+  }
+
+  return {
+    id: data.id,
+    user_id: data.user_id,
+    name: data.profiles?.full_name || agent.name || 'كابتن توصيل',
+    phone: data.profiles?.phone || agent.phone || '01200000000',
+    avatar_url: data.profiles?.avatar_url || agent.avatar_url,
+    vehicle_type: data.vehicle_type === 'motorcycle' ? 'motorcycle' : 'bicycle',
+    national_id: data.id_number || agent.national_id || '29900000000000',
+    license_plate: data.plate_number || agent.license_plate,
+    is_approved: data.is_approved ?? true,
+    is_online: data.is_online ?? true,
+    active_zone: agent.active_zone || 'وسط البلد',
+    rating: Number(data.rating_avg) || 4.9,
+    total_trips: data.total_deliveries || agent.total_trips || 45,
+    created_at: data.created_at || new Date().toISOString(),
+  };
 }
 
 /**
@@ -993,6 +1307,7 @@ export const listSupabaseUsers = (options?: Parameters<typeof listSupabase>[1]) 
 export const getSupabaseUserById = (id: string) => getSupabaseById<UserProfile>('profiles', id);
 
 export const listSupabaseAgents = (options?: Parameters<typeof listSupabase>[1]) => listSupabase<DeliveryAgent>('delivery_agents', options);
+export const deleteSupabaseAgent = (id: string) => deleteSupabase('delivery_agents', id);
 export const listSupabaseZones = (options?: Parameters<typeof listSupabase>[1]) => listSupabase<DeliveryZone>('delivery_zones', options);
 export const listSupabaseCoupons = (options?: Parameters<typeof listSupabase>[1]) => listSupabase<Coupon>('coupons', options);
 export const listSupabaseReviews = (options?: Parameters<typeof listSupabase>[1]) => listSupabase<Review>('reviews', options);

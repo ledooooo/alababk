@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
+import { subscribeSupabase } from '../../../lib/supabase';
 import { Store } from '../../../types/domain';
 import { formatCurrency, formatPhoneNumber } from '../../../lib/formatters';
 import { Pagination } from '../../shared/Pagination';
@@ -19,15 +20,25 @@ export const AdminStoresView: React.FC = () => {
   const [newStoreCategory, setNewStoreCategory] = useState('بقالة وسوبرماركت');
 
   useEffect(() => {
-    const refresh = async () => {
+    const refresh = () => {
       setStores(StorageRepo.getStores());
     };
 
     refresh();
-    const unsubscribe = subscribeToStorageChange(() => {
+    StorageRepo.refreshStores();
+
+    const unsubscribeStorage = subscribeToStorageChange(() => {
       refresh();
     });
-    return unsubscribe;
+
+    const unsubscribeRealtime = subscribeSupabase<Store>('stores', () => {
+      StorageRepo.refreshStores();
+    });
+
+    return () => {
+      unsubscribeStorage();
+      unsubscribeRealtime();
+    };
   }, []);
 
   const filteredStores = stores.filter(
@@ -43,22 +54,34 @@ export const AdminStoresView: React.FC = () => {
     currentPage * ITEMS_PER_PAGE
   );
 
-  const toggleStoreStatus = (s: Store) => {
-    StorageRepo.saveStore({ ...s, is_open: !s.is_open });
-  };
-
-  const handleSaveCommission = (s: Store) => {
-    StorageRepo.saveStore({ ...s, commission_rate: Number(commissionInput) });
-    setEditingCommissionStoreId(null);
-  };
-
-  const handleDeleteStore = (id: string) => {
-    if (window.confirm('هل أنت تأكد من حذف هذا المتجر نهائياً؟')) {
-      StorageRepo.deleteStore(id);
+  const toggleStoreStatus = async (s: Store) => {
+    try {
+      await StorageRepo.saveStore({ ...s, is_open: !s.is_open });
+    } catch (err: any) {
+      alert(`تعذر تغيير حالة المتجر: ${err.message || 'خطأ غير معروف'}`);
     }
   };
 
-  const handleCreateStore = (e: React.FormEvent) => {
+  const handleSaveCommission = async (s: Store) => {
+    try {
+      await StorageRepo.saveStore({ ...s, commission_rate: Number(commissionInput) });
+      setEditingCommissionStoreId(null);
+    } catch (err: any) {
+      alert(`تعذر تحديث نسبة العمولة: ${err.message || 'خطأ غير معروف'}`);
+    }
+  };
+
+  const handleDeleteStore = async (id: string) => {
+    if (window.confirm('هل أنت تأكد من حذف هذا المتجر نهائياً؟')) {
+      try {
+        await StorageRepo.deleteStore(id);
+      } catch (err: any) {
+        alert(`تعذر حذف المتجر: ${err.message || 'خطأ غير معروف'}`);
+      }
+    }
+  };
+
+  const handleCreateStore = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newStoreName.trim()) return;
 
@@ -86,11 +109,15 @@ export const AdminStoresView: React.FC = () => {
       created_at: new Date().toISOString(),
     };
 
-    StorageRepo.saveStore(newStore);
-    setIsAddModalOpen(false);
-    setNewStoreName('');
-    setNewStorePhone('');
-    setNewStoreAddress('');
+    try {
+      await StorageRepo.saveStore(newStore);
+      setIsAddModalOpen(false);
+      setNewStoreName('');
+      setNewStorePhone('');
+      setNewStoreAddress('');
+    } catch (err: any) {
+      alert(`تعذر إنشاء المتجر: ${err.message || 'خطأ غير معروف'}`);
+    }
   };
 
   return (

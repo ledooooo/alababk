@@ -1,67 +1,58 @@
 import React, { useState, useEffect } from 'react';
-import { fetchSupabaseReviews, supabase } from '../../../lib/supabase';
+import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
+import { subscribeSupabase } from '../../../lib/supabase';
 import { Review } from '../../../types/domain';
 import { formatDate } from '../../../lib/formatters';
-import { Star, MessageSquare, Store, Bike, CheckCircle2, RefreshCw } from 'lucide-react';
+import { Star, Store, Bike, RefreshCw, Loader2 } from 'lucide-react';
 
 export const AdminReviewsView: React.FC = () => {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [replyText, setReplyText] = useState<{ [key: string]: string }>({});
+  const [submittingId, setSubmittingId] = useState<string | null>(null);
 
   const loadReviews = async () => {
     setLoading(true);
-    const data = await fetchSupabaseReviews();
-    if (data.length > 0) {
-      setReviews(data);
-    } else {
-      setReviews([
-        {
-          id: 'rev-1',
-          order_id: 'ord-1001',
-          store_id: 'store-1',
-          customer_id: 'usr-customer-1',
-          customer_name: 'أحمد محمود العبد',
-          store_rating: 5,
-          delivery_rating: 5,
-          comment: 'المنتجات طازجة والتوصيل تم في خلال 20 دقيقة بالضبط، كابتن محترم جداً!',
-          store_response: 'شكراً لجنابك ونشرف بخدمتك دائماً في علي بابك!',
-          created_at: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
-        },
-        {
-          id: 'rev-2',
-          order_id: 'ord-1002',
-          store_id: 'store-2',
-          customer_id: 'usr-customer-2',
-          customer_name: 'سارة مصطفى',
-          store_rating: 4,
-          delivery_rating: 5,
-          comment: 'اللحمة بلدي ونظيفة جداً، وسرعة فائقة من المندوب.',
-          created_at: new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString(),
-        },
-      ]);
-    }
+    await StorageRepo.refreshReviews();
+    setReviews(StorageRepo.getReviews());
     setLoading(false);
   };
 
   useEffect(() => {
-    loadReviews();
+    const sync = () => {
+      setReviews(StorageRepo.getReviews());
+    };
+
+    sync();
+    StorageRepo.refreshReviews().then(() => setLoading(false));
+
+    const unsubStorage = subscribeToStorageChange(() => {
+      sync();
+    });
+
+    const unsubRealtime = subscribeSupabase<Review>('reviews', () => {
+      StorageRepo.refreshReviews();
+    });
+
+    return () => {
+      unsubStorage();
+      unsubRealtime();
+    };
   }, []);
 
   const handleSaveReply = async (reviewId: string) => {
-    const reply = replyText[reviewId];
+    const reply = replyText[reviewId]?.trim();
     if (!reply) return;
 
     try {
-      await supabase.from('reviews').update({ store_reply: reply }).eq('id', reviewId);
-    } catch {
-      // fallback
+      setSubmittingId(reviewId);
+      await StorageRepo.replyToReview(reviewId, reply);
+      setReplyText((prev) => ({ ...prev, [reviewId]: '' }));
+    } catch (err: any) {
+      alert(`تعذر إرسال الرد: ${err.message || 'خطأ غير معروف'}`);
+    } finally {
+      setSubmittingId(null);
     }
-
-    setReviews((prev) =>
-      prev.map((r) => (r.id === reviewId ? { ...r, store_response: reply } : r))
-    );
-    setReplyText((prev) => ({ ...prev, [reviewId]: '' }));
   };
 
   return (

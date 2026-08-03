@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
+import { subscribeSupabase } from '../../../lib/supabase';
 import { Store } from '../../../types/domain';
 import { formatCurrency, formatPhoneNumber } from '../../../lib/formatters';
 import { Store as StoreIcon, CheckCircle2, XCircle, MapPin, Phone, ShieldCheck } from 'lucide-react';
@@ -13,21 +14,40 @@ export const AdminStoresApplicationsView: React.FC = () => {
       setPendingStores(allStores.filter((s) => !s.is_approved));
     };
 
+    // Initial render from cache + trigger Supabase refresh
     fetchPending();
-    const unsubscribe = subscribeToStorageChange(() => {
+    StorageRepo.refreshStores();
+
+    const unsubscribeStorage = subscribeToStorageChange(() => {
       fetchPending();
     });
-    return unsubscribe;
+
+    const unsubscribeRealtime = subscribeSupabase<Store>('stores', () => {
+      StorageRepo.refreshStores();
+    });
+
+    return () => {
+      unsubscribeStorage();
+      unsubscribeRealtime();
+    };
   }, []);
 
-  const handleApprove = (store: Store) => {
-    const updated = { ...store, is_approved: true };
-    StorageRepo.saveStore(updated);
+  const handleApprove = async (store: Store) => {
+    try {
+      const updated = { ...store, is_approved: true };
+      await StorageRepo.saveStore(updated);
+    } catch (err: any) {
+      alert(`تعذر اعتماد المتجر: ${err.message || 'خطأ غير معروف'}`);
+    }
   };
 
-  const handleReject = (storeId: string) => {
+  const handleReject = async (storeId: string) => {
     if (window.confirm('هل أنت تأكد من رفض هذا الطلب؟')) {
-      StorageRepo.deleteStore(storeId);
+      try {
+        await StorageRepo.deleteStore(storeId);
+      } catch (err: any) {
+        alert(`تعذر رفض الطلب: ${err.message || 'خطأ غير معروف'}`);
+      }
     }
   };
 

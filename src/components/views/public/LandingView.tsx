@@ -1,5 +1,7 @@
-import React from 'react';
-import { StorageRepo } from '../../../lib/storage';
+import React, { useState, useEffect } from 'react';
+import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
+import { subscribeSupabase } from '../../../lib/supabase';
+import { Store as StoreType } from '../../../types/domain';
 import { PromoCarousel } from '../../shared/PromoCarousel';
 import {
   ShoppingBag,
@@ -24,8 +26,30 @@ interface LandingViewProps {
 }
 
 export const LandingView: React.FC<LandingViewProps> = ({ onNavigate }) => {
-  const stores = StorageRepo.getStores().slice(0, 4);
+  const [stores, setStores] = useState<StoreType[]>([]);
   const categories = StorageRepo.getCategories();
+
+  useEffect(() => {
+    const sync = () => {
+      setStores(StorageRepo.getStores().slice(0, 4));
+    };
+
+    sync();
+    StorageRepo.refreshStores();
+
+    const unsubStorage = subscribeToStorageChange(() => {
+      sync();
+    });
+
+    const unsubRealtime = subscribeSupabase<StoreType>('stores', () => {
+      StorageRepo.refreshStores();
+    });
+
+    return () => {
+      unsubStorage();
+      unsubRealtime();
+    };
+  }, []);
 
   return (
     <div className="space-y-8 sm:space-y-12 dir-rtl pb-16">

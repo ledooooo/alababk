@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
+import { subscribeSupabase } from '../../../lib/supabase';
 import { Store, Product } from '../../../types/domain';
 import { useCartStore } from '../../../stores/cart-store';
 import { ProductCard } from '../../product/ProductCard';
@@ -57,17 +58,50 @@ export const CustomerStoreDetailView: React.FC<CustomerStoreDetailViewProps> = (
   const { storeName: cartStoreName, forceAddItem, clearCart } = useCartStore();
 
   useEffect(() => {
-    if (storeId) {
-      setProducts(StorageRepo.getProducts(storeId));
-      setIsWishlisted(StorageRepo.isStoreWishlisted(storeId));
-    }
-  }, [storeId]);
+    const syncData = () => {
+      if (storeId) {
+        setProducts(StorageRepo.getProducts(storeId));
+        setIsWishlisted(StorageRepo.isStoreWishlisted(storeId));
+      }
+    };
 
-  useEffect(() => {
-    const unsubscribe = subscribeToStorageChange(() => {
-      setIsWishlisted(StorageRepo.isStoreWishlisted(storeId));
+    // 1. Initial cached render + trigger Supabase refresh
+    syncData();
+    if (storeId) {
+      StorageRepo.refreshProducts(storeId);
+      StorageRepo.refreshStores();
+    }
+
+    // 2. Storage change listener
+    const unsubscribeStorage = subscribeToStorageChange(() => {
+      syncData();
     });
-    return unsubscribe;
+
+    // 3. Supabase Realtime subscription for products table
+    const unsubscribeRealtimeProducts = subscribeSupabase<Product>(
+      'products',
+      () => {
+        if (storeId) {
+          StorageRepo.refreshProducts(storeId);
+        }
+      },
+      storeId ? `store_id=eq.${storeId}` : undefined
+    );
+
+    // 4. Supabase Realtime subscription for store info
+    const unsubscribeRealtimeStore = subscribeSupabase<Store>(
+      'stores',
+      () => {
+        StorageRepo.refreshStores();
+      },
+      storeId ? `id=eq.${storeId}` : undefined
+    );
+
+    return () => {
+      unsubscribeStorage();
+      unsubscribeRealtimeProducts();
+      unsubscribeRealtimeStore();
+    };
   }, [storeId]);
 
   const handleToggleStoreWishlist = () => {

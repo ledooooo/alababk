@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
+import { subscribeSupabase } from '../../../lib/supabase';
 import { Product } from '../../../types/domain';
 import { formatCurrency } from '../../../lib/formatters';
 import { Pagination } from '../../shared/Pagination';
-import { Package, Plus, Edit2, Trash2, Search, Check, X, Image as ImageIcon } from 'lucide-react';
+import { Package, Plus, Edit2, Trash2, Search, Check, X, Image as ImageIcon, AlertCircle, Loader2 } from 'lucide-react';
 
 export const StoreProductsView: React.FC = () => {
   const currentUser = StorageRepo.getCurrentUser();
@@ -14,26 +15,50 @@ export const StoreProductsView: React.FC = () => {
   const ITEMS_PER_PAGE = 6;
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string>('');
 
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery]);
 
   useEffect(() => {
-    const fetchProducts = () => {
+    const syncProducts = () => {
       if (storeId) {
         setProducts(StorageRepo.getProducts(storeId));
       }
     };
 
-    fetchProducts();
-    const unsubscribe = subscribeToStorageChange(() => {
-      fetchProducts();
+    // 1. Initial display from cache + trigger refresh from Supabase
+    syncProducts();
+    if (storeId) {
+      StorageRepo.refreshProducts(storeId);
+    }
+
+    // 2. Local storage change listener
+    const unsubscribeStorage = subscribeToStorageChange(() => {
+      syncProducts();
     });
-    return unsubscribe;
+
+    // 3. Supabase Realtime subscription for products table
+    const unsubscribeRealtime = subscribeSupabase<Product>(
+      'products',
+      () => {
+        if (storeId) {
+          StorageRepo.refreshProducts(storeId);
+        }
+      },
+      storeId ? `store_id=eq.${storeId}` : undefined
+    );
+
+    return () => {
+      unsubscribeStorage();
+      unsubscribeRealtime();
+    };
   }, [storeId]);
 
   const handleOpenNew = () => {
+    setSaveError('');
     setEditingProduct({
       id: `prod-${Date.now()}`,
       store_id: storeId,
@@ -51,13 +76,15 @@ export const StoreProductsView: React.FC = () => {
   };
 
   const handleOpenEdit = (p: Product) => {
+    setSaveError('');
     setEditingProduct({ ...p });
     setIsModalOpen(true);
   };
 
-  const handleSaveProduct = () => {
+  const handleSaveProduct = async () => {
+    setSaveError('');
     if (!editingProduct?.name || !editingProduct?.price) {
-      alert('يرجى ملء اسم المنتج والسعر على الأقل');
+      setSaveError('يرجى ملء اسم المنتج والسعر على الأقل');
       return;
     }
 
@@ -76,19 +103,35 @@ export const StoreProductsView: React.FC = () => {
       created_at: editingProduct.created_at || new Date().toISOString(),
     };
 
-    StorageRepo.saveProduct(fullProd);
-    setIsModalOpen(false);
-    setEditingProduct(null);
-  };
-
-  const handleDeleteProduct = (id: string) => {
-    if (window.confirm('هل أنت تأكد من حذف هذا المنتج من المحل؟')) {
-      StorageRepo.deleteProduct(id);
+    try {
+      setIsSaving(true);
+      await StorageRepo.saveProduct(fullProd);
+      setIsModalOpen(false);
+      setEditingProduct(null);
+    } catch (err: any) {
+      console.error('Failed to save product:', err);
+      setSaveError(err.message || 'حدث خطأ أثناء حفظ المنتج في قاعدة البيانات.');
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  const toggleProductActive = (p: Product) => {
-    StorageRepo.saveProduct({ ...p, is_active: !p.is_active });
+  const handleDeleteProduct = async (id: string) => {
+    if (window.confirm('هل أنت تأكد من حذف هذا المنتج من المحل؟')) {
+      try {
+        await StorageRepo.deleteProduct(id);
+      } catch (err: any) {
+        alert(`تعذر حذف المنتج: ${err.message || 'خطأ غير معروف'}`);
+      }
+    }
+  };
+
+  const toggleProductActive = async (p: Product) => {
+    try {
+      await StorageRepo.saveProduct({ ...p, is_active: !p.is_active });
+    } catch (err: any) {
+      alert(`تعذر تغيير حالة المنتج: ${err.message || 'خطأ غير معروف'}`);
+    }
   };
 
   const filteredProducts = products.filter(
@@ -247,6 +290,13 @@ export const StoreProductsView: React.FC = () => {
               {editingProduct.created_at ? 'تعديل بيانات المنتج' : 'إضافة منتج جديد للمحل'}
             </h3>
 
+            {saveError && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-rose-800 text-xs font-bold">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{saveError}</span>
+              </div>
+            )}
+
             <div className="space-y-3">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">اسم المنتج *</label>
@@ -342,13 +392,22 @@ export const StoreProductsView: React.FC = () => {
             <div className="flex gap-2 pt-2">
               <button
                 onClick={handleSaveProduct}
-                className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-colors"
+                disabled={isSaving}
+                className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-md transition-colors flex items-center justify-center gap-2"
               >
-                حفظ التغييرات
+                {isSaving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>جاري الحفظ...</span>
+                  </>
+                ) : (
+                  <span>حفظ التغييرات</span>
+                )}
               </button>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors"
+                disabled={isSaving}
+                className="px-4 py-3 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 text-slate-700 font-bold text-xs rounded-xl transition-colors"
               >
                 إلغاء
               </button>

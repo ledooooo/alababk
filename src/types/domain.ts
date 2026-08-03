@@ -268,6 +268,8 @@ export interface Payout {
   period_end?: string;
   notes?: string;
   created_at: string;
+  processed_at?: string;
+  processed_by?: string;
 }
 
 export type PayoutRequest = Payout;

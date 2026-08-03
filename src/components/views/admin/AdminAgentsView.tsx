@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
+import { subscribeSupabase } from '../../../lib/supabase';
 import { DeliveryAgent } from '../../../types/domain';
 import { formatCurrency, formatPhoneNumber } from '../../../lib/formatters';
 import { Bike, Power, Star, Phone, MapPin, ShieldCheck } from 'lucide-react';
@@ -13,14 +14,28 @@ export const AdminAgentsView: React.FC = () => {
     };
 
     refresh();
-    const unsubscribe = subscribeToStorageChange(() => {
+    StorageRepo.refreshAgents();
+
+    const unsubscribeStorage = subscribeToStorageChange(() => {
       refresh();
     });
-    return unsubscribe;
+
+    const unsubscribeRealtime = subscribeSupabase<DeliveryAgent>('delivery_agents', () => {
+      StorageRepo.refreshAgents();
+    });
+
+    return () => {
+      unsubscribeStorage();
+      unsubscribeRealtime();
+    };
   }, []);
 
-  const toggleAgentDuty = (ag: DeliveryAgent) => {
-    StorageRepo.saveAgent({ ...ag, is_online: !ag.is_online });
+  const toggleAgentDuty = async (ag: DeliveryAgent) => {
+    try {
+      await StorageRepo.saveAgent({ ...ag, is_online: !ag.is_online });
+    } catch (err: any) {
+      alert(`تعذر تغيير حالة الاتصال للكابتن: ${err.message || 'خطأ غير معروف'}`);
+    }
   };
 
   return (

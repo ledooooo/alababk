@@ -34,12 +34,25 @@ import {
   fetchSupabaseZones,
   fetchSupabaseCoupons,
   fetchSupabaseAgents,
+  fetchSupabaseReviews,
+  saveSupabaseReview,
+  replySupabaseReview,
+  fetchSupabaseNotifications,
+  markSupabaseNotificationRead,
+  markAllSupabaseNotificationsRead,
+  deleteSupabaseNotification,
+  clearSupabaseNotifications,
+  fetchSupabasePayouts,
+  updateSupabasePayoutStatus,
   listSupabasePayouts,
   listSupabaseReviews,
   listSupabaseNotifications,
   createSupabase,
   updateSupabase,
   deleteSupabase,
+  deleteSupabaseProduct,
+  deleteSupabaseStore,
+  deleteSupabaseAgent,
 } from './supabase';
 
 const STORAGE_KEYS = {
@@ -140,6 +153,13 @@ function mergeById<T extends { id: string }>(items: T[], item: T): T[] {
     copy.unshift(item);
   }
   return copy;
+}
+
+function mergeManyById<T extends { id: string }>(existing: T[], incoming: T[]): T[] {
+  const map = new Map<string, T>();
+  existing.forEach((item) => map.set(item.id, item));
+  incoming.forEach((item) => map.set(item.id, item));
+  return Array.from(map.values());
 }
 
 export const StorageRepo = {
@@ -273,16 +293,13 @@ export const StorageRepo = {
 
   async refreshReviews(storeId?: string): Promise<Review[]> {
     try {
-      const res = await listSupabaseReviews();
-      const list = res.data;
-      if (storeId) {
-        const filtered = list.filter((r) => r.store_id === storeId);
-        notifyStorageChange('review', 'refresh', filtered);
-        return filtered;
-      }
-      setCached(STORAGE_KEYS.REVIEWS, list);
-      notifyStorageChange('review', 'refresh', list);
-      return list;
+      const list = await fetchSupabaseReviews(storeId);
+      const current = this.getCachedReviews();
+      const updated = storeId ? mergeManyById(current, list) : list;
+      setCached(STORAGE_KEYS.REVIEWS, updated);
+      const result = storeId ? updated.filter((r) => r.store_id === storeId) : updated;
+      notifyStorageChange('review', 'refresh', result);
+      return result;
     } catch (err) {
       console.error('refreshReviews error:', err);
       return this.getReviews(storeId);
@@ -291,14 +308,22 @@ export const StorageRepo = {
 
   async refreshNotifications(userId?: string): Promise<NotificationItem[]> {
     try {
-      const res = await listSupabaseNotifications();
-      const list = res.data;
-      setCached(STORAGE_KEYS.NOTIFICATIONS, list);
-      notifyStorageChange('notification', 'refresh', list);
-      if (userId) {
-        return list.filter((n) => n.user_id === userId || n.user_id === 'all');
+      const targetUser = userId || this.getCurrentUser()?.id;
+      if (targetUser) {
+        const list = await fetchSupabaseNotifications(targetUser);
+        const current = this.getCachedNotifications();
+        const updated = mergeManyById(current, list);
+        setCached(STORAGE_KEYS.NOTIFICATIONS, updated);
+        const userNotifs = updated.filter((n) => n.user_id === targetUser || n.user_id === 'all');
+        notifyStorageChange('notification', 'refresh', userNotifs);
+        return userNotifs;
+      } else {
+        const res = await listSupabaseNotifications();
+        const list = res.data;
+        setCached(STORAGE_KEYS.NOTIFICATIONS, list);
+        notifyStorageChange('notification', 'refresh', list);
+        return list;
       }
-      return list;
     } catch (err) {
       console.error('refreshNotifications error:', err);
       return this.getNotifications(userId);
@@ -307,11 +332,12 @@ export const StorageRepo = {
 
   async refreshPayouts(): Promise<Payout[]> {
     try {
-      const res = await listSupabasePayouts();
-      const list = res.data;
-      setCached(STORAGE_KEYS.PAYOUTS, list);
-      notifyStorageChange('payout', 'refresh', list);
-      return list;
+      const list = await fetchSupabasePayouts();
+      const current = this.getCachedPayouts();
+      const updated = mergeManyById(current, list);
+      setCached(STORAGE_KEYS.PAYOUTS, updated);
+      notifyStorageChange('payout', 'refresh', updated);
+      return updated;
     } catch (err) {
       console.error('refreshPayouts error:', err);
       return this.getCachedPayouts();
@@ -395,31 +421,36 @@ export const StorageRepo = {
   },
 
   async saveStore(store: Store): Promise<Store> {
-    const stores = mergeById(this.getCachedStores(), store);
-    setCached(STORAGE_KEYS.STORES, stores);
-    notifyStorageChange('store', 'save', store);
-
     try {
-      await saveSupabaseStore(store);
-      await this.refreshStores();
-      return store;
+      // 1. Save to Supabase first and await result
+      const saved = await saveSupabaseStore(store);
+
+      // 2. Update local cache and notify subscribers on success
+      const stores = mergeById(this.getCachedStores(), saved);
+      setCached(STORAGE_KEYS.STORES, stores);
+      notifyStorageChange('store', 'save', saved);
+
+      this.refreshStores().catch(() => {});
+      return saved;
     } catch (err) {
-      console.error('Failed to save store:', err);
-      this.invalidateCache(STORAGE_KEYS.STORES);
+      console.error('Failed to save store to Supabase:', err);
       throw err;
     }
   },
 
   async deleteStore(id: string): Promise<void> {
-    const stores = this.getCachedStores().filter((s) => s.id !== id);
-    setCached(STORAGE_KEYS.STORES, stores);
-    notifyStorageChange('store', 'delete', { id });
-
     try {
-      await deleteSupabase('stores', id);
+      // 1. Delete from Supabase first
+      await deleteSupabaseStore(id);
+
+      // 2. Remove from local cache and notify subscribers on success
+      const stores = this.getCachedStores().filter((s) => s.id !== id);
+      setCached(STORAGE_KEYS.STORES, stores);
+      notifyStorageChange('store', 'delete', { id });
+
+      this.refreshStores().catch(() => {});
     } catch (err) {
       console.error('Failed to delete store from Supabase:', err);
-      this.refreshStores();
       throw err;
     }
   },
@@ -439,31 +470,36 @@ export const StorageRepo = {
   },
 
   async saveProduct(product: Product): Promise<Product> {
-    const products = mergeById(this.getCachedProducts(), product);
-    setCached(STORAGE_KEYS.PRODUCTS, products);
-    notifyStorageChange('product', 'save', product);
-
     try {
-      await saveSupabaseProduct(product);
-      await this.refreshProducts(product.store_id);
-      return product;
+      // 1. Write to Supabase first and await result
+      const saved = await saveSupabaseProduct(product);
+
+      // 2. Update local cache and notify subscribers on success
+      const products = mergeById(this.getCachedProducts(), saved);
+      setCached(STORAGE_KEYS.PRODUCTS, products);
+      notifyStorageChange('product', 'save', saved);
+
+      this.refreshProducts(saved.store_id).catch(() => {});
+      return saved;
     } catch (err) {
-      console.error('Failed to save product:', err);
-      this.invalidateCache(STORAGE_KEYS.PRODUCTS);
+      console.error('Failed to save product to Supabase:', err);
       throw err;
     }
   },
 
   async deleteProduct(id: string): Promise<void> {
-    const products = this.getCachedProducts().filter((p) => p.id !== id);
-    setCached(STORAGE_KEYS.PRODUCTS, products);
-    notifyStorageChange('product', 'delete', { id });
-
     try {
-      await deleteSupabase('products', id);
+      // 1. Delete from Supabase first and await result
+      await deleteSupabaseProduct(id);
+
+      // 2. Remove from local cache and notify subscribers on success
+      const products = this.getCachedProducts().filter((p) => p.id !== id);
+      setCached(STORAGE_KEYS.PRODUCTS, products);
+      notifyStorageChange('product', 'delete', { id });
+
+      this.refreshProducts().catch(() => {});
     } catch (err) {
       console.error('Failed to delete product from Supabase:', err);
-      this.refreshProducts();
       throw err;
     }
   },
@@ -650,19 +686,35 @@ export const StorageRepo = {
     return cached;
   },
 
-  async updatePayoutStatus(payoutId: string, status: 'approved' | 'rejected' | 'pending'): Promise<void> {
-    const payouts = this.getCachedPayouts();
-    const idx = payouts.findIndex((p) => p.id === payoutId);
-    if (idx >= 0) {
-      payouts[idx].status = status;
-      setCached(STORAGE_KEYS.PAYOUTS, payouts);
-      notifyStorageChange('payout', 'save', payouts[idx]);
-    }
-
+  async updatePayoutStatus(
+    payoutId: string,
+    status: 'approved' | 'rejected' | 'pending' | 'completed' | 'failed',
+    notes?: string
+  ): Promise<Payout> {
+    const currentUser = this.getCurrentUser();
     try {
-      await updateSupabase('payouts', payoutId, { status });
+      // 1. Await atomic Supabase update first
+      const updated = await updateSupabasePayoutStatus(
+        payoutId,
+        status,
+        currentUser?.id,
+        notes
+      );
+
+      // 2. Update local state on success
+      const payouts = this.getCachedPayouts();
+      const idx = payouts.findIndex((p) => p.id === payoutId);
+      if (idx >= 0) {
+        payouts[idx] = { ...payouts[idx], ...updated };
+      } else {
+        payouts.unshift(updated);
+      }
+      setCached(STORAGE_KEYS.PAYOUTS, payouts);
+      notifyStorageChange('payout', 'save', updated);
+      return updated;
     } catch (err) {
       console.error('Failed to update payout status in Supabase:', err);
+      throw err;
     }
   },
 
@@ -678,17 +730,36 @@ export const StorageRepo = {
   },
 
   async saveAgent(agent: DeliveryAgent): Promise<DeliveryAgent> {
-    const agents = mergeById(this.getCachedAgents(), agent);
-    setCached(STORAGE_KEYS.AGENTS, agents);
-    notifyStorageChange('agent', 'save', agent);
-
     try {
-      await saveSupabaseAgent(agent);
-      await this.refreshAgents();
-      return agent;
+      // 1. Save to Supabase first and await result
+      const saved = await saveSupabaseAgent(agent);
+
+      // 2. Update local cache and notify subscribers on success
+      const agents = mergeById(this.getCachedAgents(), saved);
+      setCached(STORAGE_KEYS.AGENTS, agents);
+      notifyStorageChange('agent', 'save', saved);
+
+      this.refreshAgents().catch(() => {});
+      return saved;
     } catch (err) {
       console.error('Failed to save agent to Supabase:', err);
-      this.refreshAgents();
+      throw err;
+    }
+  },
+
+  async deleteAgent(id: string): Promise<void> {
+    try {
+      // 1. Delete from Supabase first
+      await deleteSupabaseAgent(id);
+
+      // 2. Remove from local cache and notify subscribers on success
+      const agents = this.getCachedAgents().filter((a) => a.id !== id);
+      setCached(STORAGE_KEYS.AGENTS, agents);
+      notifyStorageChange('agent', 'delete', { id });
+
+      this.refreshAgents().catch(() => {});
+    } catch (err) {
+      console.error('Failed to delete agent from Supabase:', err);
       throw err;
     }
   },
@@ -797,16 +868,32 @@ export const StorageRepo = {
   },
 
   async saveReview(review: Review): Promise<Review> {
-    const reviews = mergeById(this.getCachedReviews(), review);
-    setCached(STORAGE_KEYS.REVIEWS, reviews);
-    notifyStorageChange('review', 'save', review);
-
     try {
-      await createSupabase<Review>('reviews', review);
-      return review;
+      const saved = await saveSupabaseReview(review);
+      const reviews = mergeById(this.getCachedReviews(), saved);
+      setCached(STORAGE_KEYS.REVIEWS, reviews);
+      notifyStorageChange('review', 'save', saved);
+
+      this.refreshReviews(saved.store_id).catch(() => {});
+      return saved;
     } catch (err) {
-      console.error('Failed to save review:', err);
-      return review;
+      console.error('Failed to save review to Supabase:', err);
+      throw err;
+    }
+  },
+
+  async replyToReview(reviewId: string, replyText: string): Promise<Review> {
+    try {
+      const updated = await replySupabaseReview(reviewId, replyText);
+      const reviews = mergeById(this.getCachedReviews(), updated);
+      setCached(STORAGE_KEYS.REVIEWS, reviews);
+      notifyStorageChange('review', 'save', updated);
+
+      this.refreshReviews(updated.store_id).catch(() => {});
+      return updated;
+    } catch (err) {
+      console.error('Failed to reply to review in Supabase:', err);
+      throw err;
     }
   },
 
@@ -820,69 +907,92 @@ export const StorageRepo = {
   },
 
   async saveNotification(notification: NotificationItem): Promise<NotificationItem> {
-    const list = this.getCachedNotifications();
-    list.unshift(notification);
-    setCached(STORAGE_KEYS.NOTIFICATIONS, list);
-    notifyStorageChange('notification', 'save', notification);
-
     try {
       await createSupabase<NotificationItem>('notifications', notification);
+      const list = this.getCachedNotifications();
+      const updatedList = mergeById(list, notification);
+      setCached(STORAGE_KEYS.NOTIFICATIONS, updatedList);
+      notifyStorageChange('notification', 'save', notification);
       return notification;
     } catch (err) {
       console.error('Failed to save notification to Supabase:', err);
-      return notification;
+      throw err;
     }
   },
 
   async markNotificationRead(id: string): Promise<void> {
-    const list = this.getCachedNotifications();
-    const target = list.find((n) => n.id === id);
-    if (target) {
-      target.is_read = true;
-      setCached(STORAGE_KEYS.NOTIFICATIONS, list);
-      notifyStorageChange('notification', 'update', target);
-    }
-
     try {
-      await updateSupabase('notifications', id, { is_read: true });
+      // 1. Await Supabase update first
+      await markSupabaseNotificationRead(id);
+
+      // 2. Update local state on success
+      const list = this.getCachedNotifications();
+      const target = list.find((n) => n.id === id);
+      if (target) {
+        target.is_read = true;
+        setCached(STORAGE_KEYS.NOTIFICATIONS, list);
+        notifyStorageChange('notification', 'update', target);
+      }
     } catch (err) {
       console.error('Failed to mark notification read in Supabase:', err);
+      throw err;
     }
   },
 
   async markAllNotificationsRead(userId?: string): Promise<void> {
-    const list = this.getCachedNotifications();
-    list.forEach((n) => {
-      if (!userId || n.user_id === userId || n.user_id === 'all') {
-        n.is_read = true;
-      }
-    });
-    setCached(STORAGE_KEYS.NOTIFICATIONS, list);
-    notifyStorageChange('notification', 'mark_all_read', { userId });
+    try {
+      // 1. Await Supabase update first
+      await markAllSupabaseNotificationsRead(userId);
+
+      // 2. Update local state on success
+      const list = this.getCachedNotifications();
+      list.forEach((n) => {
+        if (!userId || n.user_id === userId || n.user_id === 'all') {
+          n.is_read = true;
+        }
+      });
+      setCached(STORAGE_KEYS.NOTIFICATIONS, list);
+      notifyStorageChange('notification', 'mark_all_read', { userId });
+    } catch (err) {
+      console.error('Failed to mark all notifications read in Supabase:', err);
+      throw err;
+    }
   },
 
   async deleteNotification(id: string): Promise<void> {
-    const list = this.getCachedNotifications().filter((n) => n.id !== id);
-    setCached(STORAGE_KEYS.NOTIFICATIONS, list);
-    notifyStorageChange('notification', 'delete', { id });
-
     try {
-      await deleteSupabase('notifications', id);
+      // 1. Await Supabase delete first
+      await deleteSupabaseNotification(id);
+
+      // 2. Update local state on success
+      const list = this.getCachedNotifications().filter((n) => n.id !== id);
+      setCached(STORAGE_KEYS.NOTIFICATIONS, list);
+      notifyStorageChange('notification', 'delete', { id });
     } catch (err) {
-      console.error('Failed to delete notification:', err);
+      console.error('Failed to delete notification from Supabase:', err);
+      throw err;
     }
   },
 
   async clearNotifications(userId?: string): Promise<void> {
-    if (userId) {
-      const remaining = this.getCachedNotifications().filter(
-        (n) => n.user_id !== userId && n.user_id !== 'all'
-      );
-      setCached(STORAGE_KEYS.NOTIFICATIONS, remaining);
-    } else {
-      setCached(STORAGE_KEYS.NOTIFICATIONS, []);
+    try {
+      // 1. Await Supabase clear first
+      await clearSupabaseNotifications(userId);
+
+      // 2. Update local state on success
+      if (userId) {
+        const remaining = this.getCachedNotifications().filter(
+          (n) => n.user_id !== userId && n.user_id !== 'all'
+        );
+        setCached(STORAGE_KEYS.NOTIFICATIONS, remaining);
+      } else {
+        setCached(STORAGE_KEYS.NOTIFICATIONS, []);
+      }
+      notifyStorageChange('notification', 'clear', { userId });
+    } catch (err) {
+      console.error('Failed to clear notifications in Supabase:', err);
+      throw err;
     }
-    notifyStorageChange('notification', 'clear', { userId });
   },
 
   // --- WISHLIST ---

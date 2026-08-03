@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
-import { Store, Order, PayoutRequest } from '../../../types/domain';
+import { subscribeSupabase } from '../../../lib/supabase';
+import { Store, Order, PayoutRequest, Payout } from '../../../types/domain';
 import {
   DollarSign,
   TrendingUp,
@@ -30,12 +31,26 @@ export const FinanceAdminDashboardView: React.FC = () => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    const unsubscribe = subscribeToStorageChange(() => {
+    const sync = () => {
       setOrders(StorageRepo.getOrders());
       setStores(StorageRepo.getStores());
       setPayouts(StorageRepo.getPayouts());
+    };
+    sync();
+    StorageRepo.refreshPayouts();
+
+    const unsubStorage = subscribeToStorageChange(() => {
+      sync();
     });
-    return unsubscribe;
+
+    const unsubRealtime = subscribeSupabase<Payout>('payouts', () => {
+      StorageRepo.refreshPayouts();
+    });
+
+    return () => {
+      unsubStorage();
+      unsubRealtime();
+    };
   }, []);
 
   const showToast = (msg: string) => {
@@ -54,14 +69,22 @@ export const FinanceAdminDashboardView: React.FC = () => {
 
   const pendingPayoutsAmount = pendingPayoutsList.reduce((sum, p) => sum + p.amount, 0);
 
-  const handleApprovePayout = (payoutId: string) => {
-    StorageRepo.updatePayoutStatus(payoutId, 'approved');
-    showToast('تمت موافقة المحاسب المالي وتمرير السحب بنجاح');
+  const handleApprovePayout = async (payoutId: string) => {
+    try {
+      await StorageRepo.updatePayoutStatus(payoutId, 'approved');
+      showToast('تمت موافقة المحاسب المالي وتمرير السحب بنجاح');
+    } catch (err: any) {
+      alert(`تعذر الموافقة على السحب: ${err.message || 'خطأ غير معروف'}`);
+    }
   };
 
-  const handleRejectPayout = (payoutId: string) => {
-    StorageRepo.updatePayoutStatus(payoutId, 'rejected');
-    showToast('تم رفض السحب وإعادة المبلغ لرصيد الحساب');
+  const handleRejectPayout = async (payoutId: string) => {
+    try {
+      await StorageRepo.updatePayoutStatus(payoutId, 'rejected');
+      showToast('تم رفض السحب وإعادة المبلغ لرصيد الحساب');
+    } catch (err: any) {
+      alert(`تعذر رفض السحب: ${err.message || 'خطأ غير معروف'}`);
+    }
   };
 
   const handleUpdateStoreCommission = (storeId: string, newRate: number) => {

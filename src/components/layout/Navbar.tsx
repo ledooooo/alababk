@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../lib/storage';
+import { subscribeToNotifications } from '../../lib/supabase';
 import { useCartStore } from '../../stores/cart-store';
 import { SidebarDrawer } from './SidebarDrawer';
 import { UserProfile, Order } from '../../types/domain';
@@ -76,6 +77,37 @@ export const Navbar: React.FC<NavbarProps> = ({
     });
     return unsubscribe;
   }, []);
+
+  // Real-time notification updates when user is logged in
+  useEffect(() => {
+    if (!currentUser?.id) {
+      setUnreadNotifCount(0);
+      return;
+    }
+
+    const syncUnread = () => {
+      const notifications = StorageRepo.getNotifications(currentUser.id);
+      const unread = notifications.filter((n) => !n.is_read).length;
+      setUnreadNotifCount(unread);
+    };
+
+    // Refresh immediately from Supabase on login/mount
+    StorageRepo.refreshNotifications(currentUser.id).then(() => {
+      syncUnread();
+    });
+
+    // Real-time listener for new/updated notifications
+    const unsubscribeNotifs = subscribeToNotifications(currentUser.id, () => {
+      StorageRepo.refreshNotifications(currentUser.id).then(() => {
+        syncUnread();
+      });
+    });
+
+    // Clean up channel on logout or unmount
+    return () => {
+      unsubscribeNotifs();
+    };
+  }, [currentUser?.id]);
 
   const role = currentUser?.role || 'customer';
 

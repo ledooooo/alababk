@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
+import { subscribeToNotifications } from '../../../lib/supabase';
 import { NotificationItem } from '../../../types/domain';
 import {
   Bell,
@@ -32,34 +33,68 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
 
   useEffect(() => {
     loadNotifications();
-    const unsubscribe = subscribeToStorageChange(() => {
+    if (currentUser?.id) {
+      StorageRepo.refreshNotifications(currentUser.id);
+    }
+    const unsubscribeStorage = subscribeToStorageChange(() => {
       loadNotifications();
     });
-    return unsubscribe;
+
+    let unsubscribeRealtime: (() => void) | undefined;
+    if (currentUser?.id) {
+      unsubscribeRealtime = subscribeToNotifications(currentUser.id, () => {
+        StorageRepo.refreshNotifications(currentUser.id).then(() => {
+          loadNotifications();
+        });
+      });
+    }
+
+    return () => {
+      unsubscribeStorage();
+      if (unsubscribeRealtime) {
+        unsubscribeRealtime();
+      }
+    };
   }, [currentUser?.id]);
 
-  const handleMarkAllRead = () => {
-    StorageRepo.markAllNotificationsRead(currentUser?.id);
-    loadNotifications();
-  };
-
-  const handleClear = () => {
-    if (confirm('هل أنت تأكد من مسح جميع الإشعارات؟')) {
-      StorageRepo.clearNotifications(currentUser?.id);
+  const handleMarkAllRead = async () => {
+    try {
+      await StorageRepo.markAllNotificationsRead(currentUser?.id);
       loadNotifications();
+    } catch (err: any) {
+      alert(`تعذر تحديث الإشعارات: ${err.message || 'خطأ غير معروف'}`);
     }
   };
 
-  const handleMarkSingleRead = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    StorageRepo.markNotificationRead(id);
-    loadNotifications();
+  const handleClear = async () => {
+    if (confirm('هل أنت تأكد من مسح جميع الإشعارات؟')) {
+      try {
+        await StorageRepo.clearNotifications(currentUser?.id);
+        loadNotifications();
+      } catch (err: any) {
+        alert(`تعذر مسح الإشعارات: ${err.message || 'خطأ غير معروف'}`);
+      }
+    }
   };
 
-  const handleDeleteSingle = (id: string, e: React.MouseEvent) => {
+  const handleMarkSingleRead = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    StorageRepo.deleteNotification(id);
-    loadNotifications();
+    try {
+      await StorageRepo.markNotificationRead(id);
+      loadNotifications();
+    } catch (err: any) {
+      alert(`تعذر تحديث الإشعار: ${err.message || 'خطأ غير معروف'}`);
+    }
+  };
+
+  const handleDeleteSingle = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await StorageRepo.deleteNotification(id);
+      loadNotifications();
+    } catch (err: any) {
+      alert(`تعذر حذف الإشعار: ${err.message || 'خطأ غير معروف'}`);
+    }
   };
 
   const handleSendTestPush = () => {

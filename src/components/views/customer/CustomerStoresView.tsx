@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
+import { subscribeSupabase } from '../../../lib/supabase';
 import { Store, Category } from '../../../types/domain';
 import { StoreCard } from '../../store/StoreCard';
 import { Pagination } from '../../shared/Pagination';
@@ -18,10 +19,25 @@ export const CustomerStoresView: React.FC<CustomerStoresViewProps> = ({ onSelect
   const ITEMS_PER_PAGE = 8;
 
   useEffect(() => {
-    const unsubscribe = subscribeToStorageChange(() => {
+    const sync = () => {
       setStores(StorageRepo.getStores());
+    };
+
+    sync();
+    StorageRepo.refreshStores();
+
+    const unsubscribeStorage = subscribeToStorageChange(() => {
+      sync();
     });
-    return unsubscribe;
+
+    const unsubscribeRealtime = subscribeSupabase<Store>('stores', () => {
+      StorageRepo.refreshStores();
+    });
+
+    return () => {
+      unsubscribeStorage();
+      unsubscribeRealtime();
+    };
   }, []);
 
   // Reset to page 1 when filters change

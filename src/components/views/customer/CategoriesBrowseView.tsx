@@ -1,5 +1,7 @@
-import React from 'react';
-import { StorageRepo } from '../../../lib/storage';
+import React, { useState, useEffect } from 'react';
+import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
+import { subscribeSupabase } from '../../../lib/supabase';
+import { Product } from '../../../types/domain';
 import { Store, ChevronLeft, Sparkles, LayoutGrid, ShoppingBag } from 'lucide-react';
 
 interface CategoriesBrowseViewProps {
@@ -9,7 +11,29 @@ interface CategoriesBrowseViewProps {
 export const CategoriesBrowseView: React.FC<CategoriesBrowseViewProps> = ({ onNavigate }) => {
   const categories = StorageRepo.getCategories();
   const stores = StorageRepo.getStores();
-  const products = StorageRepo.getProducts();
+  const [products, setProducts] = useState<Product[]>([]);
+
+  useEffect(() => {
+    const syncProds = () => {
+      setProducts(StorageRepo.getProducts());
+    };
+
+    syncProds();
+    StorageRepo.refreshProducts();
+
+    const unsubStorage = subscribeToStorageChange(() => {
+      syncProds();
+    });
+
+    const unsubRealtime = subscribeSupabase<Product>('products', () => {
+      StorageRepo.refreshProducts();
+    });
+
+    return () => {
+      unsubStorage();
+      unsubRealtime();
+    };
+  }, []);
 
   return (
     <div className="max-w-5xl mx-auto space-y-8 dir-rtl pb-16">

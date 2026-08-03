@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
+import { subscribeSupabase } from '../../../lib/supabase';
 import { DeliveryAgent, Order } from '../../../types/domain';
 import { formatCurrency, formatPhoneNumber } from '../../../lib/formatters';
 import {
@@ -39,10 +40,33 @@ export const DeliveryDashboardView: React.FC<DeliveryDashboardViewProps> = ({ on
     };
 
     refresh();
-    const unsubscribe = subscribeToStorageChange(() => {
+    StorageRepo.refreshAgents();
+    StorageRepo.refreshOrders();
+
+    const unsubscribeStorage = subscribeToStorageChange(() => {
       refresh();
     });
-    return unsubscribe;
+
+    const user = StorageRepo.getCurrentUser();
+    const currentAg = user ? StorageRepo.getAgentByUserId(user.id) || StorageRepo.getAgents()[0] : null;
+
+    const unsubscribeRealtimeAgent = subscribeSupabase<DeliveryAgent>(
+      'delivery_agents',
+      () => {
+        StorageRepo.refreshAgents();
+      },
+      currentAg?.id ? `id=eq.${currentAg.id}` : (user?.id ? `user_id=eq.${user.id}` : undefined)
+    );
+
+    const unsubscribeRealtimeOrders = subscribeSupabase<Order>('orders', () => {
+      StorageRepo.refreshOrders();
+    });
+
+    return () => {
+      unsubscribeStorage();
+      unsubscribeRealtimeAgent();
+      unsubscribeRealtimeOrders();
+    };
   }, []);
 
   if (!agent) {
@@ -53,9 +77,13 @@ export const DeliveryDashboardView: React.FC<DeliveryDashboardViewProps> = ({ on
     );
   }
 
-  const toggleDutyOnline = () => {
-    const updated = { ...agent, is_online: !agent.is_online };
-    StorageRepo.saveAgent(updated);
+  const toggleDutyOnline = async () => {
+    try {
+      const updated = { ...agent, is_online: !agent.is_online };
+      await StorageRepo.saveAgent(updated);
+    } catch (err: any) {
+      alert(`تعذر تغيير حالة الاتصال: ${err.message || 'خطأ غير معروف'}`);
+    }
   };
 
   const activeTrip = orders.find(

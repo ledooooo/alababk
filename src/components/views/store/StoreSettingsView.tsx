@@ -1,14 +1,46 @@
-import React, { useState } from 'react';
-import { StorageRepo } from '../../../lib/storage';
+import React, { useState, useEffect } from 'react';
+import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
+import { subscribeSupabase } from '../../../lib/supabase';
 import { Store } from '../../../types/domain';
 import { formatCurrency } from '../../../lib/formatters';
-import { Store as StoreIcon, Clock, MapPin, Phone, Save, Check } from 'lucide-react';
+import { Store as StoreIcon, Clock, MapPin, Phone, Save, Check, Loader2, AlertCircle } from 'lucide-react';
 
 export const StoreSettingsView: React.FC = () => {
   const currentUser = StorageRepo.getCurrentUser();
   const storeId = currentUser?.associated_store_id || 'store-1';
   const [store, setStore] = useState<Store | null>(StorageRepo.getStoreById(storeId));
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+
+  useEffect(() => {
+    const sync = () => {
+      const s = StorageRepo.getStoreById(storeId);
+      if (s) setStore(s);
+    };
+
+    sync();
+    if (storeId) {
+      StorageRepo.refreshStores();
+    }
+
+    const unsubStorage = subscribeToStorageChange(() => {
+      sync();
+    });
+
+    const unsubRealtime = subscribeSupabase<Store>(
+      'stores',
+      () => {
+        StorageRepo.refreshStores();
+      },
+      storeId ? `id=eq.${storeId}` : undefined
+    );
+
+    return () => {
+      unsubStorage();
+      unsubRealtime();
+    };
+  }, [storeId]);
 
   if (!store) {
     return (
@@ -18,10 +50,19 @@ export const StoreSettingsView: React.FC = () => {
     );
   }
 
-  const handleSave = () => {
-    StorageRepo.saveStore(store);
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 2000);
+  const handleSave = async () => {
+    setSaveError('');
+    try {
+      setIsSaving(true);
+      await StorageRepo.saveStore(store);
+      setSavedSuccess(true);
+      setTimeout(() => setSavedSuccess(false), 2000);
+    } catch (err: any) {
+      console.error('Failed to save store settings:', err);
+      setSaveError(err.message || 'حدث خطأ أثناء حفظ إعدادات المتجر.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -39,9 +80,15 @@ export const StoreSettingsView: React.FC = () => {
 
         <button
           onClick={handleSave}
-          className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-1.5"
+          disabled={isSaving}
+          className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-md transition-all flex items-center gap-1.5"
         >
-          {savedSuccess ? (
+          {isSaving ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>جاري الحفظ...</span>
+            </>
+          ) : savedSuccess ? (
             <>
               <Check className="w-4 h-4 text-emerald-300" />
               <span>تم الحفظ!</span>
@@ -54,6 +101,13 @@ export const StoreSettingsView: React.FC = () => {
           )}
         </button>
       </div>
+
+      {saveError && (
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-3 text-rose-800 text-xs font-bold">
+          <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+          <span>{saveError}</span>
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs space-y-4">
         <h3 className="font-bold text-slate-900 text-sm border-b border-slate-100 pb-2">

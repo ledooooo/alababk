@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
+import { subscribeSupabase } from '../../../lib/supabase';
 import { Order, DeliveryAgent } from '../../../types/domain';
 import { formatCurrency, formatDateArabic, calculateDistanceKm } from '../../../lib/formatters';
 import { Bike, Store, MapPin, CheckCircle2, ChevronRight, Phone } from 'lucide-react';
@@ -23,28 +24,42 @@ export const DeliveryAvailableView: React.FC<DeliveryAvailableViewProps> = ({ on
     };
 
     fetchAvailable();
-    const unsubscribe = subscribeToStorageChange(() => {
+    StorageRepo.refreshOrders();
+
+    const unsubscribeStorage = subscribeToStorageChange(() => {
       fetchAvailable();
     });
-    return unsubscribe;
+
+    const unsubscribeRealtime = subscribeSupabase<Order>('orders', () => {
+      StorageRepo.refreshOrders();
+    });
+
+    return () => {
+      unsubscribeStorage();
+      unsubscribeRealtime();
+    };
   }, []);
 
-  const handleClaimOrder = (order: Order) => {
+  const handleClaimOrder = async (order: Order) => {
     if (!agent) {
       alert('يرجى تسجيل الدخول كمندوب توصيل معتمد أولاً');
       return;
     }
 
-    StorageRepo.updateOrderStatus(order.id, 'assigned', `تم تعيين الكابتن ${agent.name} للتوصيل`, {
-      delivery_agent_id: agent.id,
-      delivery_agent_name: agent.name,
-      delivery_agent_phone: agent.phone,
-      delivery_agent_vehicle: agent.vehicle_type,
-      delivery_agent_lat: agent.current_lat || 30.0450,
-      delivery_agent_lng: agent.current_lng || 31.2370,
-    });
+    try {
+      await StorageRepo.updateOrderStatus(order.id, 'assigned', `تم تعيين الكابتن ${agent.name} للتوصيل`, {
+        delivery_agent_id: agent.id,
+        delivery_agent_name: agent.name,
+        delivery_agent_phone: agent.phone,
+        delivery_agent_vehicle: agent.vehicle_type,
+        delivery_agent_lat: agent.current_lat || 30.0450,
+        delivery_agent_lng: agent.current_lng || 31.2370,
+      });
 
-    onOrderClaimed(order.id);
+      onOrderClaimed(order.id);
+    } catch (err: any) {
+      alert(`تعذر استلام الطلب: ${err.message || 'خطأ غير معروف'}`);
+    }
   };
 
   return (

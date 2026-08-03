@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
+import { subscribeSupabase } from '../../../lib/supabase';
 import { Review, Store } from '../../../types/domain';
-import { Star, MessageSquare, ThumbsUp, UserCheck, Send, CheckCircle2, MessageCircle } from 'lucide-react';
+import { Star, MessageSquare, ThumbsUp, UserCheck, Send, CheckCircle2, MessageCircle, AlertCircle } from 'lucide-react';
 
 interface StoreReviewsSectionProps {
   store: Store;
@@ -18,6 +19,7 @@ export const StoreReviewsSection: React.FC<StoreReviewsSectionProps> = ({ store 
   const [newComment, setNewComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   const loadReviews = () => {
     const list = StorageRepo.getReviews(store.id);
@@ -26,10 +28,28 @@ export const StoreReviewsSection: React.FC<StoreReviewsSectionProps> = ({ store 
 
   useEffect(() => {
     loadReviews();
-    const unsubscribe = subscribeToStorageChange(() => {
+    if (store.id) {
+      StorageRepo.refreshReviews(store.id);
+    }
+
+    const unsubscribeStorage = subscribeToStorageChange(() => {
       loadReviews();
     });
-    return unsubscribe;
+
+    const unsubscribeRealtime = subscribeSupabase<Review>(
+      'reviews',
+      () => {
+        if (store.id) {
+          StorageRepo.refreshReviews(store.id);
+        }
+      },
+      store.id ? `store_id=eq.${store.id}` : undefined
+    );
+
+    return () => {
+      unsubscribeStorage();
+      unsubscribeRealtime();
+    };
   }, [store.id]);
 
   // Calculate statistics
@@ -51,10 +71,11 @@ export const StoreReviewsSection: React.FC<StoreReviewsSectionProps> = ({ store 
     return (r.store_rating || r.rating) === filterRating;
   });
 
-  const handleSubmitReview = (e: React.FormEvent) => {
+  const handleSubmitReview = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newComment.trim()) return;
 
+    setSubmitError('');
     setIsSubmitting(true);
 
     const newReview: Review = {
@@ -70,25 +91,33 @@ export const StoreReviewsSection: React.FC<StoreReviewsSectionProps> = ({ store 
       created_at: new Date().toISOString(),
     };
 
-    StorageRepo.saveReview(newReview);
+    try {
+      await StorageRepo.saveReview(newReview);
 
-    // Update store rating and reviews count in storage
-    const updatedReviews = StorageRepo.getReviews(store.id);
-    const newAvg = updatedReviews.reduce((acc, r) => acc + (r.store_rating || r.rating || 5), 0) / updatedReviews.length;
-    
-    StorageRepo.saveStore({
-      ...store,
-      rating: Number(newAvg.toFixed(1)),
-      reviews_count: updatedReviews.length,
-    });
+      // Update store rating and reviews count in storage
+      const updatedReviews = StorageRepo.getReviews(store.id);
+      const newAvg = updatedReviews.length > 0
+        ? updatedReviews.reduce((acc, r) => acc + (r.store_rating || r.rating || 5), 0) / updatedReviews.length
+        : 5;
+      
+      await StorageRepo.saveStore({
+        ...store,
+        rating: Number(newAvg.toFixed(1)),
+        reviews_count: updatedReviews.length,
+      });
 
-    setIsSubmitting(false);
-    setSubmitSuccess(true);
-    setNewComment('');
-    setTimeout(() => {
-      setSubmitSuccess(false);
-      setShowForm(false);
-    }, 2000);
+      setSubmitSuccess(true);
+      setNewComment('');
+      setTimeout(() => {
+        setSubmitSuccess(false);
+        setShowForm(false);
+      }, 2000);
+    } catch (err: any) {
+      console.error('Failed to submit review:', err);
+      setSubmitError(err.message || 'تعذر حفظ التقييم، يرجى المحاولة مرة أخرى.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (

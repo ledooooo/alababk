@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { StorageRepo } from '../../../lib/storage';
-import { saveSupabaseStore } from '../../../lib/supabase';
-import { Store as StoreIcon, Building2, CheckCircle2, Phone, MapPin, Sparkles } from 'lucide-react';
+import { Store as StoreIcon, Building2, CheckCircle2, Phone, MapPin, Sparkles, Loader2, AlertCircle } from 'lucide-react';
 import { Store } from '../../../types/domain';
 
 interface ApplyStoreViewProps {
@@ -18,13 +17,16 @@ export const ApplyStoreView: React.FC<ApplyStoreViewProps> = ({ onNavigate }) =>
   const [description, setDescription] = useState('');
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [applicationId, setApplicationId] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   const categories = StorageRepo.getCategories();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!storeName.trim() || !phone.trim()) return;
 
+    setSubmitError('');
     const newStoreId = `store-app-${Date.now()}`;
     const newStore: Store = {
       id: newStoreId,
@@ -50,12 +52,17 @@ export const ApplyStoreView: React.FC<ApplyStoreViewProps> = ({ onNavigate }) =>
       created_at: new Date().toISOString(),
     };
 
-    // Save to local storage & Supabase
-    StorageRepo.saveStore(newStore);
-    saveSupabaseStore(newStore);
-
-    setApplicationId(newStoreId.slice(-8).toUpperCase());
-    setIsSubmitted(true);
+    try {
+      setIsSubmitting(true);
+      await StorageRepo.saveStore(newStore);
+      setApplicationId(newStoreId.slice(-8).toUpperCase());
+      setIsSubmitted(true);
+    } catch (err: any) {
+      console.error('Failed to submit store application:', err);
+      setSubmitError(err.message || 'تعذر تقديم الطلب، يرجى المحاولة مرة أخرى.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (isSubmitted) {
@@ -191,12 +198,27 @@ export const ApplyStoreView: React.FC<ApplyStoreViewProps> = ({ onNavigate }) =>
           />
         </div>
 
+        {submitError && (
+          <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-rose-800 text-xs font-bold">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>{submitError}</span>
+          </div>
+        )}
+
         <div className="pt-2">
           <button
             type="submit"
-            className="w-full py-3.5 bg-purple-600 hover:bg-purple-700 text-white font-black text-xs rounded-xl shadow-md transition-all"
+            disabled={isSubmitting}
+            className="w-full py-3.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-black text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
           >
-            إرسال طلب الانضمام للمراجعة
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>جاري إرسال الطلب...</span>
+              </>
+            ) : (
+              <span>إرسال طلب الانضمام للمراجعة</span>
+            )}
           </button>
         </div>
       </form>

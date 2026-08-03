@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
+import { subscribeSupabase } from '../../../lib/supabase';
 import { Store, Order, Product } from '../../../types/domain';
 import { formatCurrency, formatDateArabic } from '../../../lib/formatters';
 import {
@@ -39,10 +40,37 @@ export const StoreDashboardView: React.FC<StoreDashboardViewProps> = ({ onNaviga
     };
 
     refresh();
-    const unsubscribe = subscribeToStorageChange(() => {
+    if (storeId) {
+      StorageRepo.refreshStores();
+    }
+
+    const unsubscribeStorage = subscribeToStorageChange(() => {
       refresh();
     });
-    return unsubscribe;
+
+    const unsubscribeRealtimeProducts = subscribeSupabase<Product>(
+      'products',
+      () => {
+        if (storeId) {
+          StorageRepo.refreshProducts(storeId);
+        }
+      },
+      storeId ? `store_id=eq.${storeId}` : undefined
+    );
+
+    const unsubscribeRealtimeStore = subscribeSupabase<Store>(
+      'stores',
+      () => {
+        StorageRepo.refreshStores();
+      },
+      storeId ? `id=eq.${storeId}` : undefined
+    );
+
+    return () => {
+      unsubscribeStorage();
+      unsubscribeRealtimeProducts();
+      unsubscribeRealtimeStore();
+    };
   }, [storeId]);
 
   if (!store) {
@@ -53,9 +81,13 @@ export const StoreDashboardView: React.FC<StoreDashboardViewProps> = ({ onNaviga
     );
   }
 
-  const toggleStoreOpen = () => {
-    const updated = { ...store, is_open: !store.is_open };
-    StorageRepo.saveStore(updated);
+  const toggleStoreOpen = async () => {
+    try {
+      const updated = { ...store, is_open: !store.is_open };
+      await StorageRepo.saveStore(updated);
+    } catch (err: any) {
+      alert(`تعذر تغيير حالة المتجر: ${err.message || 'خطأ غير معروف'}`);
+    }
   };
 
   const pendingOrders = orders.filter((o) => o.status === 'pending');

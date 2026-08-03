@@ -1,5 +1,7 @@
-import React, { useState, useMemo } from 'react';
-import { StorageRepo } from '../../../lib/storage';
+import React, { useState, useMemo, useEffect } from 'react';
+import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
+import { subscribeSupabase } from '../../../lib/supabase';
+import { Product } from '../../../types/domain';
 import { useCartStore } from '../../../stores/cart-store';
 import { formatCurrency } from '../../../lib/formatters';
 import { Search as SearchIcon, Store, ShoppingBag, Star, SlidersHorizontal, ArrowRight, Filter, CheckCircle2 } from 'lucide-react';
@@ -19,7 +21,29 @@ export const SearchView: React.FC<SearchViewProps> = ({ onSelectStore, onNavigat
   const { addItem } = useCartStore();
   const stores = StorageRepo.getStores();
   const categories = StorageRepo.getCategories();
-  const products = StorageRepo.getProducts();
+  const [products, setProducts] = useState<Product[]>([]);
+
+  useEffect(() => {
+    const syncProducts = () => {
+      setProducts(StorageRepo.getProducts());
+    };
+
+    syncProducts();
+    StorageRepo.refreshProducts();
+
+    const unsubStorage = subscribeToStorageChange(() => {
+      syncProducts();
+    });
+
+    const unsubRealtime = subscribeSupabase<Product>('products', () => {
+      StorageRepo.refreshProducts();
+    });
+
+    return () => {
+      unsubStorage();
+      unsubRealtime();
+    };
+  }, []);
 
   // Filtered Stores
   const filteredStores = useMemo(() => {

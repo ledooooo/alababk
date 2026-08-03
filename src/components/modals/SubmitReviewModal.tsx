@@ -20,7 +20,7 @@ export const SubmitReviewModal: React.FC<SubmitReviewModalProps> = ({
   const [agentComment, setAgentComment] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
@@ -37,15 +37,22 @@ export const SubmitReviewModal: React.FC<SubmitReviewModalProps> = ({
       delivery_agent_name: order.delivery_agent_name,
       store_rating: storeRating,
       agent_rating: agentRating,
+      rating: storeRating,
+      comment: storeComment || agentComment || '',
       store_comment: storeComment,
       agent_comment: agentComment,
       created_at: new Date().toISOString(),
     };
 
-    StorageRepo.saveReview(newReview);
-    setIsSubmitting(false);
-    onSubmitted();
-    onClose();
+    try {
+      await StorageRepo.saveReview(newReview);
+      onSubmitted();
+      onClose();
+    } catch (err: any) {
+      alert(`تعذر إرسال التقييم: ${err.message || 'خطأ غير معروف'}`);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (

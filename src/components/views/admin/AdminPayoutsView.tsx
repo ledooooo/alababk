@@ -1,64 +1,56 @@
 import React, { useState, useEffect } from 'react';
-import { fetchSupabasePayouts, supabase } from '../../../lib/supabase';
+import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
+import { subscribeSupabase } from '../../../lib/supabase';
 import { Payout } from '../../../types/domain';
 import { formatCurrency, formatDate } from '../../../lib/formatters';
-import { DollarSign, CheckCircle, Clock, AlertCircle, RefreshCw, Send, Building2, Bike } from 'lucide-react';
+import { DollarSign, CheckCircle, Clock, AlertCircle, RefreshCw, Building2, Bike, Loader2 } from 'lucide-react';
 
 export const AdminPayoutsView: React.FC = () => {
   const [payouts, setPayouts] = useState<Payout[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [filterType, setFilterType] = useState<'all' | 'store' | 'agent'>('all');
   const [message, setMessage] = useState<string | null>(null);
+  const [submittingId, setSubmittingId] = useState<string | null>(null);
 
   const loadPayouts = async () => {
     setLoading(true);
-    const data = await fetchSupabasePayouts();
-    if (data.length > 0) {
-      setPayouts(data);
-    } else {
-      // Fallback demo payout records
-      setPayouts([
-        {
-          id: 'pay-1',
-          recipient_id: 'usr-store-1',
-          recipient_name: 'سوبرماركت بقالة أبو علي المعادي',
-          recipient_type: 'store',
-          amount: 4250,
-          status: 'completed',
-          method: 'تحويل تحويل تحويل فودافون كاش',
-          reference: 'TXN-9821213',
-          created_at: new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString(),
-        },
-        {
-          id: 'pay-2',
-          recipient_id: 'usr-agent-1',
-          recipient_name: 'الكابتن محمود طارق',
-          recipient_type: 'agent',
-          amount: 1120,
-          status: 'pending',
-          method: 'محفظة إلكترونية',
-          reference: 'TXN-0001923',
-          created_at: new Date(Date.now() - 5 * 3600 * 1000).toISOString(),
-        },
-      ]);
-    }
+    await StorageRepo.refreshPayouts();
+    setPayouts(StorageRepo.getPayouts());
     setLoading(false);
   };
 
   useEffect(() => {
-    loadPayouts();
+    const sync = () => {
+      setPayouts(StorageRepo.getPayouts());
+    };
+
+    sync();
+    StorageRepo.refreshPayouts().then(() => setLoading(false));
+
+    const unsubStorage = subscribeToStorageChange(() => {
+      sync();
+    });
+
+    const unsubRealtime = subscribeSupabase<Payout>('payouts', () => {
+      StorageRepo.refreshPayouts();
+    });
+
+    return () => {
+      unsubStorage();
+      unsubRealtime();
+    };
   }, []);
 
   const handleUpdateStatus = async (payoutId: string, newStatus: 'completed' | 'failed') => {
     try {
-      await supabase.from('payouts').update({ status: newStatus }).eq('id', payoutId);
+      setSubmittingId(payoutId);
+      await StorageRepo.updatePayoutStatus(payoutId, newStatus);
       setMessage(`تم تحديث حالة التسوية إلى (${newStatus === 'completed' ? 'تمت التسوية بنجاح' : 'تعذرت التسوية'})`);
       setTimeout(() => setMessage(null), 3000);
-      loadPayouts();
-    } catch {
-      setPayouts((prev) =>
-        prev.map((p) => (p.id === payoutId ? { ...p, status: newStatus } : p))
-      );
+    } catch (err: any) {
+      alert(`تعذر تحديث التسوية: ${err.message || 'خطأ غير معروف'}`);
+    } finally {
+      setSubmittingId(null);
     }
   };
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
+import { subscribeSupabase } from '../../../lib/supabase';
 import { DeliveryAgent, Order } from '../../../types/domain';
 import {
   Bike,
@@ -31,11 +32,32 @@ export const DeliverySupervisorDashboardView: React.FC = () => {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    const unsubscribe = subscribeToStorageChange(() => {
+    const sync = () => {
       setAgents(StorageRepo.getAgents());
       setOrders(StorageRepo.getOrders());
+    };
+
+    sync();
+    StorageRepo.refreshAgents();
+    StorageRepo.refreshOrders();
+
+    const unsubscribeStorage = subscribeToStorageChange(() => {
+      sync();
     });
-    return unsubscribe;
+
+    const unsubscribeRealtimeAgents = subscribeSupabase<DeliveryAgent>('delivery_agents', () => {
+      StorageRepo.refreshAgents();
+    });
+
+    const unsubscribeRealtimeOrders = subscribeSupabase<Order>('orders', () => {
+      StorageRepo.refreshOrders();
+    });
+
+    return () => {
+      unsubscribeStorage();
+      unsubscribeRealtimeAgents();
+      unsubscribeRealtimeOrders();
+    };
   }, []);
 
   const showToast = (msg: string) => {
@@ -50,16 +72,24 @@ export const DeliverySupervisorDashboardView: React.FC = () => {
   });
   const availableAgents = onlineAgents.filter((a) => !busyAgents.some((b) => b.id === a.id));
 
-  const toggleApproval = (agent: DeliveryAgent) => {
-    const updated: DeliveryAgent = { ...agent, is_approved: !agent.is_approved };
-    StorageRepo.saveAgent(updated);
-    showToast(updated.is_approved ? `تم الاعتماد والترخيص لـ ${agent.name}` : `تم إيقاف اعتماد ${agent.name}`);
+  const toggleApproval = async (agent: DeliveryAgent) => {
+    try {
+      const updated: DeliveryAgent = { ...agent, is_approved: !agent.is_approved };
+      await StorageRepo.saveAgent(updated);
+      showToast(updated.is_approved ? `تم الاعتماد والترخيص لـ ${agent.name}` : `تم إيقاف اعتماد ${agent.name}`);
+    } catch (err: any) {
+      alert(`تعذر تغيير حالة اعتماد الكابتن: ${err.message || 'خطأ غير معروف'}`);
+    }
   };
 
-  const toggleOnline = (agent: DeliveryAgent) => {
-    const updated: DeliveryAgent = { ...agent, is_online: !agent.is_online };
-    StorageRepo.saveAgent(updated);
-    showToast(updated.is_online ? `تم تحويل ${agent.name} لمتصل الأن` : `تم تحويل ${agent.name} لغير متصل`);
+  const toggleOnline = async (agent: DeliveryAgent) => {
+    try {
+      const updated: DeliveryAgent = { ...agent, is_online: !agent.is_online };
+      await StorageRepo.saveAgent(updated);
+      showToast(updated.is_online ? `تم تحويل ${agent.name} لمتصل الأن` : `تم تحويل ${agent.name} لغير متصل`);
+    } catch (err: any) {
+      alert(`تعذر تغيير حالة الاتصال: ${err.message || 'خطأ غير معروف'}`);
+    }
   };
 
   const handleSendBroadcast = (e: React.FormEvent) => {
