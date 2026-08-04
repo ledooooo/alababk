@@ -17,6 +17,78 @@ export const USER_ROLES = [
   'orders_manager',
 ] as const;
 
+export const DEFAULT_TAB_BY_ROLE: Record<UserRole, string> = {
+  customer: 'customer-stores',
+  store_owner: 'store-dashboard',
+  delivery_agent: 'delivery-dashboard',
+  admin: 'admin-dashboard',
+  delivery_supervisor: 'delivery-supervisor-dashboard',
+  finance_admin: 'finance-admin-dashboard',
+  orders_manager: 'orders-manager-dashboard',
+};
+
+export const ALLOWED_TABS_BY_ROLE: Record<UserRole, string[]> = {
+  customer: [
+    'customer-stores',
+    'search',
+    'categories-browse',
+    'profile',
+    'customer-store-detail',
+    'customer-checkout',
+    'order-confirmation',
+    'customer-orders',
+    'customer-order-detail',
+    'customer-addresses',
+    'notifications',
+  ],
+  store_owner: [
+    'store-dashboard',
+    'store-orders',
+    'store-products',
+    'store-reviews',
+    'store-payouts',
+    'store-analytics',
+    'store-notifications',
+    'store-settings',
+  ],
+  delivery_agent: [
+    'delivery-dashboard',
+    'delivery-available',
+    'delivery-active',
+    'delivery-history',
+    'delivery-earnings',
+    'delivery-profile',
+    'delivery-notifications',
+  ],
+  delivery_supervisor: [
+    'delivery-supervisor-dashboard',
+  ],
+  finance_admin: [
+    'finance-admin-dashboard',
+  ],
+  orders_manager: [
+    'orders-manager-dashboard',
+  ],
+  admin: [
+    'admin-dashboard',
+    'admin-analytics',
+    'admin-stores-applications',
+    'admin-stores',
+    'admin-agents',
+    'admin-customers',
+    'admin-orders',
+    'admin-zones',
+    'admin-coupons',
+    'admin-categories',
+    'admin-payouts',
+    'admin-activity-log',
+    'admin-settings',
+    'admin-reviews',
+    'admin-notifications',
+    'admin-supabase',
+  ],
+};
+
 export interface UserProfile {
   id: string;
   email: string;
@@ -169,6 +241,10 @@ export interface Order {
   status_history: OrderStatusHistoryItem[];
   rejection_reason?: string;
   customer_notes?: string;
+  zone_id?: string;
+  commission_pct?: number;
+  commission_amount?: number;
+  eta_minutes?: number;
   created_at: string;
   updated_at: string;
 }
@@ -244,9 +320,12 @@ export interface NotificationItem {
   id: string;
   user_id: string;
   title: string;
-  message: string;
-  type: 'order_status' | 'system' | 'promotion';
-  is_read: boolean;
+  body?: string;
+  message?: string;
+  type: string;
+  data?: Record<string, any>;
+  read_at?: string | null;
+  is_read?: boolean;
   created_at: string;
   link_url?: string;
 }
@@ -257,7 +336,7 @@ export interface Payout {
   recipient_name?: string;
   recipient_type: 'store' | 'agent';
   amount: number;
-  status: 'pending' | 'processing' | 'completed' | 'failed' | 'approved' | 'rejected';
+  status: 'pending' | 'processing' | 'completed' | 'failed';
   method?: string;
   store_name?: string;
   user_name?: string;

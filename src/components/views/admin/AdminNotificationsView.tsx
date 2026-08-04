@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { fetchSupabaseNotifications, supabase } from '../../../lib/supabase';
+import { fetchSupabaseNotifications, createSupabaseNotification } from '../../../lib/supabase';
 import { NotificationItem } from '../../../types/domain';
 import { formatDate } from '../../../lib/formatters';
 import { Bell, Send, CheckCircle2, RefreshCw, Smartphone, Tag, ShoppingBag } from 'lucide-react';
@@ -52,16 +52,14 @@ export const AdminNotificationsView: React.FC = () => {
     if (!title.trim() || !body.trim()) return;
 
     try {
-      await supabase.from('notifications').insert([
-        {
-          user_id: 'usr-customer-1',
-          title: title.trim(),
-          body: body.trim(),
-          type: type === 'promotion' ? 'promo' : 'system',
-        },
-      ]);
-    } catch {
-      // fallback
+      await createSupabaseNotification({
+        user_id: 'usr-customer-1',
+        title: title.trim(),
+        body: body.trim(),
+        type: type === 'promotion' ? 'promo' : 'system',
+      });
+    } catch (err: any) {
+      console.error('Error sending notification via RPC:', err);
     }
 
     const newNotif: NotificationItem = {
@@ -69,6 +67,7 @@ export const AdminNotificationsView: React.FC = () => {
       user_id: 'usr-customer-1',
       title: title.trim(),
       message: body.trim(),
+      body: body.trim(),
       type,
       is_read: false,
       created_at: new Date().toISOString(),

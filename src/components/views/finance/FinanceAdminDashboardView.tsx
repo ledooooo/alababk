@@ -64,15 +64,18 @@ export const FinanceAdminDashboardView: React.FC = () => {
 
   const storeMap = new Map<string, Store>(stores.map((s) => [s.id, s]));
   const totalCommissions = deliveredOrders.reduce((sum, o) => {
+    if (typeof o.commission_amount === 'number') {
+      return sum + o.commission_amount;
+    }
     const store = storeMap.get(o.store_id);
-    const rate = (store?.commission_rate ?? 15) / 100;
+    const rate = (o.commission_pct ?? store?.commission_rate ?? 15) / 100;
     return sum + Math.round(o.subtotal * rate);
   }, 0);
 
   const totalDeliveryFees = deliveredOrders.reduce((sum, o) => sum + o.delivery_fee, 0);
 
   const pendingPayoutsList = payouts.filter((p) => p.status === 'pending');
-  const approvedPayoutsList = payouts.filter((p) => p.status === 'approved');
+  const completedPayoutsList = payouts.filter((p) => p.status === 'completed');
 
   const pendingPayoutsAmount = pendingPayoutsList.reduce((sum, p) => sum + p.amount, 0);
 
@@ -267,17 +270,17 @@ export const FinanceAdminDashboardView: React.FC = () => {
                     <td className="p-3">
                       {payout.status === 'pending' && (
                         <span className="px-2.5 py-1 bg-amber-100 text-amber-800 rounded-full text-[10px] font-bold">
-                          قيد التنسيق والتدقيق ⏳
+                          قيد الانتظار ⏳
                         </span>
                       )}
-                      {payout.status === 'approved' && (
+                      {payout.status === 'completed' && (
                         <span className="px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-full text-[10px] font-bold">
                           مكتمل ومحول 🟢
                         </span>
                       )}
-                      {payout.status === 'rejected' && (
+                      {payout.status === 'failed' && (
                         <span className="px-2.5 py-1 bg-rose-100 text-rose-800 rounded-full text-[10px] font-bold">
-                          مرفوض 🔴
+                          تعذرت التسوية 🔴
                         </span>
                       )}
                     </td>

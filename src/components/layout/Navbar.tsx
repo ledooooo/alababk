@@ -3,7 +3,7 @@ import { StorageRepo, subscribeToStorageChange } from '../../lib/storage';
 import { subscribeToNotifications } from '../../lib/supabase';
 import { useCartStore } from '../../stores/cart-store';
 import { SidebarDrawer } from './SidebarDrawer';
-import { UserProfile, Order } from '../../types/domain';
+import { UserProfile, Order, DEFAULT_TAB_BY_ROLE } from '../../types/domain';
 import {
   ShoppingBag,
   MapPin,
@@ -477,7 +477,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   if (role === 'customer') onNavigate('profile');
                   else if (role === 'store_owner') onNavigate('store-settings');
                   else if (role === 'delivery_agent') onNavigate('delivery-profile');
-                  else onNavigate('admin-dashboard');
+                  else onNavigate(DEFAULT_TAB_BY_ROLE[role] || 'admin-dashboard');
                 }}
                 className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-xs font-bold text-slate-800 transition-colors"
                 title="الحساب الشخصي"

@@ -50,8 +50,12 @@ export async function checkSupabaseConnection(): Promise<{ connected: boolean; m
 /**
  * Utility to generate or validate a UUID
  */
+export function isValidUUID(id?: string): boolean {
+  return !!id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+}
+
 export function ensureUUID(id?: string): string {
-  if (id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+  if (id && isValidUUID(id)) {
     return id;
   }
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -118,25 +122,34 @@ function parseGeoPoint(locationObj: any, fallbackId: string, offsetScale = 1): {
   };
 }
 
+export interface SaveUserOptions {
+  isSelf?: boolean;
+}
+
 /**
  * Save / Upsert User profile in Supabase database
  */
-export async function saveSupabaseUser(user: Partial<UserProfile>) {
+export async function saveSupabaseUser(user: Partial<UserProfile>, options: SaveUserOptions = {}) {
   try {
-    // If authenticated user exists in Supabase auth, prefer their auth ID
-    let validId = user.id ? ensureUUID(user.id) : '';
-    try {
-      const { data: authData } = await supabase.auth.getUser();
-      if (authData?.user?.id) {
-        validId = authData.user.id;
-      }
-    } catch {
-      // Ignore auth check errors
-    }
+    let validId = user.id && isValidUUID(user.id) ? user.id : '';
 
     if (!validId) {
-      validId = ensureUUID(user.id);
+      if (options.isSelf) {
+        try {
+          const { data: authData } = await supabase.auth.getUser();
+          if (authData?.user?.id && isValidUUID(authData.user.id)) {
+            validId = authData.user.id;
+          }
+        } catch {
+          // Ignore auth check errors
+        }
+      }
     }
+
+    if (!validId || !isValidUUID(validId)) {
+      throw new Error('مُعرّف المستخدم (user.id) مفقود أو ليس UUID صالحاً');
+    }
+
     user.id = validId; // Ensure user object retains the valid UUID
 
     const userName = user.name || (user as any).full_name || 'مستخدم';
@@ -159,8 +172,9 @@ export async function saveSupabaseUser(user: Partial<UserProfile>) {
 
     const { error } = await supabase.from('profiles').upsert(payload, { onConflict: 'id' });
     if (error) {
-      console.warn('Supabase profile sync notice:', error.message);
-      throw new Error(error.message);
+      let msg = error.message || 'فشل تحديث بيانات المستخدم';
+      msg = msg.replace(/^ERROR:\s*/i, '').replace(/^[A-Z0-9]{5}:\s*/, '');
+      throw new Error(msg);
     }
   } catch (err) {
     console.warn('Sync profile info error:', err);
@@ -670,13 +684,41 @@ export async function fetchSupabaseNotifications(userId: string): Promise<Notifi
       id: n.id,
       user_id: n.user_id,
       title: n.title,
-      message: n.message || n.body || '',
-      type: n.type === 'order' ? 'order_status' : n.type === 'promo' ? 'promotion' : 'system',
+      body: n.body,
+      message: n.body || n.message || '',
+      type: n.type || 'system',
+      data: n.data || {},
+      read_at: n.read_at,
       is_read: !!n.read_at,
       created_at: n.created_at || new Date().toISOString(),
     }));
   } catch {
     return [];
+  }
+}
+
+/**
+ * Create a notification via create_notification RPC in Supabase
+ */
+export async function createSupabaseNotification(params: {
+  user_id: string;
+  title: string;
+  body: string;
+  type: string;
+  data?: Record<string, any>;
+}): Promise<void> {
+  const { error } = await supabase.rpc('create_notification', {
+    p_user_id: ensureUUID(params.user_id),
+    p_title: params.title,
+    p_body: params.body,
+    p_type: params.type,
+    p_data: params.data || {},
+  });
+
+  if (error) {
+    let msg = error.message || 'فشل إرسال الإشعار';
+    msg = msg.replace(/^ERROR:\s*/i, '').replace(/^[A-Z0-9]{5}:\s*/, '');
+    throw new Error(msg);
   }
 }
 
@@ -849,32 +891,41 @@ export async function seedSupabaseDatabase() {
   }
 }
 
+export interface SaveStoreOptions {
+  isSelf?: boolean;
+}
+
 /**
  * Save/Upsert Store in Supabase
  */
-export async function saveSupabaseStore(store: Partial<Store>): Promise<Store> {
-  const validId = ensureUUID(store.id);
-  store.id = validId;
-  let ownerId = store.owner_id ? ensureUUID(store.owner_id) : '';
+export async function saveSupabaseStore(store: Partial<Store>, options: SaveStoreOptions = {}): Promise<Store> {
+  const validStoreId = store.id && isValidUUID(store.id) ? store.id : ensureUUID(store.id);
+  store.id = validStoreId;
 
-  try {
-    const { data: authData } = await supabase.auth.getUser();
-    if (authData?.user?.id) {
-      ownerId = authData.user.id;
+  let ownerId = store.owner_id && isValidUUID(store.owner_id) ? store.owner_id : '';
+
+  if (!ownerId && options.isSelf) {
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      if (authData?.user?.id && isValidUUID(authData.user.id)) {
+        ownerId = authData.user.id;
+      }
+    } catch {
+      // Ignore
     }
-  } catch {
-    // Ignore
   }
 
-  if (!ownerId) {
-    ownerId = ensureUUID();
+  if (!ownerId || !isValidUUID(ownerId)) {
+    throw new Error('مُعرّف مالك المتجر (store.owner_id) مفقود أو ليس UUID صالحاً');
   }
+
+  store.owner_id = ownerId;
 
   const payload: Record<string, any> = {
-    id: validId,
+    id: validStoreId,
     owner_id: ownerId,
     name: store.name || 'متجر جديد',
-    slug: store.slug || (store.name || 'store').toLowerCase().replace(/\s+/g, '-') + '-' + validId.slice(0, 4),
+    slug: store.slug || (store.name || 'store').toLowerCase().replace(/\s+/g, '-') + '-' + validStoreId.slice(0, 4),
     description: store.description || '',
     phone: store.phone || '01000000000',
     address: store.address || 'القاهرة، مصر',
@@ -892,7 +943,7 @@ export async function saveSupabaseStore(store: Partial<Store>): Promise<Store> {
     payload.commission_pct = store.commission_rate;
   }
 
-  if (store.category_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(store.category_id)) {
+  if (store.category_id && isValidUUID(store.category_id)) {
     payload.category_id = store.category_id;
   }
 
@@ -981,25 +1032,60 @@ export async function saveSupabaseProduct(product: Partial<Product>): Promise<Pr
   };
 }
 
+export interface SaveAgentOptions {
+  isSelf?: boolean;
+  isAdministrative?: boolean;
+  callerRole?: UserRole | string;
+}
+
 /**
  * Save/Upsert Delivery Agent in Supabase
  */
-export async function saveSupabaseAgent(agent: Partial<DeliveryAgent>): Promise<DeliveryAgent> {
-  const validId = ensureUUID(agent.id);
-  agent.id = validId;
-  let userId = agent.user_id ? ensureUUID(agent.user_id) : '';
+export async function saveSupabaseAgent(agent: Partial<DeliveryAgent>, options: SaveAgentOptions = {}): Promise<DeliveryAgent> {
+  const validAgentId = agent.id && isValidUUID(agent.id) ? agent.id : ensureUUID(agent.id);
+  agent.id = validAgentId;
 
-  try {
-    const { data: authData } = await supabase.auth.getUser();
-    if (authData?.user?.id) {
-      userId = authData.user.id;
+  let userId = agent.user_id && isValidUUID(agent.user_id) ? agent.user_id : '';
+
+  if (!userId && options.isSelf) {
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      if (authData?.user?.id && isValidUUID(authData.user.id)) {
+        userId = authData.user.id;
+      }
+    } catch {
+      // Ignore
     }
-  } catch {
-    // Ignore
   }
 
-  if (!userId) {
-    userId = ensureUUID();
+  if (!userId || !isValidUUID(userId)) {
+    throw new Error('مُعرّف المستخدم الخاص بالكابتن (agent.user_id) مفقود أو ليس UUID صالحاً');
+  }
+
+  agent.user_id = userId;
+
+  let isAdminOrSupervisor = !!(
+    options.isAdministrative ||
+    options.callerRole === 'admin' ||
+    options.callerRole === 'delivery_supervisor'
+  );
+
+  if (!isAdminOrSupervisor && !options.isSelf) {
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      if (authData?.user?.id) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', authData.user.id)
+          .maybeSingle();
+        if (profile?.role === 'admin' || profile?.role === 'delivery_supervisor') {
+          isAdminOrSupervisor = true;
+        }
+      }
+    } catch {
+      // Ignore
+    }
   }
 
   const vehicleMap: Record<string, string> = {
@@ -1011,21 +1097,35 @@ export async function saveSupabaseAgent(agent: Partial<DeliveryAgent>): Promise<
   };
 
   const payload: Record<string, any> = {
-    id: validId,
+    id: validAgentId,
     user_id: userId,
     vehicle_type: vehicleMap[agent.vehicle_type || ''] || 'motorcycle',
     plate_number: agent.license_plate || null,
     id_number: agent.national_id || null,
     is_online: agent.is_online ?? true,
-    is_active: true,
     updated_at: new Date().toISOString(),
   };
+
+  // Strictly DO NOT send is_active unless the performer is admin or delivery_supervisor,
+  // because the trigger protect_agent_admin_fields rejects is_active modifications by agents.
+  if (isAdminOrSupervisor) {
+    if ((agent as any).is_active !== undefined) {
+      payload.is_active = (agent as any).is_active;
+    } else {
+      payload.is_active = true;
+    }
+  }
 
   if (agent.is_approved !== undefined) {
     payload.is_approved = agent.is_approved;
   }
 
-  const { data, error } = await supabase.from('delivery_agents').upsert(payload, { onConflict: 'id' }).select('*, profiles(full_name, phone, avatar_url)').single();
+  const { data, error } = await supabase
+    .from('delivery_agents')
+    .upsert(payload, { onConflict: 'id' })
+    .select('*, profiles(full_name, phone, avatar_url)')
+    .single();
+
   if (error) {
     let msg = error.message || 'فشل حفظ بيانات كابتن التوصيل في قاعدة البيانات';
     msg = msg.replace(/^ERROR:\s*/i, '').replace(/^[A-Z0-9]{5}:\s*/, '');
@@ -1045,7 +1145,7 @@ export async function saveSupabaseAgent(agent: Partial<DeliveryAgent>): Promise<
     is_online: data.is_online ?? true,
     active_zone: agent.active_zone || 'وسط البلد',
     rating: Number(data.rating_avg) || 4.9,
-    total_trips: data.total_deliveries || agent.total_trips || 45,
+    total_trips: Number(data.completed_deliveries || data.total_trips || agent.total_trips || 0),
     created_at: data.created_at || new Date().toISOString(),
   };
 }
@@ -1077,6 +1177,63 @@ export interface SecureOrderResponse {
   discount: number;
   total: number;
   status: string;
+  eta_minutes?: number;
+  zone_id?: string;
+  commission_pct?: number;
+  commission_amount?: number;
+}
+
+export interface OrderQuoteResponse {
+  subtotal: number;
+  delivery_fee: number;
+  eta_minutes?: number;
+  zone_id?: string;
+  discount: number;
+  tip_amount: number;
+  total: number;
+}
+
+/**
+ * Call quote_order_secure RPC function to calculate fee & quote before order placement
+ */
+export async function quoteOrderSecure(params: {
+  store_id: string;
+  address_id: string;
+  items: Array<{ product_id: string; quantity: number; options?: any; notes?: string }>;
+  coupon_code?: string;
+  tip_amount?: number;
+}): Promise<OrderQuoteResponse> {
+  const validAddressId = ensureUUID(params.address_id);
+  const formattedItems = params.items.map((item) => ({
+    product_id: ensureUUID(item.product_id),
+    quantity: Math.max(1, Number(item.quantity) || 1),
+    options: item.options || {},
+    notes: item.notes ? String(item.notes).trim() : null,
+  }));
+
+  const { data, error } = await supabase.rpc('quote_order_secure', {
+    p_store_id: ensureUUID(params.store_id),
+    p_address_id: validAddressId,
+    p_items: formattedItems,
+    p_coupon_code: params.coupon_code ? params.coupon_code.trim() : null,
+    p_tip_amount: params.tip_amount ? Number(params.tip_amount) : 0,
+  });
+
+  if (error) {
+    let msg = error.message || 'تعذر الحصول على تسعير الطلب';
+    msg = msg.replace(/^ERROR:\s*/i, '').replace(/^[A-Z0-9]{5}:\s*/, '');
+    throw new Error(msg);
+  }
+
+  return {
+    subtotal: Number(data?.subtotal || 0),
+    delivery_fee: Number(data?.delivery_fee || 0),
+    eta_minutes: data?.eta_minutes ? Number(data.eta_minutes) : undefined,
+    zone_id: data?.zone_id || undefined,
+    discount: Number(data?.discount || 0),
+    tip_amount: Number(data?.tip_amount || 0),
+    total: Number(data?.total || 0),
+  };
 }
 
 /**
@@ -1094,8 +1251,8 @@ export async function createSecureOrder(params: SecureOrderPayload): Promise<Sec
   const addressPayload = {
     id: validAddressId,
     user_id: userId,
-    label: params.address.title || 'عنوان التوصيل',
-    street: params.address.address_line || 'القاهرة',
+    label: params.address.title || (params.address as any).label || 'عنوان التوصيل',
+    street: params.address.street || params.address.address_line || 'القاهرة',
     building: params.address.building || null,
     floor: params.address.floor || null,
     apartment: params.address.apartment || null,
@@ -1146,6 +1303,10 @@ export async function createSecureOrder(params: SecureOrderPayload): Promise<Sec
     discount: Number(data.discount || 0),
     total: Number(data.total || 0),
     status: data.status || 'pending',
+    eta_minutes: data.eta_minutes ? Number(data.eta_minutes) : undefined,
+    zone_id: data.zone_id || undefined,
+    commission_pct: data.commission_pct ? Number(data.commission_pct) : undefined,
+    commission_amount: data.commission_amount ? Number(data.commission_amount) : undefined,
   };
 }
 
@@ -1214,22 +1375,6 @@ export async function updateSupabaseOrder(
     let msg = error.message || 'فشل تحديث الطلب في قاعدة البيانات';
     msg = msg.replace(/^ERROR:\s*/i, '').replace(/^[A-Z0-9]{5}:\s*/, '');
     throw new Error(msg);
-  }
-
-  if (note || fieldsToUpdate.status) {
-    try {
-      await supabase.from('order_status_history').insert([
-        {
-          id: ensureUUID(`hist-${Date.now()}`),
-          order_id: validId,
-          status: fieldsToUpdate.status || 'updated',
-          note: note || null,
-          created_at: new Date().toISOString(),
-        },
-      ]);
-    } catch (histErr) {
-      console.warn('Failed to insert order status history:', histErr);
-    }
   }
 }
 
@@ -1603,29 +1748,27 @@ export async function fetchAgentAvailableOrders(): Promise<Order[]> {
 }
 
 /**
- * Fetch statistics for a store
+ * Fetch statistics for a store from store_stats view
+ * Columns: delivered_orders, total_orders, total_revenue, total_commission, avg_rating, rating
  */
 export async function fetchStoreStats(
   storeId: string
-): Promise<{ total_orders: number; total_revenue: number; avg_rating: number } | null> {
+): Promise<{ delivered_orders: number; total_orders: number; total_revenue: number; total_commission: number; avg_rating: number } | null> {
   try {
     const { data, error } = await supabase
       .from('store_stats')
       .select('*')
       .eq('store_id', storeId)
-      .single();
+      .maybeSingle();
 
-    if (error || !data) {
-      const storeOrders = await fetchSupabaseOrders({ store_id: storeId });
-      const total_orders = storeOrders.length;
-      const total_revenue = storeOrders.reduce((sum, o) => sum + o.total, 0);
-      return { total_orders, total_revenue, avg_rating: 4.8 };
-    }
+    if (error || !data) return null;
 
     return {
+      delivered_orders: Number(data.delivered_orders || 0),
       total_orders: Number(data.total_orders || 0),
       total_revenue: Number(data.total_revenue || 0),
-      avg_rating: Number(data.avg_rating || 4.8),
+      total_commission: Number(data.total_commission || 0),
+      avg_rating: Number(data.avg_rating || data.rating || 0),
     };
   } catch (err) {
     console.error('Error in fetchStoreStats:', err);
@@ -1634,36 +1777,74 @@ export async function fetchStoreStats(
 }
 
 /**
- * Fetch statistics for a delivery agent
+ * Fetch statistics for a delivery agent from agent_stats view
+ * Columns: completed_deliveries, total_trips, total_earnings, total_tips, avg_rating, rating
  */
 export async function fetchAgentStats(
   agentId: string
-): Promise<{ total_trips: number; total_earnings: number; rating: number } | null> {
+): Promise<{ completed_deliveries: number; total_trips: number; total_earnings: number; total_tips: number; avg_rating: number } | null> {
   try {
     const { data, error } = await supabase
       .from('agent_stats')
       .select('*')
       .eq('agent_id', agentId)
-      .single();
+      .maybeSingle();
 
-    if (error || !data) {
-      const agentOrders = await fetchSupabaseOrders({ delivery_agent_id: agentId, status: 'delivered' });
-      return {
-        total_trips: agentOrders.length,
-        total_earnings: agentOrders.reduce((sum, o) => sum + o.delivery_fee, 0),
-        rating: 4.9,
-      };
-    }
+    if (error || !data) return null;
 
     return {
+      completed_deliveries: Number(data.completed_deliveries || 0),
       total_trips: Number(data.total_trips || 0),
       total_earnings: Number(data.total_earnings || 0),
-      rating: Number(data.rating || 4.9),
+      total_tips: Number(data.total_tips || 0),
+      avg_rating: Number(data.avg_rating || data.rating || 0),
     };
   } catch (err) {
     console.error('Error in fetchAgentStats:', err);
     return null;
   }
 }
+
+export interface FinanceSummaryItem {
+  day: string;
+  store_id?: string;
+  delivered_orders: number;
+  gmv: number;
+  net_sales: number;
+  commissions: number;
+  delivery_fees: number;
+  tips: number;
+}
+
+/**
+ * Fetch finance summary records from finance_summary view
+ */
+export async function fetchFinanceSummary(): Promise<FinanceSummaryItem[]> {
+  try {
+    const { data, error } = await supabase
+      .from('finance_summary')
+      .select('*')
+      .order('day', { ascending: false });
+
+    if (error || !data) return [];
+
+    return data.map((row) => ({
+      day: row.day,
+      store_id: row.store_id,
+      delivered_orders: Number(row.delivered_orders || 0),
+      gmv: Number(row.gmv || 0),
+      net_sales: Number(row.net_sales || 0),
+      commissions: Number(row.commissions || 0),
+      delivery_fees: Number(row.delivery_fees || 0),
+      tips: Number(row.tips || 0),
+    }));
+  } catch (err) {
+    console.error('Error fetching finance summary:', err);
+    return [];
+  }
+}
+
+// قاعدة أمان هامة: مُعرّف الجلسة لا يُستخدم أبداً لتحديد السجل المُستهدف.
+
 
 

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useCartStore } from '../../../stores/cart-store';
 import { StorageRepo } from '../../../lib/storage';
+import { quoteOrderSecure, OrderQuoteResponse } from '../../../lib/supabase';
 import { CustomerAddress, Order, OrderStatusHistoryItem } from '../../../types/domain';
 import { formatCurrency } from '../../../lib/formatters';
 import { LeafletMap } from '../../shared/LeafletMap';
@@ -53,10 +54,41 @@ export const CustomerCheckoutView: React.FC<CustomerCheckoutViewProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string>('');
 
-  const subtotal = getSubtotal();
-  const deliveryFee = subtotal > 0 ? 15 : 0;
-  const discountAmount = appliedCoupon ? appliedCoupon.discount : 0;
-  const total = Math.max(0, subtotal + deliveryFee - discountAmount);
+  const [serverQuote, setServerQuote] = useState<OrderQuoteResponse | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!storeId || items.length === 0 || selectedAddressId === 'new') {
+      setServerQuote(null);
+      return;
+    }
+
+    const fetchServerQuote = async () => {
+      try {
+        const res = await quoteOrderSecure({
+          store_id: storeId,
+          address_id: selectedAddressId,
+          items: items.map((i) => ({ product_id: i.product.id, quantity: i.quantity, notes: i.notes })),
+          coupon_code: appliedCoupon?.code,
+        });
+        if (!cancelled) {
+          setServerQuote(res);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setServerQuote(null);
+        }
+      }
+    };
+
+    fetchServerQuote();
+    return () => { cancelled = true; };
+  }, [storeId, selectedAddressId, items, appliedCoupon]);
+
+  const subtotal = serverQuote ? serverQuote.subtotal : getSubtotal();
+  const deliveryFee = serverQuote ? serverQuote.delivery_fee : (subtotal > 0 ? 15 : 0);
+  const discountAmount = serverQuote ? serverQuote.discount : (appliedCoupon ? appliedCoupon.discount : 0);
+  const total = serverQuote ? serverQuote.total : Math.max(0, subtotal + deliveryFee - discountAmount);
 
   const store = storeId ? StorageRepo.getStoreById(storeId) : null;
 

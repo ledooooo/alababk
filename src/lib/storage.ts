@@ -415,16 +415,18 @@ export const StorageRepo = {
     return cached;
   },
 
-  async saveUser(user: UserProfile): Promise<UserProfile> {
+  async saveUser(user: UserProfile, options?: { isSelf?: boolean }): Promise<UserProfile> {
     const users = mergeById(this.getCachedUsers(), user);
     setCached(STORAGE_KEYS.USERS, users);
-    if (this.getCurrentUser()?.id === user.id) {
+    const currentUser = this.getCurrentUser();
+    if (currentUser?.id === user.id) {
       this.setCurrentUser(user);
     }
     notifyStorageChange('user', 'save', user);
 
     try {
-      await saveSupabaseUser(user);
+      const isSelf = options?.isSelf ?? (currentUser?.id === user.id);
+      await saveSupabaseUser(user, { isSelf });
       return user;
     } catch (err) {
       console.error('Failed to save user to Supabase:', err);
@@ -448,10 +450,12 @@ export const StorageRepo = {
     return this.getCachedStores().find((s) => s.slug === slug) || null;
   },
 
-  async saveStore(store: Store): Promise<Store> {
+  async saveStore(store: Store, options?: { isSelf?: boolean }): Promise<Store> {
     try {
+      const currentUser = this.getCurrentUser();
+      const isSelf = options?.isSelf ?? (currentUser?.id === store.owner_id);
       // 1. Save to Supabase first and await result
-      const saved = await saveSupabaseStore(store);
+      const saved = await saveSupabaseStore(store, { isSelf });
 
       // 2. Update local cache and notify subscribers on success
       const stores = mergeById(this.getCachedStores(), saved);
@@ -808,10 +812,15 @@ export const StorageRepo = {
     return this.getCachedAgents().find((a) => a.user_id === userId) || null;
   },
 
-  async saveAgent(agent: DeliveryAgent): Promise<DeliveryAgent> {
+  async saveAgent(agent: DeliveryAgent, options?: { isSelf?: boolean; isAdministrative?: boolean; callerRole?: string }): Promise<DeliveryAgent> {
     try {
+      const currentUser = this.getCurrentUser();
+      const isSelf = options?.isSelf ?? (currentUser?.id === agent.user_id);
+      const isAdministrative = options?.isAdministrative ?? (currentUser?.role === 'admin' || currentUser?.role === 'delivery_supervisor');
+      const callerRole = options?.callerRole ?? currentUser?.role;
+
       // 1. Save to Supabase first and await result
-      const saved = await saveSupabaseAgent(agent);
+      const saved = await saveSupabaseAgent(agent, { isSelf, isAdministrative, callerRole });
 
       // 2. Update local cache and notify subscribers on success
       const agents = mergeById(this.getCachedAgents(), saved);

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
 import { StorageRepo, subscribeToStorageChange } from './lib/storage';
-import { UserRole, UserProfile, Store } from './types/domain';
+import { UserRole, UserProfile, Store, DEFAULT_TAB_BY_ROLE, ALLOWED_TABS_BY_ROLE } from './types/domain';
 import { Navbar } from './components/layout/Navbar';
 import { SplashScreen } from './components/layout/SplashScreen';
 import { CartDrawer } from './components/cart/CartDrawer';
@@ -236,12 +236,26 @@ export default function App() {
   const isPublicTab = PUBLIC_TABS.includes(activeTab);
   const isLoggedIn = !!session && !!currentUser;
 
-  // AuthGuard for protected routes
+  // AuthGuard and RoleGuard for protected routes
   useEffect(() => {
-    if (!isLoading && !isLoggedIn && !isPublicTab) {
-      setActiveTab('auth');
+    if (isLoading) return;
+
+    if (!isLoggedIn) {
+      if (!isPublicTab) {
+        setActiveTab('auth');
+      }
+    } else if (currentUser) {
+      const role = currentUser.role || 'customer';
+      const allowedTabs = ALLOWED_TABS_BY_ROLE[role] || [];
+      const isAuthTab = activeTab === 'auth';
+      const isAllowed = (isPublicTab && !isAuthTab) || allowedTabs.includes(activeTab);
+
+      if (!isAllowed) {
+        const defaultTab = DEFAULT_TAB_BY_ROLE[role] || 'customer-stores';
+        setActiveTab(defaultTab);
+      }
     }
-  }, [isLoading, isLoggedIn, isPublicTab, activeTab]);
+  }, [isLoading, isLoggedIn, currentUser, isPublicTab, activeTab]);
 
   const activeUserProfile = currentUser;
 
@@ -311,10 +325,8 @@ export default function App() {
             <AuthView
               onSuccess={(user) => {
                 setCurrentUser(user);
-                if (user.role === 'customer') setActiveTab('customer-stores');
-                else if (user.role === 'store_owner') setActiveTab('store-dashboard');
-                else if (user.role === 'delivery_agent') setActiveTab('delivery-dashboard');
-                else if (user.role === 'admin') setActiveTab('admin-dashboard');
+                const defaultTab = DEFAULT_TAB_BY_ROLE[user.role] || 'customer-stores';
+                setActiveTab(defaultTab);
               }}
               onNavigate={(tab) => {
                 if (tab === 'forgot-password') {
@@ -444,17 +456,17 @@ export default function App() {
           )}
 
           {/* Delivery Supervisor Route Render */}
-          {currentRole === 'delivery_supervisor' && !['landing', 'auth', 'about', 'apply-store', 'apply-agent', 'contact', 'terms'].includes(activeTab) && (
+          {currentRole === 'delivery_supervisor' && activeTab === 'delivery-supervisor-dashboard' && (
             <DeliverySupervisorDashboardView />
           )}
 
           {/* Finance Admin Route Render */}
-          {currentRole === 'finance_admin' && !['landing', 'auth', 'about', 'apply-store', 'apply-agent', 'contact', 'terms'].includes(activeTab) && (
+          {currentRole === 'finance_admin' && activeTab === 'finance-admin-dashboard' && (
             <FinanceAdminDashboardView />
           )}
 
           {/* Orders Manager Route Render */}
-          {currentRole === 'orders_manager' && !['landing', 'auth', 'about', 'apply-store', 'apply-agent', 'contact', 'terms'].includes(activeTab) && (
+          {currentRole === 'orders_manager' && activeTab === 'orders-manager-dashboard' && (
             <OrdersManagerDashboardView />
           )}
 
