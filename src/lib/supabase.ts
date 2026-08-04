@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import {
   UserProfile,
   UserRole,
+  USER_ROLES,
   Store,
   Product,
   CustomerAddress,
@@ -140,7 +141,7 @@ export async function saveSupabaseUser(user: Partial<UserProfile>) {
 
     const userName = user.name || (user as any).full_name || 'مستخدم';
     let userRole = user.role || 'customer';
-    if (!['customer', 'store_owner', 'delivery_agent', 'admin'].includes(userRole)) {
+    if (!(USER_ROLES as readonly string[]).includes(userRole)) {
       userRole = 'customer';
     }
 
@@ -159,9 +160,11 @@ export async function saveSupabaseUser(user: Partial<UserProfile>) {
     const { error } = await supabase.from('profiles').upsert(payload, { onConflict: 'id' });
     if (error) {
       console.warn('Supabase profile sync notice:', error.message);
+      throw new Error(error.message);
     }
   } catch (err) {
-    console.warn('Sync profile info:', err);
+    console.warn('Sync profile info error:', err);
+    throw err;
   }
 }
 

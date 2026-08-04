@@ -61,7 +61,14 @@ export const FinanceAdminDashboardView: React.FC = () => {
   // Financial Calculations
   const deliveredOrders = orders.filter((o) => o.status === 'delivered');
   const totalGMV = deliveredOrders.reduce((sum, o) => sum + o.total, 0);
-  const totalCommissions = deliveredOrders.reduce((sum, o) => sum + Math.round(o.subtotal * 0.1), 0);
+
+  const storeMap = new Map<string, Store>(stores.map((s) => [s.id, s]));
+  const totalCommissions = deliveredOrders.reduce((sum, o) => {
+    const store = storeMap.get(o.store_id);
+    const rate = (store?.commission_rate ?? 15) / 100;
+    return sum + Math.round(o.subtotal * rate);
+  }, 0);
+
   const totalDeliveryFees = deliveredOrders.reduce((sum, o) => sum + o.delivery_fee, 0);
 
   const pendingPayoutsList = payouts.filter((p) => p.status === 'pending');

@@ -33,11 +33,9 @@ export const AdminCustomersView: React.FC = () => {
     }, 3500);
   };
 
-  const handleRoleChange = (user: UserProfile, newRole: UserRole) => {
+  const handleRoleChange = async (user: UserProfile, newRole: UserRole) => {
     if (user.role === newRole) return;
     const updatedUser: UserProfile = { ...user, role: newRole };
-    StorageRepo.saveUser(updatedUser);
-    setUsers(StorageRepo.getUsers());
 
     const roleNames: Record<UserRole, string> = {
       customer: 'عميل',
@@ -49,10 +47,18 @@ export const AdminCustomersView: React.FC = () => {
       orders_manager: 'مسؤول الطلبات',
     };
 
-    showToast(`تم تغيير صلاحية "${user.name || user.full_name || 'المستخدم'}" بنجاح إلى (${roleNames[newRole]})`);
+    try {
+      await StorageRepo.saveUser(updatedUser);
+      setUsers(StorageRepo.getUsers());
+      showToast(`تم تغيير صلاحية "${user.name || user.full_name || 'المستخدم'}" بنجاح إلى (${roleNames[newRole]})`);
 
-    if (selectedProfile && selectedProfile.id === user.id) {
-      setSelectedProfile(updatedUser);
+      if (selectedProfile && selectedProfile.id === user.id) {
+        setSelectedProfile(updatedUser);
+      }
+    } catch (err: any) {
+      console.error('Failed to change user role:', err);
+      showToast(`حدث خطأ أثناء تغيير الصلاحية: ${err?.message || 'تعذر الاتصال بقاعدة البيانات'}`);
+      setUsers(StorageRepo.getUsers());
     }
   };
 
