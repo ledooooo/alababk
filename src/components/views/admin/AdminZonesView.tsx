@@ -140,7 +140,7 @@ export const AdminZonesView: React.FC = () => {
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
               <h3 className="font-extrabold text-slate-900 text-sm">{z.name}</h3>
               <span className="font-black text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200 text-xs">
-                {formatCurrency(z.base_delivery_fee)}
+                {formatCurrency(z.base_delivery_fee ?? 0)}
               </span>
             </div>
 

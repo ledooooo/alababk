@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
 import { Order, OrderStatus } from '../../../types/domain';
 import { formatCurrency, formatDateArabic, formatPhoneNumber } from '../../../lib/formatters';
-import { ORDER_STATUS_LABELS } from '../../../lib/constants';
+import { ORDER_STATUS_LABELS, getOrderStatusConfig } from '../../../lib/constants';
 import { Pagination } from '../../shared/Pagination';
 import {
   ShoppingBag,
@@ -180,7 +180,7 @@ export const StoreOrdersView: React.FC = () => {
       ) : (
         <div className="space-y-4">
           {paginatedOrders.map((order) => {
-            const statusConfig = ORDER_STATUS_LABELS[order.status] || ORDER_STATUS_LABELS.pending;
+            const statusConfig = getOrderStatusConfig(order.status);
 
             return (
               <div

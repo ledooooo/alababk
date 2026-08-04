@@ -81,7 +81,7 @@ export const AdminAgentsView: React.FC = () => {
               </div>
               <div>
                 <span className="font-bold block text-slate-800">المركبة:</span>
-                <span>{ag.vehicle_type} ({ag.plate_number || 'بدون لوحة'})</span>
+                <span>{ag.vehicle_type} ({ag.license_plate || 'بدون لوحة'})</span>
               </div>
               <div>
                 <span className="font-bold block text-slate-800">التقييم:</span>
@@ -89,7 +89,7 @@ export const AdminAgentsView: React.FC = () => {
               </div>
               <div>
                 <span className="font-bold block text-slate-800">إجمالي الرحلات:</span>
-                <span className="font-bold text-slate-900">{ag.total_deliveries} رحلة</span>
+                <span className="font-bold text-slate-900">{ag.total_trips} رحلة</span>
               </div>
             </div>
 

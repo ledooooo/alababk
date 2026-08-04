@@ -115,8 +115,8 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
     const testNotif: NotificationItem = {
       id: `notif-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
       user_id: currentUser?.id || 'all',
-      title: testTitles[randomIndex],
-      message: testMsgs[randomIndex],
+      title: testTitles[randomIndex] || 'تنبيه جديد',
+      message: testMsgs[randomIndex] || 'لديك إشعار جديد في التطبيق.',
       type: randomIndex % 2 === 0 ? 'promotion' : 'order_status',
       is_read: false,
       created_at: new Date().toISOString(),
@@ -135,8 +135,12 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
 
     if (item.link_url && onNavigate) {
       if (item.link_url.includes(':')) {
-        const [tab, param] = item.link_url.split(':');
-        onNavigate(tab, param);
+        const parts = item.link_url.split(':');
+        const tab = parts[0];
+        const param = parts[1];
+        if (tab) {
+          onNavigate(tab, param);
+        }
       } else {
         onNavigate(item.link_url);
       }

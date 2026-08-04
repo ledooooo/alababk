@@ -120,14 +120,15 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-amber-300 animate-ping" />
               <span>
-                {role === 'customer' && `لديك طلب نشط جاري متابعته (#${activeOrders[0].order_number})`}
+                {role === 'customer' && `لديك طلب نشط جاري متابعته (#${activeOrders[0]?.order_number || ''})`}
                 {role === 'store_owner' && `لديك ${activeOrders.length} طلبات جديدة نرجو مراجعتها وتجهيزها!`}
-                {role === 'delivery_agent' && `لديك طلب جاري توصيله للعميل (${activeOrders[0].order_number})`}
+                {role === 'delivery_agent' && `لديك طلب جاري توصيله للعميل (${activeOrders[0]?.order_number || ''})`}
               </span>
             </div>
             <button
               onClick={() => {
-                if (role === 'customer') onNavigate('customer-order-detail', activeOrders[0].id);
+                const firstId = activeOrders[0]?.id;
+                if (role === 'customer' && firstId) onNavigate('customer-order-detail', firstId);
                 if (role === 'store_owner') onNavigate('store-orders');
                 if (role === 'delivery_agent') onNavigate('delivery-active');
               }}

@@ -37,11 +37,10 @@ export const StoreAnalyticsView: React.FC = () => {
   const productSalesMap: Record<string, { name: string; qty: number; revenue: number }> = {};
   deliveredOrders.forEach((o) => {
     o.items.forEach((item) => {
-      if (!productSalesMap[item.product_name]) {
-        productSalesMap[item.product_name] = { name: item.product_name, qty: 0, revenue: 0 };
-      }
-      productSalesMap[item.product_name].qty += item.quantity;
-      productSalesMap[item.product_name].revenue += item.total_price;
+      const existing = productSalesMap[item.product_name] || { name: item.product_name, qty: 0, revenue: 0 };
+      existing.qty += item.quantity;
+      existing.revenue += item.total_price;
+      productSalesMap[item.product_name] = existing;
     });
   });
 
@@ -61,22 +60,21 @@ export const StoreAnalyticsView: React.FC = () => {
     const salesByDay: Record<string, { sales: number; count: number }> = {};
     orders.forEach((o) => {
       if (o.created_at) {
-        const orderDateStr = new Date(o.created_at).toISOString().split('T')[0];
-        if (!salesByDay[orderDateStr]) {
-          salesByDay[orderDateStr] = { sales: 0, count: 0 };
-        }
+        const orderDateStr = new Date(o.created_at).toISOString().split('T')[0] || '';
+        const existingDay = salesByDay[orderDateStr] || { sales: 0, count: 0 };
         if (o.status === 'delivered') {
-          salesByDay[orderDateStr].sales += o.subtotal;
+          existingDay.sales += o.subtotal;
         }
-        salesByDay[orderDateStr].count += 1;
+        existingDay.count += 1;
+        salesByDay[orderDateStr] = existingDay;
       }
     });
 
     for (let i = daysCount - 1; i >= 0; i--) {
       const d = new Date();
       d.setDate(now.getDate() - i);
-      const dateKey = d.toISOString().split('T')[0];
-      const dayName = arabicDays[d.getDay()];
+      const dateKey = d.toISOString().split('T')[0] || '';
+      const dayName = arabicDays[d.getDay()] || '';
       const dayFormatted = `${d.getDate()}/${d.getMonth() + 1}`;
       const label = daysCount <= 7 ? `${dayName} (${dayFormatted})` : dayFormatted;
 

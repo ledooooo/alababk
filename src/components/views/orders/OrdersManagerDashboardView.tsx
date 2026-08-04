@@ -320,7 +320,7 @@ export const OrdersManagerDashboardView: React.FC = () => {
 
                     <td className="p-3">
                       <p className="font-extrabold text-slate-900">{order.store_name}</p>
-                      <p className="font-mono text-xs font-black text-blue-700">{order.total_amount} ج.م</p>
+                      <p className="font-mono text-xs font-black text-blue-700">{order.total} ج.م</p>
                     </td>
 
                     <td className="p-3">
@@ -476,7 +476,7 @@ export const OrdersManagerDashboardView: React.FC = () => {
               {/* Summary financials */}
               <div className="p-3 bg-blue-50/70 border border-blue-100 rounded-2xl flex items-center justify-between font-black">
                 <span className="text-blue-900">المبلغ الإجمالي المطلق:</span>
-                <span className="text-base text-blue-800 font-mono">{selectedOrder.total_amount} ج.م</span>
+                <span className="text-base text-blue-800 font-mono">{selectedOrder.total} ج.م</span>
               </div>
             </div>
 

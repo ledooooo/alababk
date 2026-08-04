@@ -85,7 +85,7 @@ export const StoreNotificationsView: React.FC = () => {
                       })}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-600 leading-relaxed font-medium">{item.body}</p>
+                  <p className="text-xs text-slate-600 leading-relaxed font-medium">{item.message}</p>
                 </div>
               </div>
             ))}

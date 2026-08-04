@@ -3,7 +3,7 @@ import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
 import { Order, OrderStatus } from '../../../types/domain';
 import { formatCurrency, formatDateArabic, formatPhoneNumber } from '../../../lib/formatters';
 import { LeafletMap } from '../../shared/LeafletMap';
-import { ORDER_STATUS_LABELS } from '../../../lib/constants';
+import { ORDER_STATUS_LABELS, getOrderStatusConfig } from '../../../lib/constants';
 import {
   ArrowRight,
   Clock,
@@ -96,7 +96,7 @@ export const CustomerOrderDetailView: React.FC<CustomerOrderDetailViewProps> = (
     );
   }
 
-  const statusConfig = ORDER_STATUS_LABELS[order.status] || ORDER_STATUS_LABELS.pending;
+  const statusConfig = getOrderStatusConfig(order.status);
 
   // Timeline Order Steps Sequence
   const timelineSteps: { status: OrderStatus; title: string; desc: string }[] = [

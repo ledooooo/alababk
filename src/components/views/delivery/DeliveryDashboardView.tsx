@@ -31,7 +31,7 @@ export const DeliveryDashboardView: React.FC<DeliveryDashboardViewProps> = ({ on
       const user = StorageRepo.getCurrentUser();
       if (user) {
         const ag = StorageRepo.getAgentByUserId(user.id) || StorageRepo.getAgents()[0];
-        setAgent(ag);
+        setAgent(ag || null);
         if (ag) {
           const allOrders = StorageRepo.getOrders();
           setOrders(allOrders);

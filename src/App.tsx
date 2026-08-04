@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
 import { StorageRepo, subscribeToStorageChange } from './lib/storage';
-import { UserRole, UserProfile } from './types/domain';
+import { UserRole, UserProfile, Store } from './types/domain';
 import { Navbar } from './components/layout/Navbar';
 import { SplashScreen } from './components/layout/SplashScreen';
 import { CartDrawer } from './components/cart/CartDrawer';
@@ -127,6 +127,9 @@ export default function App() {
     const userId = currentSession.user.id;
     useCartStore.getState().setUserId(userId);
 
+    // Explicitly sync data with Supabase after real session is confirmed
+    StorageRepo.syncWithSupabase().catch(() => {});
+
     try {
       const { data: profile } = await supabase
         .from('profiles')
@@ -241,7 +244,8 @@ export default function App() {
     setActiveTab('landing');
   };
 
-  const handleSelectStore = (storeId: string) => {
+  const handleSelectStore = (storeOrId: Store | string) => {
+    const storeId = typeof storeOrId === 'string' ? storeOrId : storeOrId.id;
     setSelectedStoreId(storeId);
     setActiveTab('customer-store-detail');
   };
@@ -363,6 +367,7 @@ export default function App() {
               <CustomerStoreDetailView
                 storeId={selectedStoreId}
                 onBack={() => setActiveTab('customer-stores')}
+                onOpenCart={() => setIsOpen(true)}
               />
             )}
 
@@ -496,7 +501,11 @@ export default function App() {
       </main>
 
       {/* Cart Drawer Component */}
-      <CartDrawer onCheckout={handleProceedToCheckout} />
+      <CartDrawer
+        isOpen={isOpen}
+        onClose={() => setIsOpen(false)}
+        onProceedToCheckout={handleProceedToCheckout}
+      />
 
       {/* Footer */}
       <footer className="bg-white border-t border-slate-200 mt-auto py-8 dir-rtl">

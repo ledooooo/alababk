@@ -25,6 +25,8 @@ import {
   saveSupabaseAgent,
   saveSupabaseOrder,
   updateSupabaseOrderStatus,
+  updateSupabaseOrder,
+  updateSupabaseOrderLocation,
   saveSupabaseZone,
   saveSupabaseCoupon,
   fetchSupabaseStores,
@@ -54,6 +56,8 @@ import {
   deleteSupabaseStore,
   deleteSupabaseAgent,
 } from './supabase';
+
+const lastLocationUpdateMap = new Map<string, number>();
 
 const STORAGE_KEYS = {
   USERS: 'jihat_users',
@@ -622,6 +626,27 @@ export const StorageRepo = {
     const order = this.getOrderById(orderId);
     if (!order) return null;
 
+    // Prepare fields to update on the existing order in Supabase
+    const fieldsToUpdate: Record<string, any> = {
+      status,
+    };
+
+    if (status === 'delivered') {
+      fieldsToUpdate.payment_status = 'paid';
+    }
+
+    if (agentInfo) {
+      if (agentInfo.delivery_agent_id !== undefined) fieldsToUpdate.delivery_agent_id = agentInfo.delivery_agent_id;
+      if (agentInfo.delivery_agent_name !== undefined) fieldsToUpdate.delivery_agent_name = agentInfo.delivery_agent_name;
+      if (agentInfo.delivery_agent_phone !== undefined) fieldsToUpdate.delivery_agent_phone = agentInfo.delivery_agent_phone;
+      if (agentInfo.delivery_agent_lat !== undefined) fieldsToUpdate.delivery_agent_lat = agentInfo.delivery_agent_lat;
+      if (agentInfo.delivery_agent_lng !== undefined) fieldsToUpdate.delivery_agent_lng = agentInfo.delivery_agent_lng;
+    }
+
+    // 1. Await actual DB UPDATE query first (throws if error occurs)
+    await updateSupabaseOrder(orderId, fieldsToUpdate, note);
+
+    // 2. Update local state & cache after DB update confirmation
     order.status = status;
     order.updated_at = new Date().toISOString();
     order.status_history.push({
@@ -638,9 +663,17 @@ export const StorageRepo = {
       order.payment_status = 'paid';
     }
 
-    await this.saveOrder(order);
+    const cachedOrders = this.getCachedOrders();
+    const idx = cachedOrders.findIndex((o) => o.id === orderId);
+    if (idx >= 0) {
+      cachedOrders[idx] = { ...cachedOrders[idx], ...order };
+    } else {
+      cachedOrders.unshift(order);
+    }
+    setCached(STORAGE_KEYS.ORDERS, cachedOrders);
+    notifyStorageChange('order', 'save', order);
 
-    // Generate push notification for customer
+    // 3. Generate push notification for customer
     const agentName = agentInfo?.delivery_agent_name || order.delivery_agent_name || 'الكابتن';
     const statusNotifTitles: Record<string, string> = {
       pending: `تم استلام طلبك (#${order.order_number})`,
@@ -679,8 +712,7 @@ export const StorageRepo = {
       link_url: `customer-order-detail:${order.id}`,
     };
 
-    await this.saveNotification(newNotif);
-    await updateSupabaseOrderStatus(orderId, status, note);
+    await this.saveNotification(newNotif).catch(() => {});
     return order;
   },
 
@@ -700,7 +732,32 @@ export const StorageRepo = {
     order.delivery_agent_lng = lng;
     order.updated_at = new Date().toISOString();
 
-    return this.saveOrder(order);
+    const cachedOrders = this.getCachedOrders();
+    const idx = cachedOrders.findIndex((o) => o.id === orderId);
+    const existingOrder = cachedOrders[idx];
+    if (existingOrder) {
+      const updatedOrder: Order = {
+        ...existingOrder,
+        delivery_agent_lat: lat,
+        delivery_agent_lng: lng,
+        updated_at: order.updated_at,
+      };
+      cachedOrders[idx] = updatedOrder;
+      setCached(STORAGE_KEYS.ORDERS, cachedOrders);
+      notifyStorageChange('order', 'save', updatedOrder);
+    }
+
+    // Throttle location updates to Supabase to at most once every 5 seconds per orderId
+    const now = Date.now();
+    const lastTime = lastLocationUpdateMap.get(orderId) || 0;
+    if (now - lastTime >= 5000) {
+      lastLocationUpdateMap.set(orderId, now);
+      updateSupabaseOrderLocation(orderId, lat, lng).catch((err) => {
+        console.warn('Failed to update agent location in Supabase:', err);
+      });
+    }
+
+    return order;
   },
 
   // --- PAYOUTS ---
@@ -1146,8 +1203,3 @@ export const StorageRepo = {
     }
   },
 };
-
-// Sync with Supabase on startup
-if (typeof window !== 'undefined') {
-  StorageRepo.syncWithSupabase();
-}

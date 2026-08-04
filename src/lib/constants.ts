@@ -71,8 +71,10 @@ export const DEFAULT_CATEGORIES: Category[] = [
   { id: 'cat-beverages', name: 'مشروبات ومياه', slug: 'beverages', icon: '🥤', sort_order: 7 },
 ];
 
+export const DEFAULT_STATUS_LABEL = { label: 'في انتظار قبول المتجر', bg: 'bg-amber-100', text: 'text-amber-800', icon: 'Clock' };
+
 export const ORDER_STATUS_LABELS: Record<string, { label: string; bg: string; text: string; icon: string }> = {
-  pending: { label: 'في انتظار قبول المتجر', bg: 'bg-amber-100', text: 'text-amber-800', icon: 'Clock' },
+  pending: DEFAULT_STATUS_LABEL,
   accepted: { label: 'تم قبول الطلب', bg: 'bg-blue-100', text: 'text-blue-800', icon: 'CheckCircle2' },
   preparing: { label: 'جاري تحضير الطلب', bg: 'bg-purple-100', text: 'text-purple-800', icon: 'ChefHat' },
   ready: { label: 'جاهز للاستلام والتوصيل', bg: 'bg-indigo-100', text: 'text-indigo-800', icon: 'PackageCheck' },
@@ -83,3 +85,7 @@ export const ORDER_STATUS_LABELS: Record<string, { label: string; bg: string; te
   rejected: { label: 'اعتذر المتجر عن الطلب', bg: 'bg-rose-100', text: 'text-rose-800', icon: 'XCircle' },
   cancelled: { label: 'ملغي', bg: 'bg-slate-100', text: 'text-slate-800', icon: 'Ban' },
 };
+
+export function getOrderStatusConfig(status: string) {
+  return ORDER_STATUS_LABELS[status] ?? DEFAULT_STATUS_LABEL;
+}

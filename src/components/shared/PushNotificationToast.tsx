@@ -36,8 +36,12 @@ export const PushNotificationToast: React.FC<PushNotificationToastProps> = ({ on
   const handleClick = () => {
     if (activeToast.link_url) {
       if (activeToast.link_url.includes(':')) {
-        const [tab, param] = activeToast.link_url.split(':');
-        onNavigate(tab, param);
+        const parts = activeToast.link_url.split(':');
+        const tab = parts[0];
+        const param = parts[1];
+        if (tab) {
+          onNavigate(tab, param);
+        }
       } else {
         onNavigate(activeToast.link_url);
       }

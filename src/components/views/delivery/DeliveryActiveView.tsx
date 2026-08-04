@@ -56,14 +56,18 @@ export const DeliveryActiveView: React.FC<DeliveryActiveViewProps> = ({ onTripCo
     );
   }
 
-  const handleUpdateTripStatus = (nextStatus: OrderStatus, note: string) => {
-    const updated = StorageRepo.updateOrderStatus(activeOrder.id, nextStatus, note);
-    if (nextStatus === 'delivered') {
-      setTimeout(() => {
-        onTripCompleted();
-      }, 800);
-    } else if (updated) {
-      setActiveOrder(updated);
+  const handleUpdateTripStatus = async (nextStatus: OrderStatus, note: string) => {
+    try {
+      const updated = await StorageRepo.updateOrderStatus(activeOrder.id, nextStatus, note);
+      if (nextStatus === 'delivered') {
+        setTimeout(() => {
+          onTripCompleted();
+        }, 800);
+      } else if (updated) {
+        setActiveOrder(updated);
+      }
+    } catch (err) {
+      console.error('Failed to update trip status:', err);
     }
   };
 

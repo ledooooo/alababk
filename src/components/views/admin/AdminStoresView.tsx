@@ -44,7 +44,7 @@ export const AdminStoresView: React.FC = () => {
   const filteredStores = stores.filter(
     (s) =>
       s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.category_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (s.category_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
       s.address.toLowerCase().includes(searchQuery.toLowerCase())
   );
 

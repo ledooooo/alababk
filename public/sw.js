@@ -1,4 +1,4 @@
-const CACHE_NAME = 'alababak-pwa-v2';
+const CACHE_NAME = 'alababak-pwa-v3';
 const ASSETS_TO_CACHE = [
   '/',
   '/index.html',
@@ -48,38 +48,50 @@ self.addEventListener('fetch', (event) => {
       return;
     }
 
-    event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          if (
-            response &&
-            response.status === 200 &&
-            (response.type === 'basic' || response.type === 'cors')
-          ) {
-            const responseToCache = response.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              try {
-                if (url.protocol === 'http:' || url.protocol === 'https:') {
-                  cache.put(event.request, responseToCache).catch(() => {});
-                }
-              } catch {
-                // Ignore cache put failures for unsupported requests
-              }
+    const isHtmlRequest =
+      event.request.mode === 'navigate' ||
+      (event.request.headers.get('accept') && event.request.headers.get('accept').includes('text/html')) ||
+      url.pathname === '/' ||
+      url.pathname.endsWith('.html');
+
+    if (isHtmlRequest) {
+      // Network-first, falling back to cache for HTML documents
+      event.respondWith(
+        fetch(event.request)
+          .then((response) => {
+            if (response && response.status === 200 && (response.type === 'basic' || response.type === 'cors')) {
+              const responseToCache = response.clone();
+              caches.open(CACHE_NAME).then((cache) => {
+                cache.put(event.request, responseToCache).catch(() => {});
+              });
+            }
+            return response;
+          })
+          .catch(() => {
+            return caches.match(event.request).then((cached) => {
+              return cached || caches.match('/index.html');
             });
+          })
+      );
+    } else {
+      // Cache-first, falling back to network for static assets (JS, CSS, images, etc.)
+      event.respondWith(
+        caches.match(event.request).then((cachedResponse) => {
+          if (cachedResponse) {
+            return cachedResponse;
           }
-          return response;
-        })
-        .catch(() => {
-          return caches.match(event.request).then((cachedResponse) => {
-            if (cachedResponse) {
-              return cachedResponse;
+          return fetch(event.request).then((response) => {
+            if (response && response.status === 200 && (response.type === 'basic' || response.type === 'cors')) {
+              const responseToCache = response.clone();
+              caches.open(CACHE_NAME).then((cache) => {
+                cache.put(event.request, responseToCache).catch(() => {});
+              });
             }
-            if (event.request.headers.get('accept')?.includes('text/html')) {
-              return caches.match('/index.html');
-            }
+            return response;
           });
         })
-    );
+      );
+    }
   } catch {
     // If URL parsing fails, let the browser handle the fetch natively
     return;

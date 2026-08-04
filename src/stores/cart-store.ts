@@ -89,6 +89,17 @@ function mergeCarts(localCart: CartData, serverCart: CartData): CartData {
     });
     return { storeId: serverCart.storeId, storeName: serverCart.storeName, items: mergedItems };
   }
+
+  // Handle conflicting store IDs with user confirmation
+  if (typeof window !== 'undefined' && typeof window.confirm === 'function') {
+    const useLocal = window.confirm(
+      `تنبيه: لديك منتجات في السلة من متجر "${localCart.storeName || 'مختلف'}" بينما يحتوي حسابك على سلة سابقة من متجر "${serverCart.storeName || 'مختلف'}".\n\nاضغط "موافق" (OK) للابقاء على السلة المحلية، أو "إلغاء" (Cancel) لاستخدام سلة الحساب.`
+    );
+    if (useLocal) {
+      return localCart;
+    }
+  }
+
   return serverCart;
 }
 
@@ -195,12 +206,13 @@ export const useCartStore = create<CartState>()((set, get) => ({
     // 2. Same store or empty cart
     const existingIndex = items.findIndex((i) => i.product.id === product.id);
     const updatedItems = [...items];
+    const existingItem = updatedItems[existingIndex];
 
-    if (existingIndex >= 0) {
+    if (existingIndex >= 0 && existingItem) {
       updatedItems[existingIndex] = {
-        ...updatedItems[existingIndex],
-        quantity: updatedItems[existingIndex].quantity + quantity,
-        notes: notes || updatedItems[existingIndex].notes,
+        ...existingItem,
+        quantity: existingItem.quantity + quantity,
+        notes: notes || existingItem.notes,
       };
     } else {
       updatedItems.push({ product, quantity, notes });

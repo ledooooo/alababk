@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
 import { Order, OrderStatus } from '../../../types/domain';
 import { formatCurrency, formatDateArabic, formatPhoneNumber } from '../../../lib/formatters';
-import { ORDER_STATUS_LABELS } from '../../../lib/constants';
+import { ORDER_STATUS_LABELS, getOrderStatusConfig } from '../../../lib/constants';
 import { Pagination } from '../../shared/Pagination';
 import { ShoppingBag, Search, Filter, ShieldCheck, Phone, MapPin } from 'lucide-react';
 
@@ -116,7 +116,7 @@ export const AdminOrdersView: React.FC = () => {
                 </tr>
               ) : (
                 paginatedOrders.map((o) => {
-                  const statusConfig = ORDER_STATUS_LABELS[o.status] || ORDER_STATUS_LABELS.pending;
+                  const statusConfig = getOrderStatusConfig(o.status);
 
                   return (
                     <tr key={o.id} className="hover:bg-slate-50/80 transition-colors">

@@ -112,11 +112,15 @@ export const PromoCarousel: React.FC<PromoCarouselProps> = ({ onNavigate }) => {
 
   // Touch Swipe Handlers for Mobile
   const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX;
+    if (e.touches[0]) {
+      touchStartX.current = e.touches[0].clientX;
+    }
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    touchEndX.current = e.touches[0].clientX;
+    if (e.touches[0]) {
+      touchEndX.current = e.touches[0].clientX;
+    }
   };
 
   const handleTouchEnd = () => {
@@ -137,6 +141,7 @@ export const PromoCarousel: React.FC<PromoCarouselProps> = ({ onNavigate }) => {
   };
 
   const currentSlide = slides[currentIndex];
+  if (!currentSlide) return null;
 
   return (
     <div

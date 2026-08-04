@@ -19,12 +19,12 @@ import {
 } from 'lucide-react';
 
 interface CustomerCheckoutViewProps {
-  onBackToCart: () => void;
+  onBack: () => void;
   onOrderPlaced: (orderId: string) => void;
 }
 
 export const CustomerCheckoutView: React.FC<CustomerCheckoutViewProps> = ({
-  onBackToCart,
+  onBack,
   onOrderPlaced,
 }) => {
   const { items, storeId, storeName, getSubtotal, clearCart } = useCartStore();
@@ -110,8 +110,16 @@ export const CustomerCheckoutView: React.FC<CustomerCheckoutViewProps> = ({
         setCheckoutError('يرجى كتابة تفاصيل العنوان');
         return;
       }
+      const newAddressId =
+        typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+          ? crypto.randomUUID()
+          : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+              const r = (Math.random() * 16) | 0;
+              return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+            });
+
       finalAddress = {
-        id: `addr-${Date.now()}`,
+        id: newAddressId,
         user_id: currentUser?.id || 'usr-guest',
         title: newTitle,
         address_line: newAddressLine,
@@ -198,7 +206,7 @@ export const CustomerCheckoutView: React.FC<CustomerCheckoutViewProps> = ({
       {/* Top Header */}
       <div className="flex items-center justify-between">
         <button
-          onClick={onBackToCart}
+          onClick={onBack}
           className="flex items-center gap-2 text-slate-700 hover:text-emerald-700 text-xs font-bold bg-white px-3.5 py-2 rounded-xl border border-slate-200 shadow-xs hover:border-slate-300 transition-all"
         >
           <ArrowRight className="w-4 h-4" />
