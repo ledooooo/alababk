@@ -195,7 +195,7 @@ export const useCartStore = create<CartState>()((set, get) => ({
     persistCart(state.userId, merged.storeId, merged.storeName, merged.items);
   },
 
-  addItem: (product, storeName, quantity = 1, notes = '') => {
+  addItem: (product: Product, storeName: string, quantity: number = 1, notes: string = '') => {
     const { storeId, items, userId } = get();
 
     // 1. Check if adding from a different store
@@ -204,7 +204,7 @@ export const useCartStore = create<CartState>()((set, get) => ({
     }
 
     // 2. Same store or empty cart
-    const existingIndex = items.findIndex((i) => i.product.id === product.id);
+    const existingIndex = items.findIndex((i: CartLineItem) => i.product.id === product.id);
     const updatedItems = [...items];
     const existingItem = updatedItems[existingIndex];
 
@@ -230,7 +230,7 @@ export const useCartStore = create<CartState>()((set, get) => ({
     return { success: true };
   },
 
-  forceAddItem: (product, storeName, quantity = 1, notes = '') => {
+  forceAddItem: (product: Product, storeName: string, quantity: number = 1, notes: string = '') => {
     const { userId } = get();
     const updatedItems = [{ product, quantity, notes }];
     const newStoreId = product.store_id;
@@ -244,7 +244,7 @@ export const useCartStore = create<CartState>()((set, get) => ({
     persistCart(userId, newStoreId, storeName, updatedItems);
   },
 
-  updateQuantity: (productId, quantity) => {
+  updateQuantity: (productId: string, quantity: number) => {
     const { userId, items } = get();
 
     if (quantity <= 0) {
@@ -252,7 +252,7 @@ export const useCartStore = create<CartState>()((set, get) => ({
       return;
     }
 
-    const updatedItems = items.map((item) =>
+    const updatedItems = items.map((item: CartLineItem) =>
       item.product.id === productId ? { ...item, quantity } : item
     );
 
@@ -260,9 +260,9 @@ export const useCartStore = create<CartState>()((set, get) => ({
     persistCart(userId, get().storeId, get().storeName, updatedItems);
   },
 
-  removeItem: (productId) => {
+  removeItem: (productId: string) => {
     const { userId, items } = get();
-    const updatedItems = items.filter((item) => item.product.id !== productId);
+    const updatedItems = items.filter((item: CartLineItem) => item.product.id !== productId);
 
     if (updatedItems.length === 0) {
       set({ storeId: null, storeName: null, items: [] });
@@ -273,9 +273,9 @@ export const useCartStore = create<CartState>()((set, get) => ({
     }
   },
 
-  updateItemNotes: (productId, notes) => {
+  updateItemNotes: (productId: string, notes: string) => {
     const { userId, items } = get();
-    const updatedItems = items.map((item) =>
+    const updatedItems = items.map((item: CartLineItem) =>
       item.product.id === productId ? { ...item, notes } : item
     );
     set({ items: updatedItems });
@@ -305,12 +305,12 @@ export const useCartStore = create<CartState>()((set, get) => ({
 
   getSubtotal: () => {
     return get().items.reduce(
-      (sum, item) => sum + item.product.price * item.quantity,
+      (sum: number, item: CartLineItem) => sum + item.product.price * item.quantity,
       0
     );
   },
 
   getItemCount: () => {
-    return get().items.reduce((sum, item) => sum + item.quantity, 0);
+    return get().items.reduce((sum: number, item: CartLineItem) => sum + item.quantity, 0);
   },
 }));
