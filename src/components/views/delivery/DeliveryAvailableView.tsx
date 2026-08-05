@@ -90,8 +90,8 @@ export const DeliveryAvailableView: React.FC<DeliveryAvailableViewProps> = ({ on
             const distance = calculateDistanceKm(
               agent?.current_lat || 30.0450,
               agent?.current_lng || 31.2370,
-              order.store_lat,
-              order.store_lng
+              order.store_lat || 30.0444,
+              order.store_lng || 31.2357
             );
 
             return (

@@ -115,25 +115,25 @@ export interface Store {
   name: string;
   slug: string;
   owner_id: string;
-  owner_name?: string;
-  owner_phone?: string;
-  category_id: string;
-  category_name?: string;
-  description: string;
+  owner_name?: string | null;
+  owner_phone?: string | null;
+  category_id?: string | null;
+  category_name?: string | null;
+  description?: string | null;
   logo_url: string;
-  banner_url?: string;
-  address: string;
-  lat: number;
-  lng: number;
-  phone: string;
+  banner_url?: string | null;
+  address?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  phone?: string | null;
   is_approved: boolean;
   is_open: boolean;
-  rating: number;
-  reviews_count: number;
+  rating?: number | null;
+  reviews_count?: number | null;
   commission_rate: number; // e.g. 10 (%)
   min_order_amount: number;
   delivery_fee: number;
-  opening_hours: { [key: string]: { open: string; close: string; closed?: boolean } };
+  opening_hours?: { [key: string]: { open: string; close: string; closed?: boolean } };
   created_at: string;
 }
 
@@ -155,17 +155,17 @@ export interface Product {
 
 export interface CustomerAddress {
   id: string;
-  user_id: string;
-  title: string; // e.g. "المنزل", "العمل"
-  address_line: string;
-  street?: string;
-  building: string;
-  floor: string;
-  apartment: string;
-  lat: number;
-  lng: number;
-  notes?: string;
-  is_default: boolean;
+  user_id?: string;
+  title?: string; // e.g. "المنزل", "العمل"
+  address_line?: string;
+  street?: string | null;
+  building?: string | null;
+  floor?: string | null;
+  apartment?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  notes?: string | null;
+  is_default?: boolean;
 }
 
 export interface CartItem {
@@ -196,11 +196,11 @@ export interface OrderItem {
   id: string;
   product_id: string;
   product_name: string;
-  product_image: string;
+  product_image?: string | null;
   unit_price: number;
   quantity: number;
   total_price: number;
-  notes?: string;
+  notes?: string | null;
 }
 
 export interface OrderStatusHistoryItem {
@@ -213,38 +213,38 @@ export interface Order {
   id: string;
   order_number: string;
   customer_id: string;
-  customer_name: string;
-  customer_phone: string;
+  customer_name?: string | null;
+  customer_phone?: string | null;
   store_id: string;
-  store_name: string;
-  store_phone: string;
-  store_address: string;
-  store_lat: number;
-  store_lng: number;
+  store_name?: string | null;
+  store_phone?: string | null;
+  store_address?: string | null;
+  store_lat?: number | null;
+  store_lng?: number | null;
   delivery_address: CustomerAddress;
-  delivery_agent_id?: string;
-  delivery_agent_name?: string;
-  delivery_agent_phone?: string;
-  delivery_agent_vehicle?: string;
-  delivery_agent_lat?: number;
-  delivery_agent_lng?: number;
+  delivery_agent_id?: string | null;
+  delivery_agent_name?: string | null;
+  delivery_agent_phone?: string | null;
+  delivery_agent_vehicle?: string | null;
+  delivery_agent_lat?: number | null;
+  delivery_agent_lng?: number | null;
   items: OrderItem[];
   subtotal: number;
   delivery_fee: number;
-  tip_amount?: number;
+  tip_amount?: number | null;
   discount_amount: number;
-  coupon_code?: string;
+  coupon_code?: string | null;
   total: number;
   payment_method: 'cash' | 'online';
   payment_status: 'pending' | 'paid';
   status: OrderStatus;
   status_history: OrderStatusHistoryItem[];
-  rejection_reason?: string;
-  customer_notes?: string;
-  zone_id?: string;
-  commission_pct?: number;
-  commission_amount?: number;
-  eta_minutes?: number;
+  rejection_reason?: string | null;
+  customer_notes?: string | null;
+  zone_id?: string | null;
+  commission_pct?: number | null;
+  commission_amount?: number | null;
+  eta_minutes?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -253,18 +253,18 @@ export interface DeliveryAgent {
   id: string;
   user_id: string;
   name: string;
-  phone: string;
-  avatar_url?: string;
+  phone?: string | null;
+  avatar_url?: string | null;
   vehicle_type: 'scooter' | 'motorcycle' | 'bicycle' | 'car';
-  license_plate?: string;
-  national_id: string;
+  license_plate?: string | null;
+  national_id?: string | null;
   is_approved: boolean;
   is_online: boolean;
-  active_zone: string;
-  rating: number;
-  total_trips: number;
-  current_lat?: number;
-  current_lng?: number;
+  active_zone?: string | null;
+  rating?: number | null;
+  total_trips?: number | null;
+  current_lat?: number | null;
+  current_lng?: number | null;
   created_at: string;
 }
 
@@ -300,19 +300,19 @@ export interface Review {
   id: string;
   order_id: string;
   store_id: string;
-  store_name?: string;
+  store_name?: string | null;
   customer_id: string;
   customer_name: string;
-  delivery_agent_id?: string;
-  delivery_agent_name?: string;
-  rating?: number;
+  delivery_agent_id?: string | null;
+  delivery_agent_name?: string | null;
+  rating?: number | null;
   store_rating: number; // 1 to 5
-  agent_rating?: number;
-  delivery_rating?: number; // 1 to 5
-  comment?: string;
-  store_comment?: string;
-  agent_comment?: string;
-  store_response?: string;
+  agent_rating?: number | null;
+  delivery_rating?: number | null; // 1 to 5
+  comment?: string | null;
+  store_comment?: string | null;
+  agent_comment?: string | null;
+  store_response?: string | null;
   created_at: string;
 }
 

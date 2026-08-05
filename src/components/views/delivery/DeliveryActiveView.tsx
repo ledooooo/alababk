@@ -77,22 +77,27 @@ export const DeliveryActiveView: React.FC<DeliveryActiveViewProps> = ({ onTripCo
     title: string;
     popupText?: string;
     type?: 'store' | 'customer' | 'agent';
-  }[] = [
-    {
+  }[] = [];
+
+  if (activeOrder.store_lat && activeOrder.store_lng) {
+    mapMarkers.push({
       lat: activeOrder.store_lat,
       lng: activeOrder.store_lng,
-      title: activeOrder.store_name,
-      popupText: `موقع الاستلام: ${activeOrder.store_address}`,
+      title: activeOrder.store_name || 'المتجر',
+      popupText: `موقع الاستلام: ${activeOrder.store_address || 'غير متاح'}`,
       type: 'store' as const,
-    },
-    {
+    });
+  }
+
+  if (activeOrder.delivery_address?.lat && activeOrder.delivery_address?.lng) {
+    mapMarkers.push({
       lat: activeOrder.delivery_address.lat,
       lng: activeOrder.delivery_address.lng,
       title: 'عنوان العميل والتسليم',
-      popupText: activeOrder.delivery_address.address_line,
+      popupText: activeOrder.delivery_address.address_line || 'غير متاح',
       type: 'customer' as const,
-    },
-  ];
+    });
+  }
 
   if (activeOrder.delivery_agent_lat && activeOrder.delivery_agent_lng) {
     mapMarkers.push({
@@ -125,7 +130,13 @@ export const DeliveryActiveView: React.FC<DeliveryActiveViewProps> = ({ onTripCo
 
       {/* Interactive Map */}
       <div className="bg-white rounded-3xl p-4 border border-slate-200 shadow-xs space-y-2">
-        <LeafletMap markers={mapMarkers} showRoute={true} height="280px" />
+        {mapMarkers.length > 0 ? (
+          <LeafletMap markers={mapMarkers} showRoute={true} height="280px" />
+        ) : (
+          <div className="p-6 text-center text-xs text-slate-500 bg-slate-50 rounded-2xl">
+            لم يحدد العميل أو المتجر موقعاً على الخريطة
+          </div>
+        )}
       </div>
 
       {/* Pickup Store & Dropoff Customer Quick Cards */}
@@ -137,18 +148,22 @@ export const DeliveryActiveView: React.FC<DeliveryActiveViewProps> = ({ onTripCo
               <Store className="w-4 h-4 text-blue-600" />
               1. استلام من المحل
             </span>
-            <a
-              href={`tel:${activeOrder.store_phone}`}
-              className="p-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-bold flex items-center gap-1"
-            >
-              <Phone className="w-3.5 h-3.5" />
-              <span>اتصال</span>
-            </a>
+            {activeOrder.store_phone ? (
+              <a
+                href={`tel:${activeOrder.store_phone}`}
+                className="p-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-bold flex items-center gap-1"
+              >
+                <Phone className="w-3.5 h-3.5" />
+                <span>اتصال</span>
+              </a>
+            ) : (
+              <span className="text-[10px] text-slate-400">الهاتف غير متاح</span>
+            )}
           </div>
 
           <div>
-            <h4 className="font-extrabold text-slate-900 text-xs">{activeOrder.store_name}</h4>
-            <p className="text-[11px] text-slate-500 mt-0.5">{activeOrder.store_address}</p>
+            <h4 className="font-extrabold text-slate-900 text-xs">{activeOrder.store_name || 'غير متاح'}</h4>
+            <p className="text-[11px] text-slate-500 mt-0.5">{activeOrder.store_address || 'غير متاح'}</p>
           </div>
         </div>
 
@@ -159,20 +174,28 @@ export const DeliveryActiveView: React.FC<DeliveryActiveViewProps> = ({ onTripCo
               <MapPin className="w-4 h-4 text-emerald-600" />
               2. التسليم للعميل
             </span>
-            <a
-              href={`tel:${activeOrder.customer_phone}`}
-              className="p-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg text-xs font-bold flex items-center gap-1"
-            >
-              <Phone className="w-3.5 h-3.5" />
-              <span>اتصال</span>
-            </a>
+            {activeOrder.customer_phone ? (
+              <a
+                href={`tel:${activeOrder.customer_phone}`}
+                className="p-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg text-xs font-bold flex items-center gap-1"
+              >
+                <Phone className="w-3.5 h-3.5" />
+                <span>اتصال</span>
+              </a>
+            ) : (
+              <span className="text-[10px] text-slate-400">الهاتف غير متاح</span>
+            )}
           </div>
 
           <div>
-            <h4 className="font-extrabold text-slate-900 text-xs">{activeOrder.customer_name}</h4>
-            <p className="text-[11px] text-slate-500 mt-0.5">{activeOrder.delivery_address.address_line}</p>
+            <h4 className="font-extrabold text-slate-900 text-xs">{activeOrder.customer_name || 'عميل'}</h4>
+            <p className="text-[11px] text-slate-500 mt-0.5">{activeOrder.delivery_address?.address_line || 'غير متاح'}</p>
             <p className="text-[10px] text-slate-400 mt-0.5">
-              عمارة: {activeOrder.delivery_address.building} | دور: {activeOrder.delivery_address.floor} | شقة: {activeOrder.delivery_address.apartment}
+              {activeOrder.delivery_address?.building ? `عمارة: ${activeOrder.delivery_address.building}` : 'العمارة: غير متاح'}
+              {' | '}
+              {activeOrder.delivery_address?.floor ? `دور: ${activeOrder.delivery_address.floor}` : 'الدور: غير متاح'}
+              {' | '}
+              {activeOrder.delivery_address?.apartment ? `شقة: ${activeOrder.delivery_address.apartment}` : 'الشقة: غير متاح'}
             </p>
           </div>
         </div>

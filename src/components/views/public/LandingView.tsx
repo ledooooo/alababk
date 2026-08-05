@@ -204,7 +204,7 @@ export const LandingView: React.FC<LandingViewProps> = ({ onNavigate }) => {
                 />
                 <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-md px-2.5 py-1 rounded-xl text-[10px] font-bold text-slate-800 flex items-center gap-1 shadow-xs">
                   <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-                  <span>{store.rating.toFixed(1)}</span>
+                  <span>{store.rating ? store.rating.toFixed(1) : 'جديد'}</span>
                 </div>
               </div>
 

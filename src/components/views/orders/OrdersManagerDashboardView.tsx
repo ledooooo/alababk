@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
-import { subscribeSupabase } from '../../../lib/supabase';
+import { subscribeSupabase, fetchSupabaseOrders, fetchSupabaseAgents } from '../../../lib/supabase';
 import { Order, OrderStatus, DeliveryAgent } from '../../../types/domain';
 import {
   ShoppingBag,
@@ -21,38 +21,55 @@ import {
   RefreshCw,
   Send,
   SlidersHorizontal,
-  Flame
+  Flame,
+  Loader2
 } from 'lucide-react';
 
 export const OrdersManagerDashboardView: React.FC = () => {
-  const [orders, setOrders] = useState<Order[]>(StorageRepo.getOrders());
-  const [agents, setAgents] = useState<DeliveryAgent[]>(StorageRepo.getAgents());
+  const [orders, setOrders] = useState<Order[]>(StorageRepo.getCachedOrders());
+  const [agents, setAgents] = useState<DeliveryAgent[]>(StorageRepo.getCachedAgents());
+  const [loading, setLoading] = useState<boolean>(StorageRepo.getCachedOrders().length === 0);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [assignAgentModalOrder, setAssignAgentModalOrder] = useState<Order | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  useEffect(() => {
-    const sync = () => {
-      setOrders(StorageRepo.getOrders());
-      setAgents(StorageRepo.getAgents());
-    };
+  const loadDataDirectly = async (showRefreshingBadge = true) => {
+    if (showRefreshingBadge) setIsRefreshing(true);
+    try {
+      const [fetchedOrders, fetchedAgents] = await Promise.all([
+        fetchSupabaseOrders(),
+        fetchSupabaseAgents(),
+      ]);
+      setOrders(fetchedOrders);
+      setAgents(fetchedAgents);
+      setError(null);
+    } catch (err: any) {
+      console.error('Direct Supabase fetch error in OrdersManagerDashboardView:', err);
+      setError('تعذر تحميل أحدث الطلبات مباشرة من خادم Supabase.');
+    } finally {
+      setLoading(false);
+      setIsRefreshing(false);
+    }
+  };
 
-    sync();
-    StorageRepo.refreshOrders();
-    StorageRepo.refreshAgents();
+  useEffect(() => {
+    loadDataDirectly();
 
     const unsubscribeStorage = subscribeToStorageChange(() => {
-      sync();
+      setOrders(StorageRepo.getCachedOrders());
+      setAgents(StorageRepo.getCachedAgents());
     });
 
     const unsubscribeRealtimeOrders = subscribeSupabase<Order>('orders', () => {
-      StorageRepo.refreshOrders();
+      loadDataDirectly(false);
     });
 
     const unsubscribeRealtimeAgents = subscribeSupabase<DeliveryAgent>('delivery_agents', () => {
-      StorageRepo.refreshAgents();
+      loadDataDirectly(false);
     });
 
     return () => {
@@ -86,7 +103,7 @@ export const OrdersManagerDashboardView: React.FC = () => {
     if (!agent) return;
 
     try {
-      await StorageRepo.assignOrderToAgent(orderId, agentId, agent.name, agent.phone);
+      await StorageRepo.assignOrderToAgent(orderId, agentId, agent.name, agent.phone || undefined);
       showToast(`تم إسناد الطلب للكابتن "${agent.name}" بنجاح`);
       setAssignAgentModalOrder(null);
     } catch (err: any) {
@@ -153,9 +170,9 @@ export const OrdersManagerDashboardView: React.FC = () => {
   const filteredOrders = orders.filter((o) => {
     const matchesSearch =
       o.order_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      o.customer_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      o.customer_phone.includes(searchQuery) ||
-      o.store_name.toLowerCase().includes(searchQuery.toLowerCase());
+      (o.customer_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (o.customer_phone || '').includes(searchQuery) ||
+      (o.store_name || '').toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesStatus = statusFilter === 'all' || o.status === statusFilter;
 
@@ -192,12 +209,42 @@ export const OrdersManagerDashboardView: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 bg-slate-800/80 p-2.5 rounded-2xl border border-slate-700 text-xs font-bold text-slate-200">
-            <Flame className="w-4 h-4 text-amber-400 animate-bounce" />
-            <span>{pendingCount + preparingCount + onTheWayCount} طلبات نشطة في الشارع الآن</span>
+          <div className="flex items-center gap-2">
+            {isRefreshing && (
+              <div className="flex items-center gap-1.5 bg-amber-500/20 text-amber-300 border border-amber-400/30 px-3 py-1.5 rounded-2xl text-xs font-bold animate-pulse">
+                <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-300" />
+                <span>يتم التحديث من Supabase...</span>
+              </div>
+            )}
+            <div className="flex items-center gap-2 bg-slate-800/80 p-2.5 rounded-2xl border border-slate-700 text-xs font-bold text-slate-200">
+              <Flame className="w-4 h-4 text-amber-400 animate-bounce" />
+              <span>{pendingCount + preparingCount + onTheWayCount} طلبات نشطة في الشارع الآن</span>
+            </div>
           </div>
         </div>
       </div>
+
+      {error && (
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-xs font-bold text-rose-800 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>{error}</span>
+          </div>
+          <button
+            onClick={() => loadDataDirectly()}
+            className="px-3 py-1 bg-rose-600 text-white rounded-xl text-xs hover:bg-rose-700 transition-all shadow-xs"
+          >
+            إعادة المحاولة
+          </button>
+        </div>
+      )}
+
+      {loading ? (
+        <div className="p-12 text-center space-y-3 bg-white rounded-3xl border border-slate-200">
+          <Loader2 className="w-8 h-8 text-blue-600 animate-spin mx-auto" />
+          <p className="text-xs font-bold text-slate-600">جاري قراءة أحدث بيانات الطلبات من الخادم...</p>
+        </div>
+      ) : (
 
       {/* SLA Metric Counters */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -490,6 +537,7 @@ export const OrdersManagerDashboardView: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
       )}
     </div>
   );

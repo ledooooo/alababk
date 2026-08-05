@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
-import { Order, OrderStatus } from '../../../types/domain';
+import { fetchOrderStatusHistory } from '../../../lib/supabase';
+import { Order, OrderStatus, OrderStatusHistoryItem } from '../../../types/domain';
 import { formatCurrency, formatDateArabic, formatPhoneNumber } from '../../../lib/formatters';
 import { LeafletMap } from '../../shared/LeafletMap';
 import { ORDER_STATUS_LABELS, getOrderStatusConfig } from '../../../lib/constants';
@@ -30,6 +31,7 @@ export const CustomerOrderDetailView: React.FC<CustomerOrderDetailViewProps> = (
   onBack,
 }) => {
   const [order, setOrder] = useState<Order | null>(StorageRepo.getOrderById(orderId));
+  const [dbStatusHistory, setDbStatusHistory] = useState<OrderStatusHistoryItem[]>([]);
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [ratingStore, setRatingStore] = useState(5);
   const [ratingDelivery, setRatingDelivery] = useState(5);
@@ -46,6 +48,18 @@ export const CustomerOrderDetailView: React.FC<CustomerOrderDetailViewProps> = (
     });
     return unsubscribe;
   }, [orderId]);
+
+  useEffect(() => {
+    if (orderId) {
+      fetchOrderStatusHistory(orderId)
+        .then((history) => {
+          if (history && history.length > 0) {
+            setDbStatusHistory(history);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [orderId, order?.status]);
 
   // Fallback coordinates for store and customer if missing
   const storeLat = order?.store_lat || 29.9602;
@@ -283,6 +297,29 @@ export const CustomerOrderDetailView: React.FC<CustomerOrderDetailViewProps> = (
                 );
               })}
             </div>
+
+            {/* Audit Log from order_status_history */}
+            {(dbStatusHistory.length > 0 || (order.status_history && order.status_history.length > 0)) && (
+              <div className="mt-4 pt-3 border-t border-slate-100">
+                <span className="text-[11px] font-bold text-slate-700 block mb-2">سجل التغييرات الموثق (order_status_history):</span>
+                <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                  {(dbStatusHistory.length > 0 ? dbStatusHistory : order.status_history).map((item, hIdx) => {
+                    const cfg = getOrderStatusConfig(item.status);
+                    return (
+                      <div key={hIdx} className="flex items-center justify-between text-[11px] bg-slate-50 p-2 rounded-xl border border-slate-100">
+                        <div className="flex items-center gap-2">
+                          <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] ${cfg.bg} ${cfg.text}`}>
+                            {cfg.label}
+                          </span>
+                          {item.note && <span className="text-slate-500 text-[10px]">{item.note}</span>}
+                        </div>
+                        <span className="text-slate-400 font-mono text-[10px]">{formatDateArabic(item.timestamp)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -387,11 +424,19 @@ export const CustomerOrderDetailView: React.FC<CustomerOrderDetailViewProps> = (
         )}
 
         {/* Leaflet Map Display */}
-        <LeafletMap
-          markers={mapMarkers}
-          showRoute={true}
-          height="340px"
-        />
+        {order.delivery_address?.lat && order.delivery_address?.lng ? (
+          <LeafletMap
+            markers={mapMarkers}
+            showRoute={true}
+            height="340px"
+          />
+        ) : (
+          <div className="bg-slate-50 border border-slate-200 rounded-2xl p-8 text-center space-y-2 text-slate-500">
+            <MapPin className="w-8 h-8 text-slate-400 mx-auto" />
+            <p className="font-bold text-xs text-slate-700">لم يحدّد العميل موقعاً على الخريطة</p>
+            <p className="text-[11px] text-slate-400">العنوان النصي المكتوب: {order.delivery_address?.address_line || 'غير متاح'}</p>
+          </div>
+        )}
       </div>
 
       {/* Grid Details: Contact Cards & Items */}
@@ -405,20 +450,24 @@ export const CustomerOrderDetailView: React.FC<CustomerOrderDetailViewProps> = (
                 <Store className="w-4 h-4 text-blue-600" />
                 بيانات المتجر
               </span>
-              <a
-                href={`tel:${order.store_phone}`}
-                className="bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs font-bold px-3 py-1 rounded-lg flex items-center gap-1 transition-colors"
-              >
-                <Phone className="w-3.5 h-3.5" />
-                <span>اتصال بالمحل</span>
-              </a>
+              {order.store_phone ? (
+                <a
+                  href={`tel:${order.store_phone}`}
+                  className="bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs font-bold px-3 py-1 rounded-lg flex items-center gap-1 transition-colors"
+                >
+                  <Phone className="w-3.5 h-3.5" />
+                  <span>اتصال بالمحل</span>
+                </a>
+              ) : (
+                <span className="text-xs text-slate-400">الهاتف غير متاح</span>
+              )}
             </div>
 
             <div>
-              <h4 className="font-extrabold text-slate-900 text-sm">{order.store_name}</h4>
-              <p className="text-xs text-slate-500 mt-0.5">{order.store_address}</p>
+              <h4 className="font-extrabold text-slate-900 text-sm">{order.store_name || 'اسم المتجر غير متاح'}</h4>
+              <p className="text-xs text-slate-500 mt-0.5">{order.store_address || 'العنوان غير متاح'}</p>
               <p className="text-xs font-mono text-slate-600 mt-1 dir-ltr text-right">
-                {formatPhoneNumber(order.store_phone)}
+                {order.store_phone ? formatPhoneNumber(order.store_phone) : 'الهاتف غير متاح'}
               </p>
             </div>
           </div>
@@ -431,7 +480,7 @@ export const CustomerOrderDetailView: React.FC<CustomerOrderDetailViewProps> = (
                   <Bike className="w-4 h-4 text-orange-600" />
                   مندوب التوصيل الكابتن
                 </span>
-                {order.delivery_agent_phone && (
+                {order.delivery_agent_phone ? (
                   <a
                     href={`tel:${order.delivery_agent_phone}`}
                     className="bg-orange-50 text-orange-700 hover:bg-orange-100 text-xs font-bold px-3 py-1 rounded-lg flex items-center gap-1 transition-colors"
@@ -439,6 +488,8 @@ export const CustomerOrderDetailView: React.FC<CustomerOrderDetailViewProps> = (
                     <Phone className="w-3.5 h-3.5" />
                     <span>اتصال بالمندوب</span>
                   </a>
+                ) : (
+                  <span className="text-xs text-slate-400">الهاتف غير متاح</span>
                 )}
               </div>
 
@@ -448,7 +499,7 @@ export const CustomerOrderDetailView: React.FC<CustomerOrderDetailViewProps> = (
                   المركبة: {order.delivery_agent_vehicle || 'موتوسيكل'}
                 </p>
                 <p className="text-xs font-mono text-slate-600 mt-1 dir-ltr text-right">
-                  {formatPhoneNumber(order.delivery_agent_phone || '')}
+                  {order.delivery_agent_phone ? formatPhoneNumber(order.delivery_agent_phone) : 'الهاتف غير متاح'}
                 </p>
               </div>
             </div>
@@ -460,10 +511,14 @@ export const CustomerOrderDetailView: React.FC<CustomerOrderDetailViewProps> = (
               <MapPin className="w-4 h-4 text-emerald-600" />
               عنوان الوصول والتسليم
             </span>
-            <p className="font-bold text-xs text-slate-900">{order.delivery_address.title}</p>
-            <p className="text-xs text-slate-600">{order.delivery_address.address_line}</p>
+            <p className="font-bold text-xs text-slate-900">{order.delivery_address.title || 'العنوان الرئيسي'}</p>
+            <p className="text-xs text-slate-600">{order.delivery_address.address_line || 'غير متاح'}</p>
             <p className="text-[11px] text-slate-400">
-              مبنى: {order.delivery_address.building} | دور: {order.delivery_address.floor} | شقة: {order.delivery_address.apartment}
+              {order.delivery_address?.building ? `مبنى: ${order.delivery_address.building}` : 'المبنى: غير متاح'}
+              {' | '}
+              {order.delivery_address?.floor ? `دور: ${order.delivery_address.floor}` : 'الدور: غير متاح'}
+              {' | '}
+              {order.delivery_address?.apartment ? `شقة: ${order.delivery_address.apartment}` : 'الشقة: غير متاح'}
             </p>
           </div>
         </div>
@@ -479,7 +534,7 @@ export const CustomerOrderDetailView: React.FC<CustomerOrderDetailViewProps> = (
               <div key={item.id} className="flex gap-3 items-center justify-between text-xs">
                 <div className="flex items-center gap-2.5">
                   <img
-                    src={item.product_image}
+                    src={item.product_image || undefined}
                     alt={item.product_name}
                     className="w-12 h-12 object-cover rounded-lg border border-slate-200 shrink-0"
                   />
@@ -507,6 +562,12 @@ export const CustomerOrderDetailView: React.FC<CustomerOrderDetailViewProps> = (
               <span>رسوم التوصيل:</span>
               <span className="font-semibold text-slate-800">{formatCurrency(order.delivery_fee)}</span>
             </div>
+            {!!order.tip_amount && order.tip_amount > 0 && (
+              <div className="flex justify-between text-amber-700 font-semibold">
+                <span>إكرامية الكابتن (Tip):</span>
+                <span>+ {formatCurrency(order.tip_amount)}</span>
+              </div>
+            )}
             {order.discount_amount > 0 && (
               <div className="flex justify-between text-emerald-700 font-semibold">
                 <span>خصم الكوبون ({order.coupon_code}):</span>

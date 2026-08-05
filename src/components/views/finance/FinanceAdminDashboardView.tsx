@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
-import { subscribeSupabase } from '../../../lib/supabase';
+import { subscribeSupabase, fetchFinanceSummary, FinanceSummaryItem } from '../../../lib/supabase';
 import { Store, Order, PayoutRequest, Payout } from '../../../types/domain';
 import {
   DollarSign,
@@ -26,6 +26,7 @@ export const FinanceAdminDashboardView: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>(StorageRepo.getOrders());
   const [stores, setStores] = useState<Store[]>(StorageRepo.getStores());
   const [payouts, setPayouts] = useState<PayoutRequest[]>(StorageRepo.getPayouts());
+  const [financeSummary, setFinanceSummary] = useState<FinanceSummaryItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -38,6 +39,12 @@ export const FinanceAdminDashboardView: React.FC = () => {
     };
     sync();
     StorageRepo.refreshPayouts();
+
+    fetchFinanceSummary().then((summary) => {
+      if (summary && summary.length > 0) {
+        setFinanceSummary(summary);
+      }
+    }).catch(() => {});
 
     const unsubStorage = subscribeToStorageChange(() => {
       sync();
@@ -58,21 +65,21 @@ export const FinanceAdminDashboardView: React.FC = () => {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // Financial Calculations
+  // Financial Summary from Database (View finance_summary or stored order values)
   const deliveredOrders = orders.filter((o) => o.status === 'delivered');
-  const totalGMV = deliveredOrders.reduce((sum, o) => sum + o.total, 0);
 
-  const storeMap = new Map<string, Store>(stores.map((s) => [s.id, s]));
-  const totalCommissions = deliveredOrders.reduce((sum, o) => {
-    if (typeof o.commission_amount === 'number') {
-      return sum + o.commission_amount;
-    }
-    const store = storeMap.get(o.store_id);
-    const rate = (o.commission_pct ?? store?.commission_rate ?? 15) / 100;
-    return sum + Math.round(o.subtotal * rate);
-  }, 0);
+  const totalGMV = financeSummary.length > 0
+    ? financeSummary.reduce((sum, item) => sum + item.gmv, 0)
+    : deliveredOrders.reduce((sum, o) => sum + o.total, 0);
 
-  const totalDeliveryFees = deliveredOrders.reduce((sum, o) => sum + o.delivery_fee, 0);
+  // Strictly use stored order.commission_amount or database finance_summary view - no local calculation
+  const totalCommissions = financeSummary.length > 0
+    ? financeSummary.reduce((sum, item) => sum + item.commissions, 0)
+    : deliveredOrders.reduce((sum, o) => sum + (o.commission_amount || 0), 0);
+
+  const totalDeliveryFees = financeSummary.length > 0
+    ? financeSummary.reduce((sum, item) => sum + item.delivery_fees, 0)
+    : deliveredOrders.reduce((sum, o) => sum + o.delivery_fee, 0);
 
   const pendingPayoutsList = payouts.filter((p) => p.status === 'pending');
   const completedPayoutsList = payouts.filter((p) => p.status === 'completed');
@@ -208,8 +215,9 @@ export const FinanceAdminDashboardView: React.FC = () => {
             >
               <option value="all">جميع حالات السحب</option>
               <option value="pending">قيد الانتظار (Pending)</option>
-              <option value="approved">تمت الموافقة (Approved)</option>
-              <option value="rejected">مرفوض (Rejected)</option>
+              <option value="processing">جاري المعالجة (Processing)</option>
+              <option value="completed">مكتملة (Completed)</option>
+              <option value="failed">متعثرة / مرفوضة (Failed)</option>
             </select>
           </div>
         </div>

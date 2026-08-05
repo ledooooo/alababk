@@ -51,15 +51,15 @@ export const SearchView: React.FC<SearchViewProps> = ({ onSelectStore, onNavigat
       const matchQuery =
         !query.trim() ||
         store.name.toLowerCase().includes(query.toLowerCase()) ||
-        store.description.toLowerCase().includes(query.toLowerCase()) ||
-        store.address.toLowerCase().includes(query.toLowerCase());
+        (store.description || '').toLowerCase().includes(query.toLowerCase()) ||
+        (store.address || '').toLowerCase().includes(query.toLowerCase());
 
       const matchCategory =
         selectedCategory === 'all' ||
         store.category_id === selectedCategory ||
         store.category_name === selectedCategory;
 
-      const matchRating = store.rating >= minRating;
+      const matchRating = (store.rating ?? 0) >= minRating;
 
       return matchQuery && matchCategory && matchRating;
     });
@@ -217,7 +217,7 @@ export const SearchView: React.FC<SearchViewProps> = ({ onSelectStore, onNavigat
                     <p className="text-[11px] text-slate-500 truncate">{store.category_name}</p>
                     <div className="flex items-center gap-1 text-[11px] font-bold text-amber-500 mt-0.5">
                       <Star className="w-3 h-3 fill-amber-400" />
-                      <span>{store.rating.toFixed(1)}</span>
+                      <span>{store.rating ? store.rating.toFixed(1) : 'جديد'}</span>
                     </div>
                   </div>
                 </div>

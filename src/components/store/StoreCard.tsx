@@ -101,15 +101,15 @@ export const StoreCard: React.FC<StoreCardProps> = ({ store, onSelect }) => {
             </h3>
             <div className="flex items-center gap-1 bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold px-2 py-0.5 rounded-lg shrink-0">
               <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-              <span>{store.rating.toFixed(1)}</span>
-              <span className="text-[10px] text-slate-400">({store.reviews_count})</span>
+              <span>{store.rating ? store.rating.toFixed(1) : 'جديد'}</span>
+              <span className="text-[10px] text-slate-400">({store.reviews_count || 0})</span>
             </div>
           </div>
 
           {/* Address & Description */}
           <p className="text-slate-500 text-xs mt-1.5 line-clamp-1 flex items-center gap-1">
             <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-            <span>{store.address}</span>
+            <span>{store.address || 'غير متاح'}</span>
           </p>
 
           <p className="text-slate-600 text-xs mt-2 line-clamp-2 leading-relaxed">

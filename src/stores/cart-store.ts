@@ -40,7 +40,19 @@ interface CartState {
 }
 
 function getStorageKey(userId: string | null): string {
-  return userId ? `jihat_cart_${userId}` : 'jihat_cart_guest';
+  const newKey = userId ? `alababak_cart_${userId}` : 'alababak_cart_guest';
+  const oldKey = userId ? `jihat_cart_${userId}` : 'jihat_cart_guest';
+  if (typeof window !== 'undefined') {
+    try {
+      if (!localStorage.getItem(newKey) && localStorage.getItem(oldKey)) {
+        const val = localStorage.getItem(oldKey);
+        if (val) localStorage.setItem(newKey, val);
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return newKey;
 }
 
 function persistCart(userId: string | null, storeId: string | null, storeName: string | null, items: CartLineItem[]): void {
@@ -107,7 +119,7 @@ function mergeCarts(localCart: CartData, serverCart: CartData): CartData {
 const getInitialUserId = (): string | null => {
   if (typeof window === 'undefined') return null;
   try {
-    const userRaw = localStorage.getItem('jihat_current_user');
+    const userRaw = localStorage.getItem('alababak_current_user') || localStorage.getItem('jihat_current_user');
     if (userRaw) {
       const user = JSON.parse(userRaw);
       return user?.id || null;
@@ -150,6 +162,7 @@ export const useCartStore = create<CartState>()((set, get) => ({
 
     // Clear guest cart after merging
     if (typeof window !== 'undefined') {
+      localStorage.removeItem('alababak_cart_guest');
       localStorage.removeItem('jihat_cart_guest');
     }
 

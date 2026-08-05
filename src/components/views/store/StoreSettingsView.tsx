@@ -129,7 +129,7 @@ export const StoreSettingsView: React.FC = () => {
             <label className="block text-xs font-bold text-slate-700 mb-1">رقم هاتف المحل *</label>
             <input
               type="text"
-              value={store.phone}
+              value={store.phone || ''}
               onChange={(e) => setStore({ ...store, phone: e.target.value })}
               className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none font-mono dir-ltr text-right"
             />
@@ -139,7 +139,7 @@ export const StoreSettingsView: React.FC = () => {
             <label className="block text-xs font-bold text-slate-700 mb-1">وصف المحل والخدمات</label>
             <textarea
               rows={2}
-              value={store.description}
+              value={store.description || ''}
               onChange={(e) => setStore({ ...store, description: e.target.value })}
               className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
             />
@@ -149,7 +149,7 @@ export const StoreSettingsView: React.FC = () => {
             <label className="block text-xs font-bold text-slate-700 mb-1">العنوان التفصيلي والمنطقة</label>
             <input
               type="text"
-              value={store.address}
+              value={store.address || ''}
               onChange={(e) => setStore({ ...store, address: e.target.value })}
               className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
             />

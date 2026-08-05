@@ -120,7 +120,7 @@ export const DeliveryDashboardView: React.FC<DeliveryDashboardViewProps> = ({ on
 
           <div className="flex items-center gap-1 bg-amber-500/20 border border-amber-500/30 text-amber-300 font-bold text-xs px-2.5 py-1 rounded-xl">
             <Star className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
-            <span>{agent.rating.toFixed(1)}</span>
+            <span>{agent.rating ? agent.rating.toFixed(1) : 'جديد'}</span>
           </div>
         </div>
 

@@ -46,8 +46,9 @@ export const CustomerCheckoutView: React.FC<CustomerCheckoutViewProps> = ({
   const [mapLng, setMapLng] = useState(DEFAULT_LNG);
 
   const [couponCode, setCouponCode] = useState('');
-  const [appliedCoupon, setAppliedCoupon] = useState<{ code: string; discount: number } | null>(null);
+  const [appliedCouponCode, setAppliedCouponCode] = useState<string | null>(null);
   const [couponError, setCouponError] = useState('');
+  const [tipAmount, setTipAmount] = useState<number>(0);
 
   const [paymentMethod, setPaymentMethod] = useState<'cash' | 'online'>('cash');
   const [customerNotes, setCustomerNotes] = useState('');
@@ -56,9 +57,14 @@ export const CustomerCheckoutView: React.FC<CustomerCheckoutViewProps> = ({
 
   const [serverQuote, setServerQuote] = useState<OrderQuoteResponse | null>(null);
 
+  // Address ID to pass to quote
+  const activeAddressId = selectedAddressId !== 'new' && selectedAddressId
+    ? selectedAddressId
+    : (savedAddresses[0]?.id || '00000000-0000-0000-0000-000000000000');
+
   useEffect(() => {
     let cancelled = false;
-    if (!storeId || items.length === 0 || selectedAddressId === 'new') {
+    if (!storeId || items.length === 0) {
       setServerQuote(null);
       return;
     }
@@ -67,64 +73,60 @@ export const CustomerCheckoutView: React.FC<CustomerCheckoutViewProps> = ({
       try {
         const res = await quoteOrderSecure({
           store_id: storeId,
-          address_id: selectedAddressId,
+          address_id: activeAddressId,
           items: items.map((i) => ({ product_id: i.product.id, quantity: i.quantity, notes: i.notes })),
-          coupon_code: appliedCoupon?.code,
+          coupon_code: appliedCouponCode || undefined,
+          tip_amount: tipAmount,
         });
         if (!cancelled) {
           setServerQuote(res);
+          setCouponError('');
         }
-      } catch (err) {
+      } catch (err: any) {
         if (!cancelled) {
-          setServerQuote(null);
+          console.warn('Quote RPC error:', err);
+          const msg = err?.message || 'تعذر جلب تسعير الطلب';
+          if (appliedCouponCode) {
+            setCouponError(msg);
+            setAppliedCouponCode(null);
+          }
         }
       }
     };
 
     fetchServerQuote();
     return () => { cancelled = true; };
-  }, [storeId, selectedAddressId, items, appliedCoupon]);
+  }, [storeId, activeAddressId, items, appliedCouponCode, tipAmount]);
 
   const subtotal = serverQuote ? serverQuote.subtotal : getSubtotal();
-  const deliveryFee = serverQuote ? serverQuote.delivery_fee : (subtotal > 0 ? 15 : 0);
-  const discountAmount = serverQuote ? serverQuote.discount : (appliedCoupon ? appliedCoupon.discount : 0);
-  const total = serverQuote ? serverQuote.total : Math.max(0, subtotal + deliveryFee - discountAmount);
+  const deliveryFee = serverQuote ? serverQuote.delivery_fee : 0;
+  const discountAmount = serverQuote ? serverQuote.discount : 0;
+  const etaMinutes = serverQuote?.eta_minutes;
+  const total = serverQuote ? serverQuote.total : Math.max(0, subtotal + deliveryFee - discountAmount + tipAmount);
 
   const store = storeId ? StorageRepo.getStoreById(storeId) : null;
 
-  const handleApplyCoupon = () => {
+  const handleApplyCoupon = async () => {
     setCouponError('');
     if (!couponCode.trim()) return;
+    if (!storeId || items.length === 0) return;
 
-    const coupons = StorageRepo.getCoupons();
-    const found = coupons.find(
-      (c) => c.code.toUpperCase() === couponCode.trim().toUpperCase() && c.is_active
-    );
-
-    if (!found) {
-      setCouponError('كود الخصم غير صحيح أو منتهي الصلاحية');
-      return;
+    try {
+      const res = await quoteOrderSecure({
+        store_id: storeId,
+        address_id: activeAddressId,
+        items: items.map((i) => ({ product_id: i.product.id, quantity: i.quantity, notes: i.notes })),
+        coupon_code: couponCode.trim(),
+        tip_amount: tipAmount,
+      });
+      setServerQuote(res);
+      setAppliedCouponCode(couponCode.trim());
+      setCouponError('');
+    } catch (err: any) {
+      const msg = err?.message || 'كود الخصم غير صحيح أو منتهي الصلاحية';
+      setCouponError(msg);
+      setAppliedCouponCode(null);
     }
-
-    if (subtotal < found.min_order_amount) {
-      setCouponError(`الحد الأدنى لاستخدام الكود هو ${formatCurrency(found.min_order_amount)}`);
-      return;
-    }
-
-    let calculatedDiscount = 0;
-    if (found.discount_type === 'percent') {
-      calculatedDiscount = (subtotal * found.discount_value) / 100;
-      if (found.max_discount_amount) {
-        calculatedDiscount = Math.min(calculatedDiscount, found.max_discount_amount);
-      }
-    } else {
-      calculatedDiscount = found.discount_value;
-    }
-
-    setAppliedCoupon({
-      code: found.code,
-      discount: calculatedDiscount,
-    });
   };
 
   const handlePlaceOrder = async () => {
@@ -202,8 +204,9 @@ export const CustomerCheckoutView: React.FC<CustomerCheckoutViewProps> = ({
       })),
       subtotal,
       delivery_fee: deliveryFee,
+      tip_amount: tipAmount,
       discount_amount: discountAmount,
-      coupon_code: appliedCoupon?.code,
+      coupon_code: appliedCouponCode || undefined,
       total,
       payment_method: paymentMethod,
       payment_status: paymentMethod === 'online' ? 'paid' : 'pending',
@@ -494,10 +497,33 @@ export const CustomerCheckoutView: React.FC<CustomerCheckoutViewProps> = ({
               ))}
             </div>
 
+            {/* Driver Tip Option */}
+            <div className="pt-3 border-t border-slate-100 space-y-1.5">
+              <label className="block text-[11px] font-bold text-slate-700">
+                إكرامية الكابتن (اختياري)
+              </label>
+              <div className="flex gap-1.5">
+                {[0, 10, 15, 20, 30].map((amt) => (
+                  <button
+                    key={amt}
+                    type="button"
+                    onClick={() => setTipAmount(amt)}
+                    className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition-all border ${
+                      tipAmount === amt
+                        ? 'bg-amber-500 text-white border-amber-500 shadow-xs'
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    {amt === 0 ? 'بدون' : `${amt} ج.م`}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Coupon Code Entry */}
             <div className="pt-3 border-t border-slate-100 space-y-1.5">
               <label className="block text-[11px] font-bold text-slate-700">
-                كود الخصم (جرب JIHAT10 أو WELCOME20)
+                كود الخصم
               </label>
               <div className="flex gap-2">
                 <input
@@ -508,16 +534,17 @@ export const CustomerCheckoutView: React.FC<CustomerCheckoutViewProps> = ({
                   className="flex-1 p-2 border border-slate-200 bg-slate-50 rounded-xl text-xs uppercase focus:ring-2 focus:ring-emerald-500 focus:outline-none font-mono"
                 />
                 <button
+                  type="button"
                   onClick={handleApplyCoupon}
                   className="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-colors shrink-0"
                 >
                   تطبيق
                 </button>
               </div>
-              {appliedCoupon && (
+              {appliedCouponCode && (
                 <p className="text-[11px] text-emerald-700 font-bold flex items-center gap-1">
                   <Check className="w-3.5 h-3.5" />
-                  تم تطبيق كود {appliedCoupon.code} بنجاح!
+                  تم تطبيق كود {appliedCouponCode} بنجاح!
                 </p>
               )}
               {couponError && (
@@ -535,7 +562,19 @@ export const CustomerCheckoutView: React.FC<CustomerCheckoutViewProps> = ({
                 <span>رسوم التوصيل:</span>
                 <span className="font-semibold text-slate-800">{formatCurrency(deliveryFee)}</span>
               </div>
-              {appliedCoupon && (
+              {etaMinutes && (
+                <div className="flex justify-between text-[11px] text-slate-500">
+                  <span>الوقت المتوقع للوصول (ETA):</span>
+                  <span className="font-bold text-slate-700">{etaMinutes} دقيقة</span>
+                </div>
+              )}
+              {tipAmount > 0 && (
+                <div className="flex justify-between text-amber-700 font-semibold">
+                  <span>إكرامية الكابتن:</span>
+                  <span>+ {formatCurrency(tipAmount)}</span>
+                </div>
+              )}
+              {discountAmount > 0 && (
                 <div className="flex justify-between text-emerald-700 font-semibold">
                   <span>الخصم المطبق:</span>
                   <span>- {formatCurrency(discountAmount)}</span>

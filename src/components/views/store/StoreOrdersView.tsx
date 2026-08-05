@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
+import { fetchSupabaseOrders, subscribeSupabase } from '../../../lib/supabase';
 import { Order, OrderStatus } from '../../../types/domain';
 import { formatCurrency, formatDateArabic, formatPhoneNumber } from '../../../lib/formatters';
 import { ORDER_STATUS_LABELS, getOrderStatusConfig } from '../../../lib/constants';
@@ -15,13 +16,19 @@ import {
   PackageCheck,
   Volume2,
   VolumeX,
-  AlertCircle
+  AlertCircle,
+  RefreshCw,
+  Loader2
 } from 'lucide-react';
 
 export const StoreOrdersView: React.FC = () => {
   const currentUser = StorageRepo.getCurrentUser();
   const storeId = currentUser?.associated_store_id || 'store-1';
-  const [orders, setOrders] = useState<Order[]>([]);
+  const initialCached = StorageRepo.getCachedOrders().filter((o) => o.store_id === storeId);
+  const [orders, setOrders] = useState<Order[]>(initialCached);
+  const [loading, setLoading] = useState<boolean>(initialCached.length === 0);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'pending' | 'preparing' | 'ready' | 'completed'>('pending');
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [rejectingOrderId, setRejectingOrderId] = useState<string | null>(null);
@@ -33,19 +40,42 @@ export const StoreOrdersView: React.FC = () => {
     setCurrentPage(1);
   }, [activeTab]);
 
-  useEffect(() => {
-    const fetchOrders = () => {
-      if (storeId) {
-        const storeOrders = StorageRepo.getOrders().filter((o) => o.store_id === storeId);
-        setOrders(storeOrders);
-      }
-    };
+  const loadStoreOrdersDirectly = async (showBadge = true) => {
+    if (showBadge) setIsRefreshing(true);
+    try {
+      const allOrders = await fetchSupabaseOrders();
+      const storeOrders = allOrders.filter((o) => o.store_id === storeId);
+      setOrders(storeOrders);
+      setError(null);
+    } catch (err: any) {
+      console.error('Error fetching direct orders in StoreOrdersView:', err);
+      setError('تعذر تحديث طلبات المتجر مباشرة من الخادم.');
+    } finally {
+      setLoading(false);
+      setIsRefreshing(false);
+    }
+  };
 
-    fetchOrders();
-    const unsubscribe = subscribeToStorageChange(() => {
-      fetchOrders();
+  useEffect(() => {
+    loadStoreOrdersDirectly();
+
+    const unsubscribeStorage = subscribeToStorageChange(() => {
+      const storeOrders = StorageRepo.getCachedOrders().filter((o) => o.store_id === storeId);
+      setOrders(storeOrders);
     });
-    return unsubscribe;
+
+    const unsubscribeRealtime = subscribeSupabase<Order>(
+      'orders',
+      () => {
+        loadStoreOrdersDirectly(false);
+      },
+      storeId ? `store_id=eq.${storeId}` : undefined
+    );
+
+    return () => {
+      unsubscribeStorage();
+      unsubscribeRealtime();
+    };
   }, [storeId]);
 
   const handleAcceptOrder = (orderId: string, prepTimeMinutes = 20) => {
@@ -105,18 +135,48 @@ export const StoreOrdersView: React.FC = () => {
           </p>
         </div>
 
-        <button
-          onClick={() => setSoundEnabled(!soundEnabled)}
-          className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-            soundEnabled
-              ? 'bg-blue-50 text-blue-700 border border-blue-200'
-              : 'bg-slate-100 text-slate-500'
-          }`}
-        >
-          {soundEnabled ? <Volume2 className="w-4 h-4 text-blue-600" /> : <VolumeX className="w-4 h-4" />}
-          <span>{soundEnabled ? 'التنبيه الصوتي مفعّل' : 'التنبيه الصوتي مكتوم'}</span>
-        </button>
+        <div className="flex items-center gap-2">
+          {isRefreshing && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-800 border border-amber-200 rounded-xl text-xs font-bold animate-pulse">
+              <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-600" />
+              <span>يتم التحديث...</span>
+            </div>
+          )}
+          <button
+            onClick={() => setSoundEnabled(!soundEnabled)}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
+              soundEnabled
+                ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                : 'bg-slate-100 text-slate-500'
+            }`}
+          >
+            {soundEnabled ? <Volume2 className="w-4 h-4 text-blue-600" /> : <VolumeX className="w-4 h-4" />}
+            <span>{soundEnabled ? 'التنبيه الصوتي مفعّل' : 'التنبيه الصوتي مكتوم'}</span>
+          </button>
+        </div>
       </div>
+
+      {error && (
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-xs font-bold text-rose-800 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>{error}</span>
+          </div>
+          <button
+            onClick={() => loadStoreOrdersDirectly()}
+            className="px-3 py-1 bg-rose-600 text-white rounded-xl text-xs hover:bg-rose-700 transition-all shadow-xs"
+          >
+            إعادة المحاولة
+          </button>
+        </div>
+      )}
+
+      {loading ? (
+        <div className="p-12 text-center space-y-3 bg-white rounded-2xl border border-slate-200">
+          <Loader2 className="w-8 h-8 text-blue-600 animate-spin mx-auto" />
+          <p className="text-xs font-bold text-slate-600">جاري قراءة أحدث طلبات المتجر من Supabase...</p>
+        </div>
+      ) : (
 
       {/* Tabs Row */}
       <div className="flex items-center gap-2 overflow-x-auto pb-2">
@@ -220,7 +280,7 @@ export const StoreOrdersView: React.FC = () => {
                       <div key={item.id} className="py-2 flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <img
-                            src={item.product_image}
+                            src={item.product_image || undefined}
                             alt={item.product_name}
                             className="w-10 h-10 object-cover rounded-md border border-slate-200"
                           />
@@ -342,6 +402,7 @@ export const StoreOrdersView: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
       )}
     </div>
   );

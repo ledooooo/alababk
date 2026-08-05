@@ -1,13 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
+import { fetchSupabaseOrders, subscribeSupabase } from '../../../lib/supabase';
 import { Order, OrderStatus } from '../../../types/domain';
 import { formatCurrency, formatDateArabic, formatPhoneNumber } from '../../../lib/formatters';
 import { ORDER_STATUS_LABELS, getOrderStatusConfig } from '../../../lib/constants';
 import { Pagination } from '../../shared/Pagination';
-import { ShoppingBag, Search, Filter, ShieldCheck, Phone, MapPin } from 'lucide-react';
+import { ShoppingBag, Search, Filter, ShieldCheck, Phone, MapPin, RefreshCw, AlertCircle, Loader2 } from 'lucide-react';
 
 export const AdminOrdersView: React.FC = () => {
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [orders, setOrders] = useState<Order[]>(StorageRepo.getCachedOrders());
+  const [loading, setLoading] = useState<boolean>(StorageRepo.getCachedOrders().length === 0);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);
@@ -17,16 +21,36 @@ export const AdminOrdersView: React.FC = () => {
     setCurrentPage(1);
   }, [searchQuery, statusFilter]);
 
-  useEffect(() => {
-    const refresh = () => {
-      setOrders(StorageRepo.getOrders());
-    };
+  const loadOrdersDirectly = async (showBadge = true) => {
+    if (showBadge) setIsRefreshing(true);
+    try {
+      const freshOrders = await fetchSupabaseOrders();
+      setOrders(freshOrders);
+      setError(null);
+    } catch (err: any) {
+      console.error('Failed to fetch direct orders in AdminOrdersView:', err);
+      setError('تعذر تحميل الطلبات مباشرة من خادم Supabase.');
+    } finally {
+      setLoading(false);
+      setIsRefreshing(false);
+    }
+  };
 
-    refresh();
-    const unsubscribe = subscribeToStorageChange(() => {
-      refresh();
+  useEffect(() => {
+    loadOrdersDirectly();
+
+    const unsubscribeStorage = subscribeToStorageChange(() => {
+      setOrders(StorageRepo.getCachedOrders());
     });
-    return unsubscribe;
+
+    const unsubscribeRealtime = subscribeSupabase<Order>('orders', () => {
+      loadOrdersDirectly(false);
+    });
+
+    return () => {
+      unsubscribeStorage();
+      unsubscribeRealtime();
+    };
   }, []);
 
   const handleStatusOverride = (orderId: string, newStatus: OrderStatus) => {
@@ -36,8 +60,8 @@ export const AdminOrdersView: React.FC = () => {
   const filteredOrders = orders.filter((o) => {
     const matchesSearch =
       o.order_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      o.store_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      o.customer_name.toLowerCase().includes(searchQuery.toLowerCase());
+      (o.store_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (o.customer_name || '').toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesStatus = statusFilter === 'all' || o.status === statusFilter;
 
@@ -62,7 +86,36 @@ export const AdminOrdersView: React.FC = () => {
             عرض وتعديل حالات الطلبات عبر جميع المتاجر والكباتن
           </p>
         </div>
+
+        {isRefreshing && (
+          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-800 border border-amber-200 rounded-xl text-xs font-bold animate-pulse">
+            <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-600" />
+            <span>يتم التحديث...</span>
+          </div>
+        )}
       </div>
+
+      {error && (
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-xs font-bold text-rose-800 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>{error}</span>
+          </div>
+          <button
+            onClick={() => loadOrdersDirectly()}
+            className="px-3 py-1 bg-rose-600 text-white rounded-xl text-xs hover:bg-rose-700 transition-all shadow-xs"
+          >
+            إعادة المحاولة
+          </button>
+        </div>
+      )}
+
+      {loading ? (
+        <div className="p-12 text-center space-y-3 bg-white rounded-2xl border border-slate-200">
+          <Loader2 className="w-8 h-8 text-purple-600 animate-spin mx-auto" />
+          <p className="text-xs font-bold text-slate-600">جاري تحميل الطلبات مباشرة من خادم Supabase...</p>
+        </div>
+      ) : (
 
       {/* Filters Row */}
       <div className="flex flex-col sm:flex-row gap-3">
@@ -182,6 +235,7 @@ export const AdminOrdersView: React.FC = () => {
           className="p-4"
         />
       </div>
+      )}
     </div>
   );
 };

@@ -63,8 +63,10 @@ export const Navbar: React.FC<NavbarProps> = ({
             (o) => o.store_id === user.associated_store_id && !['delivered', 'cancelled', 'rejected'].includes(o.status)
           );
         } else if (user.role === 'delivery_agent') {
+          const agent = StorageRepo.getAgentByUserId(user.id);
+          const agentId = agent?.id || user.id;
           userActive = allOrders.filter(
-            (o) => o.delivery_agent_id === user.id && !['delivered', 'cancelled', 'rejected'].includes(o.status)
+            (o) => (o.delivery_agent_id === agentId || o.delivery_agent_id === user.id) && !['delivered', 'cancelled', 'rejected'].includes(o.status)
           );
         }
         setActiveOrders(userActive);

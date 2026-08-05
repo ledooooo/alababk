@@ -1,6 +1,6 @@
 import { Category, DeliveryZone } from '../types/domain';
 
-export const APP_NAME = 'جِهَات';
+export const APP_NAME = 'على بابك';
 export const APP_SLOGAN = 'منصة التوصيل المحلي لمتاجر منطقتك';
 
 export const DEFAULT_LAT = 30.0444;
@@ -8,7 +8,7 @@ export const DEFAULT_LNG = 31.2357;
 
 export const EGYPT_DEFAULT_ZONES: DeliveryZone[] = [
   {
-    id: 'zone-1',
+    id: 'd1111111-1111-4111-8111-111111111111',
     name: 'المعادي وشارع 9',
     fee: 15,
     eta_minutes: 25,
@@ -21,7 +21,7 @@ export const EGYPT_DEFAULT_ZONES: DeliveryZone[] = [
     ],
   },
   {
-    id: 'zone-2',
+    id: 'd2222222-2222-4222-8222-222222222222',
     name: 'مدينة نصر ومكرم عبيد',
     fee: 20,
     eta_minutes: 35,
@@ -34,7 +34,7 @@ export const EGYPT_DEFAULT_ZONES: DeliveryZone[] = [
     ],
   },
   {
-    id: 'zone-3',
+    id: 'd3333333-3333-4333-8333-333333333333',
     name: 'الزمالك والمهندسين',
     fee: 18,
     eta_minutes: 30,
@@ -47,7 +47,7 @@ export const EGYPT_DEFAULT_ZONES: DeliveryZone[] = [
     ],
   },
   {
-    id: 'zone-4',
+    id: 'd4444444-4444-4444-8444-444444444444',
     name: 'مصر الجديدة والتجمع',
     fee: 25,
     eta_minutes: 40,
@@ -62,13 +62,13 @@ export const EGYPT_DEFAULT_ZONES: DeliveryZone[] = [
 ];
 
 export const DEFAULT_CATEGORIES: Category[] = [
-  { id: 'cat-grocery', name: 'بقالة وسوبرماركت', slug: 'grocery', icon: '🛒', sort_order: 1 },
-  { id: 'cat-veg', name: 'خضار وفاكهة طازجة', slug: 'vegetables', icon: '🥬', sort_order: 2 },
-  { id: 'cat-dairy', name: 'ألبان وأجبان', slug: 'dairy', icon: '🥛', sort_order: 3 },
-  { id: 'cat-meat', name: 'لحوم ودواجن', slug: 'meat', icon: '🍗', sort_order: 4 },
-  { id: 'cat-bakery', name: 'مخبوزات وحلويات', slug: 'bakery', icon: '🍞', sort_order: 5 },
-  { id: 'cat-pharmacy', name: 'صيدلية وعناية', slug: 'pharmacy', icon: '💊', sort_order: 6 },
-  { id: 'cat-beverages', name: 'مشروبات ومياه', slug: 'beverages', icon: '🥤', sort_order: 7 },
+  { id: 'c1000000-0000-4000-8000-000000000001', name: 'بقالة وسوبرماركت', slug: 'grocery', icon: '🛒', sort_order: 1 },
+  { id: 'c1000000-0000-4000-8000-000000000002', name: 'خضار وفاكهة طازجة', slug: 'vegetables', icon: '🥬', sort_order: 2 },
+  { id: 'c1000000-0000-4000-8000-000000000003', name: 'ألبان وأجبان', slug: 'dairy', icon: '🥛', sort_order: 3 },
+  { id: 'c1000000-0000-4000-8000-000000000004', name: 'لحوم ودواجن', slug: 'meat', icon: '🍗', sort_order: 4 },
+  { id: 'c1000000-0000-4000-8000-000000000005', name: 'مخبوزات وحلويات', slug: 'bakery', icon: '🍞', sort_order: 5 },
+  { id: 'c1000000-0000-4000-8000-000000000006', name: 'صيدلية وعناية', slug: 'pharmacy', icon: '💊', sort_order: 6 },
+  { id: 'c1000000-0000-4000-8000-000000000007', name: 'مشروبات ومياه', slug: 'beverages', icon: '🥤', sort_order: 7 },
 ];
 
 export const DEFAULT_STATUS_LABEL = { label: 'في انتظار قبول المتجر', bg: 'bg-amber-100', text: 'text-amber-800', icon: 'Clock' };

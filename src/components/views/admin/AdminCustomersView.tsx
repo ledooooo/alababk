@@ -62,13 +62,22 @@ export const AdminCustomersView: React.FC = () => {
     }
   };
 
-  const toggleBlock = (userId: string) => {
-    if (blockedUsers.includes(userId)) {
-      setBlockedUsers((prev) => prev.filter((id) => id !== userId));
-      showToast('تم إلغاء حظر الحساب بنجاح');
-    } else {
-      setBlockedUsers((prev) => [...prev, userId]);
-      showToast('تم حظر الحساب بنجاح');
+  const toggleBlock = async (user: UserProfile) => {
+    const currentActive = user.is_active ?? true;
+    const newActive = !currentActive;
+    const updatedUser: UserProfile = { ...user, is_active: newActive };
+
+    try {
+      await StorageRepo.saveUser(updatedUser);
+      setUsers(StorageRepo.getUsers());
+      showToast(newActive ? 'تم إلغاء حظر الحساب بنجاح' : 'تم حظر الحساب بنجاح');
+      if (selectedProfile && selectedProfile.id === user.id) {
+        setSelectedProfile(updatedUser);
+      }
+    } catch (err: any) {
+      console.error('Failed to toggle user block status:', err);
+      showToast(`تعذر تغيير حالة الحظر: ${err?.message || 'فشلت العملية'}`);
+      setUsers(StorageRepo.getUsers());
     }
   };
 
@@ -225,7 +234,7 @@ export const AdminCustomersView: React.FC = () => {
                 </tr>
               ) : (
                 paginatedUsers.map((user) => {
-                  const isBlocked = blockedUsers.includes(user.id);
+                  const isBlocked = user.is_active === false;
                   const userOrders = orders.filter((o) => o.customer_id === user.id || o.customer_phone === user.phone);
 
                   return (
@@ -296,7 +305,7 @@ export const AdminCustomersView: React.FC = () => {
                             <Eye className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => toggleBlock(user.id)}
+                            onClick={() => toggleBlock(user)}
                             className={`px-3 py-1.5 rounded-xl font-bold text-xs transition-all ${
                               isBlocked
                                 ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'

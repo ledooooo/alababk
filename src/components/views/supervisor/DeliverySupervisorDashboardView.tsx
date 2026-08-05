@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
-import { subscribeSupabase } from '../../../lib/supabase';
+import { subscribeSupabase, createSupabaseNotification, fetchSupabaseAgents, fetchSupabaseOrders } from '../../../lib/supabase';
 import { DeliveryAgent, Order } from '../../../types/domain';
 import {
   Bike,
@@ -19,38 +19,56 @@ import {
   Activity,
   UserX,
   UserCheck,
-  Radio
+  Radio,
+  RefreshCw,
+  Loader2
 } from 'lucide-react';
 
 export const DeliverySupervisorDashboardView: React.FC = () => {
-  const [agents, setAgents] = useState<DeliveryAgent[]>(StorageRepo.getAgents());
-  const [orders, setOrders] = useState<Order[]>(StorageRepo.getOrders());
+  const [agents, setAgents] = useState<DeliveryAgent[]>(StorageRepo.getCachedAgents());
+  const [orders, setOrders] = useState<Order[]>(StorageRepo.getCachedOrders());
+  const [loading, setLoading] = useState<boolean>(StorageRepo.getCachedAgents().length === 0);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedZone, setSelectedZone] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [broadcastMsg, setBroadcastMsg] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  useEffect(() => {
-    const sync = () => {
-      setAgents(StorageRepo.getAgents());
-      setOrders(StorageRepo.getOrders());
-    };
+  const loadDataDirectly = async (showBadge = true) => {
+    if (showBadge) setIsRefreshing(true);
+    try {
+      const [freshAgents, freshOrders] = await Promise.all([
+        fetchSupabaseAgents(),
+        fetchSupabaseOrders(),
+      ]);
+      setAgents(freshAgents);
+      setOrders(freshOrders);
+      setError(null);
+    } catch (err: any) {
+      console.error('Failed to load supervisor data directly:', err);
+      setError('تعذر تحديث بيانات الكباتن والطلبات من خادم Supabase.');
+    } finally {
+      setLoading(false);
+      setIsRefreshing(false);
+    }
+  };
 
-    sync();
-    StorageRepo.refreshAgents();
-    StorageRepo.refreshOrders();
+  useEffect(() => {
+    loadDataDirectly();
 
     const unsubscribeStorage = subscribeToStorageChange(() => {
-      sync();
+      setAgents(StorageRepo.getCachedAgents());
+      setOrders(StorageRepo.getCachedOrders());
     });
 
     const unsubscribeRealtimeAgents = subscribeSupabase<DeliveryAgent>('delivery_agents', () => {
-      StorageRepo.refreshAgents();
+      loadDataDirectly(false);
     });
 
     const unsubscribeRealtimeOrders = subscribeSupabase<Order>('orders', () => {
-      StorageRepo.refreshOrders();
+      loadDataDirectly(false);
     });
 
     return () => {
@@ -92,17 +110,34 @@ export const DeliverySupervisorDashboardView: React.FC = () => {
     }
   };
 
-  const handleSendBroadcast = (e: React.FormEvent) => {
+  const handleSendBroadcast = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!broadcastMsg.trim()) return;
-    showToast(`تم إرسال التنبيه العاجل لـ (${onlineAgents.length}) كابتن متواجد بنجاح`);
-    setBroadcastMsg('');
+
+    const targetAgents = onlineAgents.length > 0 ? onlineAgents : agents;
+    try {
+      await Promise.all(
+        targetAgents.map((agent) =>
+          createSupabaseNotification({
+            user_id: agent.user_id,
+            title: 'تنبيه عاجل من مسؤول الكباتن 📢',
+            body: broadcastMsg,
+            type: 'system',
+          })
+        )
+      );
+      showToast(`تم إرسال التنبيه العاجل لـ (${targetAgents.length}) كابتن بنجاح`);
+      setBroadcastMsg('');
+    } catch (err: any) {
+      console.error('Failed to send broadcast notifications:', err);
+      showToast(`تعذر إرسال التنبيهات: ${err?.message || 'خطأ في قاعدة البيانات'}`);
+    }
   };
 
   const filteredAgents = agents.filter((agent) => {
     const matchesSearch =
       agent.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      agent.phone.includes(searchQuery) ||
+      (agent.phone || '').includes(searchQuery) ||
       (agent.license_plate && agent.license_plate.includes(searchQuery));
 
     const matchesZone = selectedZone === 'all' || agent.active_zone === selectedZone;
@@ -116,7 +151,7 @@ export const DeliverySupervisorDashboardView: React.FC = () => {
     return matchesSearch && matchesZone && matchesStatus;
   });
 
-  const zonesList = Array.from(new Set(agents.map((a) => a.active_zone).filter(Boolean)));
+  const zonesList = Array.from(new Set(agents.map((a) => a.active_zone).filter((z): z is string => Boolean(z))));
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 dir-rtl pb-16 relative">

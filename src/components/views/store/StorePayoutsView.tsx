@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StorageRepo } from '../../../lib/storage';
-import { formatCurrency } from '../../../lib/formatters';
-import { Wallet, ArrowDownRight, Building2, CheckCircle2, Clock, Landmark, Smartphone } from 'lucide-react';
+import { ensureUUID } from '../../../lib/supabase';
+import { Payout } from '../../../types/domain';
+import { formatCurrency, formatDateArabic } from '../../../lib/formatters';
+import { Wallet, ArrowDownRight, Building2, CheckCircle2, Clock, Landmark, Smartphone, AlertCircle, Loader2 } from 'lucide-react';
 
 export const StorePayoutsView: React.FC = () => {
   const currentStore = StorageRepo.getCurrentStore();
@@ -18,11 +20,53 @@ export const StorePayoutsView: React.FC = () => {
   const [accountNumber, setAccountNumber] = useState('01012345678');
   const [requestedAmount, setRequestedAmount] = useState(netEarnings > 0 ? Math.floor(netEarnings) : 500);
   const [payoutSuccess, setPayoutSuccess] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [storePayouts, setStorePayouts] = useState<Payout[]>([]);
 
-  const handlePayoutSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    const user = StorageRepo.getCurrentUser();
+    if (user?.id) {
+      StorageRepo.refreshPayouts().then(() => {
+        const all = StorageRepo.getPayouts();
+        setStorePayouts(all.filter((p) => p.recipient_id === user.id || p.recipient_id === currentStore?.id));
+      });
+    }
+  }, [currentStore?.id]);
+
+  const handlePayoutSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setPayoutSuccess(true);
-    setTimeout(() => setPayoutSuccess(false), 4000);
+    setErrorMessage(null);
+    const user = StorageRepo.getCurrentUser();
+    if (!user?.id) {
+      setErrorMessage('يرجى تسجيل الدخول أولاً لإرسال طلب السحب');
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      const newPayout: Payout = {
+        id: ensureUUID(),
+        recipient_id: user.id, // auth.uid()
+        recipient_name: currentStore?.name || user.name || 'متجر',
+        recipient_type: 'store',
+        amount: Number(requestedAmount),
+        status: 'pending',
+        method: payoutMethod === 'vodafone' ? 'محفظة كاش' : 'حساب بنكي',
+        account_details: accountNumber,
+        created_at: new Date().toISOString(),
+      };
+
+      await StorageRepo.savePayout(newPayout);
+      setStorePayouts((prev) => [newPayout, ...prev]);
+      setPayoutSuccess(true);
+      setTimeout(() => setPayoutSuccess(false), 5000);
+    } catch (err: any) {
+      console.error('Failed to submit payout request:', err);
+      setErrorMessage(err?.message || 'تعذر إرسال طلب السحب. يرجى المحاولة لاحقاً');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -68,10 +112,17 @@ export const StorePayoutsView: React.FC = () => {
           <span className="text-xs text-emerald-600 font-bold">الحد الأدنى للسحب: 100 ج.م</span>
         </h2>
 
+        {errorMessage && (
+          <div className="p-4 bg-rose-50 text-rose-900 rounded-2xl border border-rose-200 text-xs font-bold flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+            <span>{errorMessage}</span>
+          </div>
+        )}
+
         {payoutSuccess && (
           <div className="p-4 bg-emerald-50 text-emerald-900 rounded-2xl border border-emerald-200 text-xs font-bold flex items-center gap-2">
             <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-            <span>تم استلام طلب السحب بنجاح! سيتم تحويل المبلغ لوسيلة الدفع المختارة خلال 24 ساعة عمل.</span>
+            <span>تم تسجيل طلب السحب بنجاح في قاعدة البيانات! حالة الطلب: (قيد الانتظار - Pending).</span>
           </div>
         )}
 
@@ -137,10 +188,11 @@ export const StorePayoutsView: React.FC = () => {
 
           <button
             type="submit"
-            disabled={netEarnings <= 0}
-            className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black text-xs rounded-2xl shadow-md transition-all"
+            disabled={submitting || netEarnings <= 0}
+            className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black text-xs rounded-2xl shadow-md transition-all flex items-center justify-center gap-2"
           >
-            تأكيد وإرسال طلب التحويل
+            {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
+            <span>{submitting ? 'جاري إرسال الطلب...' : 'تأكيد وإرسال طلب التحويل'}</span>
           </button>
         </form>
       </div>
@@ -150,39 +202,63 @@ export const StorePayoutsView: React.FC = () => {
         <h2 className="font-black text-slate-900 text-base border-b border-slate-100 pb-3">سجل عمليات التحويل السابقة</h2>
 
         <div className="space-y-3">
-          <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between text-xs">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-emerald-100 text-emerald-700 rounded-xl">
-                <CheckCircle2 className="w-5 h-5" />
-              </div>
-              <div>
-                <p className="font-extrabold text-slate-900">تحويل تحويل فودافون كاش (01012345678)</p>
-                <p className="text-[10px] text-slate-500">28 يوليو 2026 - 02:30 م</p>
-              </div>
+          {storePayouts.length === 0 ? (
+            <div className="p-8 text-center text-xs text-slate-400 font-bold">
+              لا توجد طلبات سحب سابقة مسجلة.
             </div>
+          ) : (
+            storePayouts.map((p) => (
+              <div
+                key={p.id}
+                className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between text-xs"
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`p-2 rounded-xl ${
+                      p.status === 'completed'
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : p.status === 'failed'
+                        ? 'bg-rose-100 text-rose-700'
+                        : 'bg-amber-100 text-amber-700'
+                    }`}
+                  >
+                    {p.status === 'completed' ? (
+                      <CheckCircle2 className="w-5 h-5" />
+                    ) : p.status === 'failed' ? (
+                      <AlertCircle className="w-5 h-5" />
+                    ) : (
+                      <Clock className="w-5 h-5 animate-pulse" />
+                    )}
+                  </div>
+                  <div>
+                    <p className="font-extrabold text-slate-900">
+                      تحويل {p.method || 'وسيلة إلكترونية'} ({p.account_details || '—'})
+                    </p>
+                    <p className="text-[10px] text-slate-500">{formatDateArabic(p.created_at)}</p>
+                  </div>
+                </div>
 
-            <div className="text-left">
-              <span className="font-black text-emerald-700 text-sm">{formatCurrency(1250)}</span>
-              <p className="text-[10px] font-bold text-emerald-800">مكتمل بنجاح</p>
-            </div>
-          </div>
-
-          <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between text-xs">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-amber-100 text-amber-700 rounded-xl">
-                <Clock className="w-5 h-5" />
+                <div className="text-left">
+                  <span className="font-black text-slate-900 text-sm">{formatCurrency(p.amount)}</span>
+                  <p
+                    className={`text-[10px] font-bold ${
+                      p.status === 'completed'
+                        ? 'text-emerald-700'
+                        : p.status === 'failed'
+                        ? 'text-rose-700'
+                        : 'text-amber-700'
+                    }`}
+                  >
+                    {p.status === 'completed'
+                      ? 'مكتمل بنجاح'
+                      : p.status === 'failed'
+                      ? 'تعثر / مرفوض'
+                      : 'قيد المراجعة (Pending)'}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="font-extrabold text-slate-900">تحويل تحويل بنك الأهلي (EG123456...)</p>
-                <p className="text-[10px] text-slate-500">20 يوليو 2026 - 11:15 ص</p>
-              </div>
-            </div>
-
-            <div className="text-left">
-              <span className="font-black text-slate-900 text-sm">{formatCurrency(3400)}</span>
-              <p className="text-[10px] font-bold text-amber-800">تحت المراجعة</p>
-            </div>
-          </div>
+            ))
+          )}
         </div>
       </div>
     </div>

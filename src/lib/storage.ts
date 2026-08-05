@@ -18,6 +18,7 @@ import {
 import { DEFAULT_CATEGORIES, EGYPT_DEFAULT_ZONES } from './constants';
 import {
   supabase,
+  ensureUUID,
   saveSupabaseUser,
   fetchSupabaseUsers,
   saveSupabaseStore,
@@ -40,11 +41,14 @@ import {
   saveSupabaseReview,
   replySupabaseReview,
   fetchSupabaseNotifications,
+  createSupabaseNotification,
+  listAllSupabaseNotifications,
   markSupabaseNotificationRead,
   markAllSupabaseNotificationsRead,
   deleteSupabaseNotification,
   clearSupabaseNotifications,
   fetchSupabasePayouts,
+  createSupabasePayout,
   updateSupabasePayoutStatus,
   listSupabasePayouts,
   listSupabaseReviews,
@@ -60,28 +64,62 @@ import {
 const lastLocationUpdateMap = new Map<string, number>();
 
 const STORAGE_KEYS = {
-  USERS: 'jihat_users',
-  CURRENT_USER: 'jihat_current_user',
-  STORES: 'jihat_stores',
-  PRODUCTS: 'jihat_products',
-  ADDRESSES: 'jihat_addresses',
-  ORDERS: 'jihat_orders',
-  AGENTS: 'jihat_delivery_agents',
-  ZONES: 'jihat_delivery_zones',
-  COUPONS: 'jihat_coupons',
-  REVIEWS: 'jihat_reviews',
-  NOTIFICATIONS: 'jihat_notifications',
-  PAYOUTS: 'jihat_payouts',
-  CART: 'jihat_cart',
-  WISHLIST_STORES: 'jihat_wishlist_stores',
-  WISHLIST_PRODUCTS: 'jihat_wishlist_products',
+  USERS: 'alababak_users',
+  CURRENT_USER: 'alababak_current_user',
+  STORES: 'alababak_stores',
+  PRODUCTS: 'alababak_products',
+  ADDRESSES: 'alababak_addresses',
+  ORDERS: 'alababak_orders',
+  AGENTS: 'alababak_delivery_agents',
+  ZONES: 'alababak_delivery_zones',
+  COUPONS: 'alababak_coupons',
+  REVIEWS: 'alababak_reviews',
+  NOTIFICATIONS: 'alababak_notifications',
+  PAYOUTS: 'alababak_payouts',
+  CART: 'alababak_cart',
+  WISHLIST_STORES: 'alababak_wishlist_stores',
+  WISHLIST_PRODUCTS: 'alababak_wishlist_products',
 };
+
+function migrateStorageKeys() {
+  if (typeof window === 'undefined') return;
+  const legacyMap: Record<string, string> = {
+    'jihat_users': 'alababak_users',
+    'jihat_current_user': 'alababak_current_user',
+    'jihat_stores': 'alababak_stores',
+    'jihat_products': 'alababak_products',
+    'jihat_addresses': 'alababak_addresses',
+    'jihat_orders': 'alababak_orders',
+    'jihat_delivery_agents': 'alababak_delivery_agents',
+    'jihat_delivery_zones': 'alababak_delivery_zones',
+    'jihat_coupons': 'alababak_coupons',
+    'jihat_reviews': 'alababak_reviews',
+    'jihat_notifications': 'alababak_notifications',
+    'jihat_payouts': 'alababak_payouts',
+    'jihat_cart': 'alababak_cart',
+    'jihat_wishlist_stores': 'alababak_wishlist_stores',
+    'jihat_wishlist_products': 'alababak_wishlist_products',
+    'jihat_categories': 'alababak_categories',
+  };
+
+  for (const [oldKey, newKey] of Object.entries(legacyMap)) {
+    try {
+      const oldVal = localStorage.getItem(oldKey) || sessionStorage.getItem(oldKey);
+      if (oldVal && !localStorage.getItem(newKey)) {
+        localStorage.setItem(newKey, oldVal);
+      }
+    } catch {
+      // ignore
+    }
+  }
+}
+migrateStorageKeys();
 
 // Broadcast Channel for live multi-tab & cross-role reactive updates
 let broadcastChannel: BroadcastChannel | null = null;
 if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
   try {
-    broadcastChannel = new BroadcastChannel('jihat_realtime_events');
+    broadcastChannel = new BroadcastChannel('alababak_realtime_events');
   } catch {
     broadcastChannel = null;
   }
@@ -89,7 +127,7 @@ if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
 
 export function notifyStorageChange(entityType: string, action = 'update', data?: unknown) {
   if (typeof window !== 'undefined') {
-    const event = new CustomEvent('jihat_data_change', {
+    const event = new CustomEvent('alababak_data_change', {
       detail: { entityType, action, data, timestamp: Date.now() },
     });
     window.dispatchEvent(event);
@@ -115,24 +153,22 @@ export function subscribeToStorageChange(callback: (detail: { entityType: string
     }
   };
 
-  window.addEventListener('jihat_data_change', handleCustomEvent);
+  window.addEventListener('alababak_data_change', handleCustomEvent);
   if (broadcastChannel) {
     broadcastChannel.addEventListener('message', handleBroadcast);
   }
 
   return () => {
-    window.removeEventListener('jihat_data_change', handleCustomEvent);
+    window.removeEventListener('alababak_data_change', handleCustomEvent);
     if (broadcastChannel) {
       broadcastChannel.removeEventListener('message', handleBroadcast);
     }
   };
 }
 
-const SESSION_STORAGE_KEYS = [STORAGE_KEYS.ORDERS, STORAGE_KEYS.PAYOUTS];
-
-function getStorageForKey(key: string): Storage | null {
+function getStorageForKey(_key: string): Storage | null {
   if (typeof window === 'undefined') return null;
-  return SESSION_STORAGE_KEYS.includes(key) ? sessionStorage : localStorage;
+  return localStorage;
 }
 
 // Helpers for cache manipulation
@@ -299,7 +335,7 @@ export const StorageRepo = {
     try {
       const cats = await fetchSupabaseCategories();
       const list = cats.length > 0 ? cats : DEFAULT_CATEGORIES;
-      setCached('jihat_categories', list);
+      setCached('alababak_categories', list);
       notifyStorageChange('category', 'refresh', list);
       return list;
     } catch (err) {
@@ -328,22 +364,18 @@ export const StorageRepo = {
       const targetUser = userId || this.getCurrentUser()?.id;
       if (targetUser) {
         const list = await fetchSupabaseNotifications(targetUser);
-        const current = this.getCachedNotifications();
-        const updated = mergeManyById(current, list);
-        setCached(STORAGE_KEYS.NOTIFICATIONS, updated);
-        const userNotifs = updated.filter((n) => n.user_id === targetUser || n.user_id === 'all');
-        notifyStorageChange('notification', 'refresh', userNotifs);
-        return userNotifs;
+        setCached(STORAGE_KEYS.NOTIFICATIONS, list);
+        notifyStorageChange('notification', 'refresh', list);
+        return list;
       } else {
-        const res = await listSupabaseNotifications();
-        const list = res.data;
+        const list = await listAllSupabaseNotifications();
         setCached(STORAGE_KEYS.NOTIFICATIONS, list);
         notifyStorageChange('notification', 'refresh', list);
         return list;
       }
     } catch (err) {
       console.error('refreshNotifications error:', err);
-      return this.getNotifications(userId);
+      return this.getCachedNotifications();
     }
   },
 
@@ -600,9 +632,14 @@ export const StorageRepo = {
         order_number: secureResult.code,
         subtotal: secureResult.subtotal,
         delivery_fee: secureResult.delivery_fee,
+        tip_amount: secureResult.tip_amount ?? order.tip_amount,
         discount_amount: secureResult.discount,
         total: secureResult.total,
         status: (secureResult.status as any) || 'pending',
+        eta_minutes: secureResult.eta_minutes ?? order.eta_minutes,
+        zone_id: secureResult.zone_id ?? order.zone_id,
+        commission_pct: secureResult.commission_pct ?? order.commission_pct,
+        commission_amount: secureResult.commission_amount ?? order.commission_amount,
         updated_at: new Date().toISOString(),
       };
 
@@ -677,50 +714,10 @@ export const StorageRepo = {
     setCached(STORAGE_KEYS.ORDERS, cachedOrders);
     notifyStorageChange('order', 'save', order);
 
-    // 3. Generate push notification for customer
-    const agentName = agentInfo?.delivery_agent_name || order.delivery_agent_name || 'الكابتن';
-    const statusNotifTitles: Record<string, string> = {
-      pending: `تم استلام طلبك (#${order.order_number})`,
-      accepted: `تم قبول طلبك من المتجر (#${order.order_number}) ✅`,
-      preparing: `جاري تحضير وتجهيز وجبتك 🍳 (#${order.order_number})`,
-      ready: `الطلب جاهز للتسليم لكابتن التوصيل 📦 (#${order.order_number})`,
-      assigned: `تم إسناد الطلب للكابتن ${agentName} 🛵`,
-      picked_up: `الكابتن استلم شحنتك وفي الطريق إليك! 🚀`,
-      on_the_way: `الكابتن في الطريق إليك الآن 🛵`,
-      delivered: `تم توصيل طلبك بنجاح! نتمنى لك أكلة شهية 🎉`,
-      cancelled: `تم إلغاء الطلب (#${order.order_number}) ❌`,
-      rejected: `اعتذر المتجر عن قبول الطلب (#${order.order_number}) ⚠️`,
-    };
-
-    const statusNotifMsgs: Record<string, string> = {
-      pending: `تم إرسال طلبك إلى ${order.store_name} وهو قيد المراجعة.`,
-      accepted: `قام متجر ${order.store_name} بقبول الطلب وبدء التحضير.`,
-      preparing: `المطبخ يعمل على إعداد طلبك لتغليفه بدقة.`,
-      ready: `الطلب جاهز وفي انتظار الكابتن لاستلامه.`,
-      assigned: note || `سيتولى الكابتن ${agentName} توصيل طلبك.`,
-      picked_up: `الكابتن استلم الطلب من ${order.store_name} وينطلق إلى عنوانك.`,
-      on_the_way: `الكابتن في طريقه للعنوان المقترن بالطلب.`,
-      delivered: `تم تسليم الطلب إلى ${order.delivery_address?.street || 'عنوانك'}. شكراً لاختيارك على بابك!`,
-      cancelled: note || `تم إلغاء الطلب.`,
-      rejected: note || `تواصل مع المتجر للمزيد من التفاصيل.`,
-    };
-
-    const newNotif: NotificationItem = {
-      id: `notif-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      user_id: order.customer_id || 'all',
-      title: statusNotifTitles[status] || `تحديث على الطلب (#${order.order_number})`,
-      message: note || statusNotifMsgs[status] || `تغيرت حالة الطلب إلى ${status}`,
-      type: 'order_status',
-      is_read: false,
-      created_at: new Date().toISOString(),
-      link_url: `customer-order-detail:${order.id}`,
-    };
-
-    await this.saveNotification(newNotif).catch(() => {});
     return order;
   },
 
-  async assignOrderToAgent(orderId: string, agentId: string, agentName: string, agentPhone: string) {
+  async assignOrderToAgent(orderId: string, agentId: string, agentName: string, agentPhone?: string) {
     return this.updateOrderStatus(orderId, 'assigned', `تم إسناد الطلب للكابتن ${agentName}`, {
       delivery_agent_id: agentId,
       delivery_agent_name: agentName,
@@ -769,6 +766,29 @@ export const StorageRepo = {
     const cached = this.getCachedPayouts();
     this.refreshPayouts();
     return cached;
+  },
+
+  async savePayout(payout: Payout): Promise<Payout> {
+    try {
+      const created = await createSupabasePayout(payout);
+      const payouts = this.getCachedPayouts();
+      const existingIdx = payouts.findIndex((p) => p.id === created.id);
+      if (existingIdx >= 0) {
+        payouts[existingIdx] = created;
+      } else {
+        payouts.unshift(created);
+      }
+      setCached(STORAGE_KEYS.PAYOUTS, payouts);
+      notifyStorageChange('payout', 'save', created);
+      return created;
+    } catch (err) {
+      console.error('Failed to save payout in Supabase:', err);
+      const payouts = this.getCachedPayouts();
+      payouts.unshift(payout);
+      setCached(STORAGE_KEYS.PAYOUTS, payouts);
+      notifyStorageChange('payout', 'save', payout);
+      throw err;
+    }
   },
 
   async updatePayoutStatus(
@@ -854,22 +874,28 @@ export const StorageRepo = {
 
   // --- CATEGORIES & ZONES & COUPONS ---
   getCategories(): Category[] {
-    const data = getCached<Category>('jihat_categories');
+    const data = getCached<Category>('alababak_categories');
     this.refreshCategories();
     return data.length > 0 ? data : DEFAULT_CATEGORIES;
   },
 
   async saveCategory(category: Category): Promise<Category> {
-    const cats = mergeById(this.getCategories(), category);
-    setCached('jihat_categories', cats);
-    notifyStorageChange('category', 'save', category);
+    const validCat: Category = {
+      ...category,
+      id: ensureUUID(category.id),
+    };
+    const cats = mergeById(this.getCategories(), validCat);
+    setCached('alababak_categories', cats);
+    notifyStorageChange('category', 'save', validCat);
 
     try {
-      await createSupabase<Category>('categories', category);
-      return category;
+      const saved = await createSupabase<Category>('categories', validCat);
+      await this.refreshCategories();
+      return saved || validCat;
     } catch (err) {
       console.error('Failed to save category:', err);
-      return category;
+      this.refreshCategories();
+      throw err;
     }
   },
 
@@ -880,14 +906,23 @@ export const StorageRepo = {
   },
 
   async saveZone(zone: DeliveryZone): Promise<DeliveryZone> {
-    const zones = mergeById(this.getCachedZones(), zone);
+    const validZone: DeliveryZone = {
+      ...zone,
+      id: ensureUUID(zone.id),
+      fee: zone.fee ?? zone.base_delivery_fee ?? 15,
+      base_delivery_fee: zone.base_delivery_fee ?? zone.fee ?? 15,
+      eta_minutes: zone.eta_minutes ?? zone.estimated_delivery_mins ?? 30,
+      estimated_delivery_mins: zone.estimated_delivery_mins ?? zone.eta_minutes ?? 30,
+    };
+
+    const zones = mergeById(this.getCachedZones(), validZone);
     setCached(STORAGE_KEYS.ZONES, zones);
-    notifyStorageChange('zone', 'save', zone);
+    notifyStorageChange('zone', 'save', validZone);
 
     try {
-      await saveSupabaseZone(zone);
+      const saved = await saveSupabaseZone(validZone);
       await this.refreshZones();
-      return zone;
+      return saved || validZone;
     } catch (err) {
       console.error('Failed to save zone:', err);
       this.refreshZones();
@@ -987,100 +1022,80 @@ export const StorageRepo = {
 
   getNotifications(userId?: string): NotificationItem[] {
     const cached = this.getCachedNotifications();
-    this.refreshNotifications(userId);
+    this.refreshNotifications(userId).catch(() => {});
     if (userId) {
       return cached.filter((n) => n.user_id === userId || n.user_id === 'all');
     }
     return cached;
   },
 
-  async saveNotification(notification: NotificationItem): Promise<NotificationItem> {
-    try {
-      await createSupabase<NotificationItem>('notifications', notification);
-      const list = this.getCachedNotifications();
-      const updatedList = mergeById(list, notification);
-      setCached(STORAGE_KEYS.NOTIFICATIONS, updatedList);
-      notifyStorageChange('notification', 'save', notification);
-      return notification;
-    } catch (err) {
-      console.error('Failed to save notification to Supabase:', err);
-      throw err;
+  async saveNotification(notification: Partial<NotificationItem> & { user_id: string; title: string }): Promise<void> {
+    const bodyText = notification.body || notification.message || '';
+    const dataObj = {
+      ...(notification.data || {}),
+      ...(notification.link_url ? { link: notification.link_url } : {}),
+    };
+
+    await createSupabaseNotification({
+      user_id: notification.user_id,
+      title: notification.title,
+      body: bodyText,
+      type: notification.type || 'system',
+      data: dataObj,
+    });
+
+    if (notification.user_id) {
+      await this.refreshNotifications(notification.user_id);
     }
   },
 
   async markNotificationRead(id: string): Promise<void> {
-    try {
-      // 1. Await Supabase update first
-      await markSupabaseNotificationRead(id);
+    await markSupabaseNotificationRead(id);
 
-      // 2. Update local state on success
-      const list = this.getCachedNotifications();
-      const target = list.find((n) => n.id === id);
-      if (target) {
-        target.is_read = true;
-        setCached(STORAGE_KEYS.NOTIFICATIONS, list);
-        notifyStorageChange('notification', 'update', target);
-      }
-    } catch (err) {
-      console.error('Failed to mark notification read in Supabase:', err);
-      throw err;
+    const list = this.getCachedNotifications();
+    const target = list.find((n) => n.id === id);
+    if (target) {
+      target.is_read = true;
+      target.read_at = new Date().toISOString();
+      setCached(STORAGE_KEYS.NOTIFICATIONS, list);
+      notifyStorageChange('notification', 'update', target);
     }
   },
 
   async markAllNotificationsRead(userId?: string): Promise<void> {
-    try {
-      // 1. Await Supabase update first
-      await markAllSupabaseNotificationsRead(userId);
+    await markAllSupabaseNotificationsRead(userId);
 
-      // 2. Update local state on success
-      const list = this.getCachedNotifications();
-      list.forEach((n) => {
-        if (!userId || n.user_id === userId || n.user_id === 'all') {
-          n.is_read = true;
-        }
-      });
-      setCached(STORAGE_KEYS.NOTIFICATIONS, list);
-      notifyStorageChange('notification', 'mark_all_read', { userId });
-    } catch (err) {
-      console.error('Failed to mark all notifications read in Supabase:', err);
-      throw err;
-    }
+    const list = this.getCachedNotifications();
+    list.forEach((n) => {
+      if (!userId || n.user_id === userId || n.user_id === 'all') {
+        n.is_read = true;
+        n.read_at = new Date().toISOString();
+      }
+    });
+    setCached(STORAGE_KEYS.NOTIFICATIONS, list);
+    notifyStorageChange('notification', 'mark_all_read', { userId });
   },
 
   async deleteNotification(id: string): Promise<void> {
-    try {
-      // 1. Await Supabase delete first
-      await deleteSupabaseNotification(id);
+    await deleteSupabaseNotification(id);
 
-      // 2. Update local state on success
-      const list = this.getCachedNotifications().filter((n) => n.id !== id);
-      setCached(STORAGE_KEYS.NOTIFICATIONS, list);
-      notifyStorageChange('notification', 'delete', { id });
-    } catch (err) {
-      console.error('Failed to delete notification from Supabase:', err);
-      throw err;
-    }
+    const list = this.getCachedNotifications().filter((n) => n.id !== id);
+    setCached(STORAGE_KEYS.NOTIFICATIONS, list);
+    notifyStorageChange('notification', 'delete', { id });
   },
 
   async clearNotifications(userId?: string): Promise<void> {
-    try {
-      // 1. Await Supabase clear first
-      await clearSupabaseNotifications(userId);
+    await clearSupabaseNotifications(userId);
 
-      // 2. Update local state on success
-      if (userId) {
-        const remaining = this.getCachedNotifications().filter(
-          (n) => n.user_id !== userId && n.user_id !== 'all'
-        );
-        setCached(STORAGE_KEYS.NOTIFICATIONS, remaining);
-      } else {
-        setCached(STORAGE_KEYS.NOTIFICATIONS, []);
-      }
-      notifyStorageChange('notification', 'clear', { userId });
-    } catch (err) {
-      console.error('Failed to clear notifications in Supabase:', err);
-      throw err;
+    if (userId) {
+      const remaining = this.getCachedNotifications().filter(
+        (n) => n.user_id !== userId && n.user_id !== 'all'
+      );
+      setCached(STORAGE_KEYS.NOTIFICATIONS, remaining);
+    } else {
+      setCached(STORAGE_KEYS.NOTIFICATIONS, []);
     }
+    notifyStorageChange('notification', 'clear', { userId });
   },
 
   // --- WISHLIST ---
@@ -1181,7 +1196,7 @@ export const StorageRepo = {
       ]);
 
       if (dbCats && dbCats.length > 0) {
-        setCached('jihat_categories', dbCats);
+        setCached('alababak_categories', dbCats);
       }
       setCached(STORAGE_KEYS.STORES, dbStores || []);
       setCached(STORAGE_KEYS.PRODUCTS, dbProds || []);

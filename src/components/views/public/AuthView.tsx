@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { StorageRepo } from '../../../lib/storage';
-import { UserRole, UserProfile } from '../../../types/domain';
+import { UserRole, UserProfile, USER_ROLES } from '../../../types/domain';
 import {
   User,
   Lock,
@@ -154,12 +154,21 @@ export const AuthView: React.FC<AuthViewProps> = ({
         .eq('id', data.user.id)
         .maybeSingle();
 
+      const rawRole = profile?.role;
+      if (rawRole && !(USER_ROLES as readonly string[]).includes(rawRole)) {
+        setError('صلاحية غير معروفة، تواصل مع الدعم');
+        setLoading(false);
+        return;
+      }
+
+      const assignedRole: UserRole = (rawRole as UserRole) || 'customer';
+
       const userProfile: UserProfile = {
         id: data.user.id,
         email: data.user.email || profile?.email || validatedEmail,
         name: profile?.full_name || data.user.user_metadata?.full_name || 'مستخدم',
         phone: profile?.phone || data.user.user_metadata?.phone || '',
-        role: (profile?.role as UserRole) || 'customer',
+        role: assignedRole,
         avatar_url: profile?.avatar_url,
         associated_store_id: profile?.associated_store_id,
         is_active: profile?.is_active ?? true,

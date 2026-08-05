@@ -45,7 +45,7 @@ export const AdminStoresView: React.FC = () => {
     (s) =>
       s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (s.category_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      s.address.toLowerCase().includes(searchQuery.toLowerCase())
+      (s.address || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const totalPages = Math.ceil(filteredStores.length / ITEMS_PER_PAGE);
@@ -235,7 +235,7 @@ export const AdminStoresView: React.FC = () => {
 
                     <td className="p-3.5 font-bold text-amber-600 flex items-center gap-1">
                       <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                      <span>{s.rating.toFixed(1)}</span>
+                      <span>{s.rating ? s.rating.toFixed(1) : 'جديد'}</span>
                     </td>
 
                     <td className="p-3.5">

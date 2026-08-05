@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { subscribeToStorageChange } from '../../lib/storage';
+import { StorageRepo } from '../../lib/storage';
+import { subscribeToNotifications, mapNotificationRow } from '../../lib/supabase';
 import { NotificationItem } from '../../types/domain';
 import { Bell, ShoppingBag, X, ChevronLeft, Sparkles, Tag } from 'lucide-react';
 
@@ -11,23 +12,31 @@ export const PushNotificationToast: React.FC<PushNotificationToastProps> = ({ on
   const [activeToast, setActiveToast] = useState<NotificationItem | null>(null);
 
   useEffect(() => {
+    const user = StorageRepo.getCurrentUser();
+    if (!user?.id) return;
+
     let timer: NodeJS.Timeout;
 
-    const unsubscribe = subscribeToStorageChange(({ entityType, action, data }) => {
-      if (entityType === 'notification' && action === 'save' && data) {
-        const notif = data as NotificationItem;
-        setActiveToast(notif);
+    const unsubscribeRealtime = subscribeToNotifications(user.id, (payload) => {
+      if (payload.eventType === 'INSERT' && payload.new) {
+        const notif = mapNotificationRow(payload.new);
+        if (notif.user_id === user.id) {
+          setActiveToast(notif);
 
-        if (timer) clearTimeout(timer);
-        timer = setTimeout(() => {
-          setActiveToast(null);
-        }, 6000);
+          // Refresh local state to reflect new notification count
+          StorageRepo.refreshNotifications(user.id).catch(() => {});
+
+          if (timer) clearTimeout(timer);
+          timer = setTimeout(() => {
+            setActiveToast(null);
+          }, 6000);
+        }
       }
     });
 
     return () => {
       if (timer) clearTimeout(timer);
-      unsubscribe();
+      unsubscribeRealtime();
     };
   }, []);
 

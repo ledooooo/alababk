@@ -52,8 +52,8 @@ export const CustomerStoresView: React.FC<CustomerStoresViewProps> = ({ onSelect
       selectedCategory === 'all' || store.category_id === selectedCategory;
     const matchesSearch =
       store.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      store.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      store.address.toLowerCase().includes(searchQuery.toLowerCase());
+      (store.description || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (store.address || '').toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   });
 

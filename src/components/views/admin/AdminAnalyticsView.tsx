@@ -139,7 +139,7 @@ export const AdminAnalyticsView: React.FC = () => {
 
                   <div className="text-left font-bold">
                     <span className="text-slate-900 text-xs font-black">{agentOrders.length} رحلة توصيل</span>
-                    <p className="text-[10px] text-amber-500">⭐ {agent.rating.toFixed(1)} / 5.0</p>
+                    <p className="text-[10px] text-amber-500">⭐ {agent.rating ? agent.rating.toFixed(1) : 'جديد'} / 5.0</p>
                   </div>
                 </div>
               );

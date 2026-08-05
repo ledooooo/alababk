@@ -267,10 +267,10 @@ export const CustomerStoreDetailView: React.FC<CustomerStoreDetailViewProps> = (
               >
                 <div className="flex items-center justify-center gap-1 text-amber-600 font-bold text-sm group-hover:scale-105 transition-transform">
                   <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
-                  <span>{store.rating.toFixed(1)}</span>
+                  <span>{store.rating ? store.rating.toFixed(1) : 'جديد'}</span>
                 </div>
                 <span className="text-[10px] text-amber-800 font-bold block mt-0.5">
-                  ({store.reviews_count} تقييم)
+                  ({store.reviews_count || 0} تقييم)
                 </span>
               </button>
 

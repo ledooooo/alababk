@@ -5,8 +5,8 @@ import { DEFAULT_LAT, DEFAULT_LNG } from '../../lib/constants';
 interface MapMarker {
   lat: number;
   lng: number;
-  title: string;
-  popupText?: string;
+  title?: string | null;
+  popupText?: string | null;
   type?: 'store' | 'customer' | 'agent';
 }
 

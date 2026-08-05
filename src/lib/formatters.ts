@@ -8,7 +8,7 @@ export function formatCurrency(amount: number): string {
   return `${formatted} ج.م`;
 }
 
-export function formatPhoneNumber(phone: string): string {
+export function formatPhoneNumber(phone?: string | null): string {
   if (!phone) return '';
   if (phone.startsWith('+20')) {
     const cleaned = phone.replace('+20', '0');

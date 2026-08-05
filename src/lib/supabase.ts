@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { Database } from '../types/database.types';
 import {
   UserProfile,
   UserRole,
@@ -13,6 +14,8 @@ import {
   Review,
   Category,
   NotificationItem,
+  OrderStatus,
+  OrderStatusHistoryItem,
   Payout,
   PaginatedResult,
   DatabaseRow,
@@ -30,7 +33,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('متغيرات VITE_SUPABASE_URL و VITE_SUPABASE_ANON_KEY لازم تكون موجودة في .env');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
 
 /**
  * Check connectivity to Supabase instance
@@ -82,44 +85,75 @@ function hashCode(str: string): number {
 }
 
 /**
- * Parse PostGIS GEOGRAPHY(POINT) or GeoJSON or object with lat/lng
+ * Extract lat/lng coordinates ONLY from location (GeoJSON / PostGIS WKB / WKT / object).
+ * Returns null if location is missing, empty, or invalid.
  */
-function parseGeoPoint(locationObj: any, fallbackId: string, offsetScale = 1): { lat: number; lng: number } {
-  if (locationObj) {
+export function extractCoordinates(locationObj: any): { lat: number; lng: number } | null {
+  if (!locationObj) return null;
+
+  try {
     if (typeof locationObj === 'object') {
       if (Array.isArray(locationObj.coordinates) && locationObj.coordinates.length >= 2) {
         const lng = Number(locationObj.coordinates[0]);
         const lat = Number(locationObj.coordinates[1]);
-        if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
+        if (!isNaN(lat) && !isNaN(lng) && (lat !== 0 || lng !== 0)) {
           return { lat, lng };
         }
       }
       const directLat = Number(locationObj.lat ?? locationObj.latitude ?? locationObj.store_lat);
       const directLng = Number(locationObj.lng ?? locationObj.longitude ?? locationObj.store_lng);
-      if (!isNaN(directLat) && !isNaN(directLng) && directLat !== 0 && directLng !== 0 && (directLat !== 30.0444 || directLng !== 31.2357)) {
+      if (!isNaN(directLat) && !isNaN(directLng) && (directLat !== 0 || directLng !== 0)) {
         return { lat: directLat, lng: directLng };
       }
     }
-    if (typeof locationObj === 'string' && locationObj.includes('POINT')) {
-      const match = locationObj.match(/POINT\s*\(\s*([-\d.]+)\s+([-\d.]+)\s*\)/i);
-      if (match && match[1] && match[2]) {
-        const lng = parseFloat(match[1]);
-        const lat = parseFloat(match[2]);
-        if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
+
+    if (typeof locationObj === 'string') {
+      const trimmed = locationObj.trim();
+      if (trimmed.includes('POINT')) {
+        const match = trimmed.match(/POINT\s*\(\s*([-\d.]+)\s+([-\d.]+)\s*\)/i);
+        if (match && match[1] && match[2]) {
+          const lng = parseFloat(match[1]);
+          const lat = parseFloat(match[2]);
+          if (!isNaN(lat) && !isNaN(lng) && (lat !== 0 || lng !== 0)) {
+            return { lat, lng };
+          }
+        }
+      }
+
+      // EWKB Hex string parsing (PostGIS EWKB Hex)
+      if (/^[0-9a-fA-F]{42,}$/.test(trimmed)) {
+        const isLittleEndian = trimmed.substring(0, 2) === '01';
+        let offset = 2;
+        const typeHex = trimmed.substring(offset, offset + 8);
+        offset += 8;
+        const hasSRID = typeHex.toLowerCase().includes('20');
+        if (hasSRID) offset += 8;
+
+        const xHex = trimmed.substring(offset, offset + 16);
+        offset += 16;
+        const yHex = trimmed.substring(offset, offset + 16);
+
+        const hexToDouble = (hexStr: string, littleEndian: boolean): number => {
+          const bytes = new Uint8Array(8);
+          for (let i = 0; i < 8; i++) {
+            bytes[i] = parseInt(hexStr.substring(i * 2, i * 2 + 2), 16);
+          }
+          if (!littleEndian) bytes.reverse();
+          return new DataView(bytes.buffer).getFloat64(0, true);
+        };
+
+        const lng = hexToDouble(xHex, isLittleEndian);
+        const lat = hexToDouble(yHex, isLittleEndian);
+        if (!isNaN(lat) && !isNaN(lng) && (lat !== 0 || lng !== 0)) {
           return { lat, lng };
         }
       }
     }
+  } catch {
+    // Return null if parsing fails
   }
 
-  const hash = hashCode(fallbackId);
-  const latOffset = (((Math.abs(hash) % 120) - 60) / 1000) * offsetScale;
-  const lngOffset = (((Math.abs(hash * 17) % 140) - 70) / 1000) * offsetScale;
-
-  return {
-    lat: Number((30.0444 + latOffset).toFixed(4)),
-    lng: Number((31.2357 + lngOffset).toFixed(4)),
-  };
+  return null;
 }
 
 export interface SaveUserOptions {
@@ -241,12 +275,12 @@ export async function fetchSupabaseStores(): Promise<Store[]> {
       .order('created_at', { ascending: false });
 
     if (error || !data) return [];
-    return data.map((s, idx) => {
-      const coords = parseGeoPoint(s.location || s, s.id || `store-${idx}`);
+    return data.map((s) => {
+      const coords = extractCoordinates(s.location || s);
       const rawFee = s.base_delivery_fee ?? s.delivery_fee ?? s.fee;
       const fee = rawFee !== undefined && rawFee !== null && !isNaN(Number(rawFee))
         ? Number(rawFee)
-        : 10 + (Math.abs(hashCode(s.id || '')) % 15);
+        : 15;
 
       return {
         id: s.id,
@@ -256,18 +290,18 @@ export async function fetchSupabaseStores(): Promise<Store[]> {
         category_id: s.category_id || '',
         category_name: s.categories?.name || 'عام',
         description: s.description || '',
-        logo_url: s.logo_url || 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=300',
-        banner_url: s.cover_url,
-        address: s.address || 'القاهرة، مصر',
-        lat: coords.lat,
-        lng: coords.lng,
-        phone: s.phone || '',
+        logo_url: s.logo_url || '',
+        banner_url: s.cover_url || null,
+        address: s.address || null,
+        lat: coords ? coords.lat : (s.lat ? Number(s.lat) : null),
+        lng: coords ? coords.lng : (s.lng ? Number(s.lng) : null),
+        phone: s.phone || null,
         is_approved: s.is_approved ?? true,
         is_open: s.is_active ?? true,
-        rating: Number(s.rating_avg) || 4.8,
-        reviews_count: s.rating_count || 12,
-        commission_rate: Number(s.commission_pct) || 15,
-        min_order_amount: Number(s.min_order_amount) || 0,
+        rating: s.rating_avg !== undefined && s.rating_avg !== null ? Number(s.rating_avg) : (s.rating !== undefined && s.rating !== null ? Number(s.rating) : null),
+        reviews_count: s.rating_count ? Number(s.rating_count) : 0,
+        commission_rate: Number(s.commission_pct || 15),
+        min_order_amount: Number(s.min_order_amount || 0),
         delivery_fee: fee,
         opening_hours: s.working_hours || { everyday: { open: '08:00', close: '23:00' } },
         created_at: s.created_at || new Date().toISOString(),
@@ -298,7 +332,7 @@ export async function fetchSupabaseProducts(storeId?: string): Promise<Product[]
       price: Number(p.price),
       original_price: p.old_price ? Number(p.old_price) : undefined,
       category_name: 'عام',
-      image_url: p.images?.[0] || 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=300',
+      image_url: p.images?.[0] || '',
       stock: p.stock || 50,
       is_active: p.is_active ?? true,
       unit: p.attributes?.unit || 'قطعة',
@@ -325,7 +359,7 @@ export async function fetchSupabaseOrders(filters?: {
 
     let query = supabase
       .from('orders')
-      .select('*, order_items(*), stores(*), profiles:customer_id(full_name, phone), addresses(*)');
+      .select('*, order_items(*, products(images)), stores(*), profiles:customer_id(full_name, phone, avatar_url), addresses(*)');
 
     if (filters?.customer_id) query = query.eq('customer_id', filters.customer_id);
     if (filters?.store_id) query = query.eq('store_id', filters.store_id);
@@ -341,7 +375,7 @@ export async function fetchSupabaseOrders(filters?: {
     if (error) {
       let fallbackQuery = supabase
         .from('orders')
-        .select('*, order_items(*), stores(*), profiles:customer_id(full_name, phone)');
+        .select('*, order_items(*), stores(*), profiles:customer_id(full_name, phone, avatar_url), addresses(*)');
 
       if (filters?.customer_id) fallbackQuery = fallbackQuery.eq('customer_id', filters.customer_id);
       if (filters?.store_id) fallbackQuery = fallbackQuery.eq('store_id', filters.store_id);
@@ -354,37 +388,41 @@ export async function fetchSupabaseOrders(filters?: {
       error = fallbackRes.error;
     }
 
-    if (error) {
-      let fallbackQuery2 = supabase
-        .from('orders')
-        .select('*, order_items(*), stores(*)');
-
-      if (filters?.customer_id) fallbackQuery2 = fallbackQuery2.eq('customer_id', filters.customer_id);
-      if (filters?.store_id) fallbackQuery2 = fallbackQuery2.eq('store_id', filters.store_id);
-      if (filters?.delivery_agent_id) fallbackQuery2 = fallbackQuery2.eq('delivery_agent_id', filters.delivery_agent_id);
-      if (filters?.status) fallbackQuery2 = fallbackQuery2.eq('status', filters.status);
-      if (filters?.is_unassigned) fallbackQuery2 = fallbackQuery2.is('delivery_agent_id', null);
-
-      const fallbackRes2 = await fallbackQuery2.order('placed_at', { ascending: false });
-      data = fallbackRes2.data;
-      error = fallbackRes2.error;
-    }
-
     if (error || !data) return [];
 
     return data.map((o) => {
       const custProfile = o.profiles || {};
-      const custName = custProfile.full_name || custProfile.name || o.customer_name || 'عميل علي بابك';
-      const custPhone = custProfile.phone || o.customer_phone || ('010' + (Math.abs(hashCode(o.customer_id || o.id)) % 100000000).toString().padStart(8, '0'));
+      const custName = custProfile.full_name || custProfile.name || o.customer_name || null;
+      const custPhone = custProfile.phone || o.customer_phone || null;
 
       const storeObj = o.stores || {};
-      const storeName = storeObj.name || o.store_name || 'المتجر المحلي';
-      const storePhone = storeObj.phone || '';
-      const storeAddress = storeObj.address || '';
-      const storeCoords = parseGeoPoint(storeObj.location || storeObj, storeObj.id || o.store_id || o.id);
+      const storeName = storeObj.name || o.store_name || null;
+      const storePhone = storeObj.phone || null;
+      const storeAddress = storeObj.address || null;
+      const storeCoords = extractCoordinates(storeObj.location || storeObj);
 
-      const addrObj = o.addresses || o.address || {};
-      const defaultAddrCoords = parseGeoPoint(addrObj.location || addrObj, o.id + '-addr', 1.5);
+      const addrObj = o.addresses || o.address || null;
+      const addrCoords = extractCoordinates(addrObj?.location || addrObj);
+
+      const items = (o.order_items || []).map((item: any) => {
+        const itemImg =
+          item.product_image ||
+          item.image_url ||
+          (Array.isArray(item.products?.images) ? item.products.images[0] : null) ||
+          item.products?.image_url ||
+          '';
+
+        return {
+          id: item.id,
+          product_id: item.product_id || '',
+          product_name: item.name || item.product_name || 'منتج',
+          product_image: itemImg,
+          unit_price: Number(item.price || item.unit_price || 0),
+          quantity: Number(item.quantity || 1),
+          total_price: Number(item.subtotal || item.total_price || 0),
+          notes: item.notes || null,
+        };
+      });
 
       return {
         id: o.id,
@@ -396,35 +434,30 @@ export async function fetchSupabaseOrders(filters?: {
         store_name: storeName,
         store_phone: storePhone,
         store_address: storeAddress,
-        store_lat: storeCoords.lat,
-        store_lng: storeCoords.lng,
+        store_lat: storeCoords?.lat ?? (storeObj.lat ? Number(storeObj.lat) : null),
+        store_lng: storeCoords?.lng ?? (storeObj.lng ? Number(storeObj.lng) : null),
         delivery_address: {
-          id: addrObj.id || o.address_id || 'addr-1',
+          id: addrObj?.id || o.address_id || undefined,
           user_id: o.customer_id,
-          title: addrObj.label || addrObj.title || 'المنزل',
-          address_line: addrObj.street || addrObj.address_line || 'وسط البلد، القاهرة',
-          building: addrObj.building || '12',
-          floor: addrObj.floor || '3',
-          apartment: addrObj.apartment || '5',
-          lat: defaultAddrCoords.lat,
-          lng: defaultAddrCoords.lng,
-          is_default: true,
+          title: addrObj?.label || addrObj?.title || 'عنوان التوصيل',
+          address_line: addrObj?.street || addrObj?.address_line || addrObj?.label || 'عنوان التوصيل',
+          street: addrObj?.street ?? null,
+          building: addrObj?.building ?? null,
+          floor: addrObj?.floor ?? null,
+          apartment: addrObj?.apartment ?? null,
+          lat: addrCoords?.lat ?? (addrObj?.lat ? Number(addrObj.lat) : null),
+          lng: addrCoords?.lng ?? (addrObj?.lng ? Number(addrObj.lng) : null),
+          notes: addrObj?.notes ?? null,
+          is_default: addrObj?.is_default ?? false,
         },
         delivery_agent_id: o.delivery_agent_id,
-        items: (o.order_items || []).map((item: any) => ({
-          id: item.id,
-          product_id: item.product_id || '',
-          product_name: item.name,
-          product_image: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=300',
-          unit_price: Number(item.price),
-          quantity: item.quantity,
-          total_price: Number(item.subtotal),
-          notes: item.notes,
-        })),
-        subtotal: Number(o.subtotal),
-        delivery_fee: Number(o.delivery_fee),
+        items,
+        subtotal: Number(o.subtotal || 0),
+        delivery_fee: Number(o.delivery_fee || 0),
+        tip_amount: o.tip_amount !== undefined && o.tip_amount !== null ? Number(o.tip_amount) : 0,
         discount_amount: Number(o.discount || 0),
-        total: Number(o.total),
+        coupon_code: o.coupon_code ?? null,
+        total: Number(o.total || 0),
         payment_method: (o.payment_method === 'online' ? 'online' : 'cash') as 'cash' | 'online',
         payment_status: o.payment_status === 'paid' ? 'paid' : 'pending',
         status: o.status || 'pending',
@@ -435,8 +468,12 @@ export async function fetchSupabaseOrders(filters?: {
             note: 'تم إنشاء الطلب',
           },
         ],
-        rejection_reason: o.rejection_reason,
-        customer_notes: o.customer_notes,
+        rejection_reason: o.rejection_reason ?? null,
+        customer_notes: o.customer_notes ?? null,
+        zone_id: o.zone_id ?? null,
+        commission_pct: o.commission_pct !== undefined && o.commission_pct !== null ? Number(o.commission_pct) : null,
+        commission_amount: o.commission_amount !== undefined && o.commission_amount !== null ? Number(o.commission_amount) : null,
+        eta_minutes: o.eta_minutes !== undefined && o.eta_minutes !== null ? Number(o.eta_minutes) : null,
         created_at: o.placed_at || o.created_at || new Date().toISOString(),
         updated_at: o.updated_at || new Date().toISOString(),
       };
@@ -472,7 +509,7 @@ export async function fetchSupabaseAgents(): Promise<DeliveryAgent[]> {
 
     if (error || !data) return [];
 
-    return data.map((a, idx) => {
+    return data.map((a) => {
       const zoneName =
         a.active_zone ||
         a.zone ||
@@ -480,26 +517,26 @@ export async function fetchSupabaseAgents(): Promise<DeliveryAgent[]> {
         a.working_zone ||
         a.delivery_zone ||
         a.delivery_zones?.name ||
-        AGENT_ZONES[Math.abs(hashCode(a.id || a.user_id || String(idx))) % AGENT_ZONES.length];
+        null;
 
-      const agentCoords = parseGeoPoint(a.location || a, a.id || `agent-${idx}`);
+      const agentCoords = extractCoordinates(a.location || a);
 
       return {
         id: a.id,
         user_id: a.user_id,
         name: a.profiles?.full_name || 'كابتن توصيل',
-        phone: a.profiles?.phone || '01200000000',
-        avatar_url: a.profiles?.avatar_url,
+        phone: a.profiles?.phone || null,
+        avatar_url: a.profiles?.avatar_url || null,
         vehicle_type: a.vehicle_type === 'motorcycle' ? 'motorcycle' : 'bicycle',
-        national_id: a.id_number || '29900000000000',
-        license_plate: a.plate_number || a.license_plate,
+        national_id: a.id_number || null,
+        license_plate: a.plate_number || a.license_plate || null,
         is_approved: a.is_approved ?? true,
         is_online: a.is_online ?? true,
         active_zone: zoneName,
-        rating: Number(a.rating_avg) || 4.9,
-        total_trips: a.total_deliveries || 45,
-        current_lat: agentCoords.lat,
-        current_lng: agentCoords.lng,
+        rating: a.rating_avg !== undefined && a.rating_avg !== null ? Number(a.rating_avg) : (a.rating !== undefined && a.rating !== null ? Number(a.rating) : null),
+        total_trips: a.completed_deliveries !== undefined && a.completed_deliveries !== null ? Number(a.completed_deliveries) : (a.total_trips !== undefined && a.total_trips !== null ? Number(a.total_trips) : 0),
+        current_lat: agentCoords ? agentCoords.lat : (a.current_lat ? Number(a.current_lat) : null),
+        current_lng: agentCoords ? agentCoords.lng : (a.current_lng ? Number(a.current_lng) : null),
         created_at: a.created_at || new Date().toISOString(),
       };
     });
@@ -668,33 +705,66 @@ export async function replySupabaseReview(reviewId: string, replyText: string): 
 }
 
 /**
+ * Map a raw database notification row to NotificationItem
+ */
+export function mapNotificationRow(n: any): NotificationItem {
+  const dataObj = typeof n.data === 'object' && n.data !== null ? n.data : {};
+  const linkUrl = dataObj.link || dataObj.link_url || dataObj.url || undefined;
+  const bodyText = n.body || n.message || '';
+
+  return {
+    id: n.id,
+    user_id: n.user_id,
+    title: n.title || 'تنبيه جديد',
+    body: bodyText,
+    message: bodyText,
+    type: n.type || 'system',
+    data: dataObj,
+    read_at: n.read_at || null,
+    is_read: n.read_at !== null && n.read_at !== undefined,
+    created_at: n.created_at || new Date().toISOString(),
+    link_url: linkUrl,
+  };
+}
+
+/**
  * Fetch Notifications from Supabase
  */
 export async function fetchSupabaseNotifications(userId: string): Promise<NotificationItem[]> {
-  try {
-    const { data, error } = await supabase
-      .from('notifications')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
+  const validUserId = ensureUUID(userId);
+  const { data, error } = await supabase
+    .from('notifications')
+    .select('*')
+    .eq('user_id', validUserId)
+    .order('created_at', { ascending: false });
 
-    if (error || !data) return [];
-
-    return data.map((n) => ({
-      id: n.id,
-      user_id: n.user_id,
-      title: n.title,
-      body: n.body,
-      message: n.body || n.message || '',
-      type: n.type || 'system',
-      data: n.data || {},
-      read_at: n.read_at,
-      is_read: !!n.read_at,
-      created_at: n.created_at || new Date().toISOString(),
-    }));
-  } catch {
-    return [];
+  if (error) {
+    let msg = error.message || 'فشل جلب الإشعارات';
+    msg = msg.replace(/^ERROR:\s*/i, '').replace(/^[A-Z0-9]{5}:\s*/, '');
+    throw new Error(msg);
   }
+
+  if (!data) return [];
+  return data.map(mapNotificationRow);
+}
+
+/**
+ * List all notifications from Supabase
+ */
+export async function listAllSupabaseNotifications(): Promise<NotificationItem[]> {
+  const { data, error } = await supabase
+    .from('notifications')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    let msg = error.message || 'فشل جلب الإشعارات';
+    msg = msg.replace(/^ERROR:\s*/i, '').replace(/^[A-Z0-9]{5}:\s*/, '');
+    throw new Error(msg);
+  }
+
+  if (!data) return [];
+  return data.map(mapNotificationRow);
 }
 
 /**
@@ -729,13 +799,21 @@ export async function markSupabaseNotificationRead(id: string): Promise<void> {
   const validId = ensureUUID(id);
   const payload = {
     read_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
   };
-  const { error } = await supabase.from('notifications').update(payload).eq('id', validId);
+  const { data, error } = await supabase
+    .from('notifications')
+    .update(payload)
+    .eq('id', validId)
+    .select();
+
   if (error) {
     let msg = error.message || 'فشل تحديث الإشعار';
     msg = msg.replace(/^ERROR:\s*/i, '').replace(/^[A-Z0-9]{5}:\s*/, '');
     throw new Error(msg);
+  }
+
+  if (!data || data.length === 0) {
+    throw new Error('لم يتم تحديث الإشعار (غير موجود أو غير متاح)');
   }
 }
 
@@ -745,18 +823,21 @@ export async function markSupabaseNotificationRead(id: string): Promise<void> {
 export async function markAllSupabaseNotificationsRead(userId?: string): Promise<void> {
   let query = supabase.from('notifications').update({
     read_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
   });
   if (userId && userId !== 'all') {
     query = query.eq('user_id', ensureUUID(userId));
-  } else {
-    query = query.is('read_at', null);
   }
-  const { error } = await query;
+  query = query.is('read_at', null);
+
+  const { data, error } = await query.select();
   if (error) {
     let msg = error.message || 'فشل تحديث جميع الإشعارات';
     msg = msg.replace(/^ERROR:\s*/i, '').replace(/^[A-Z0-9]{5}:\s*/, '');
     throw new Error(msg);
+  }
+
+  if (!data || data.length === 0) {
+    throw new Error('لا توجد إشعارات غير مقروءة لتحديثها');
   }
 }
 
@@ -765,11 +846,20 @@ export async function markAllSupabaseNotificationsRead(userId?: string): Promise
  */
 export async function deleteSupabaseNotification(id: string): Promise<void> {
   const validId = ensureUUID(id);
-  const { error } = await supabase.from('notifications').delete().eq('id', validId);
+  const { data, error } = await supabase
+    .from('notifications')
+    .delete()
+    .eq('id', validId)
+    .select();
+
   if (error) {
     let msg = error.message || 'فشل حذف الإشعار';
     msg = msg.replace(/^ERROR:\s*/i, '').replace(/^[A-Z0-9]{5}:\s*/, '');
     throw new Error(msg);
+  }
+
+  if (!data || data.length === 0) {
+    throw new Error('لم يتم حذف الإشعار (غير موجود أو لا تملك صلاحية حذفه)');
   }
 }
 
@@ -783,12 +873,58 @@ export async function clearSupabaseNotifications(userId?: string): Promise<void>
   } else {
     query = query.neq('id', '00000000-0000-0000-0000-000000000000');
   }
-  const { error } = await query;
+
+  const { data, error } = await query.select();
   if (error) {
     let msg = error.message || 'فشل مسح الإشعارات';
     msg = msg.replace(/^ERROR:\s*/i, '').replace(/^[A-Z0-9]{5}:\s*/, '');
     throw new Error(msg);
   }
+
+  if (!data || data.length === 0) {
+    throw new Error('لا توجد إشعارات لمسحها');
+  }
+}
+
+/**
+ * Create a new Payout request in Supabase
+ */
+export async function createSupabasePayout(payout: Payout): Promise<Payout> {
+  const payoutId = ensureUUID(payout.id);
+  const payload = {
+    id: payoutId,
+    recipient_id: ensureUUID(payout.recipient_id),
+    recipient_type: payout.recipient_type,
+    amount: payout.amount,
+    status: payout.status || 'pending',
+    method: payout.method,
+    notes: payout.account_details || payout.notes || null,
+    created_at: payout.created_at || new Date().toISOString(),
+  };
+
+  const { data, error } = await supabase
+    .from('payouts')
+    .insert([payload])
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error inserting payout in Supabase:', error);
+    throw new Error(`فشل إدخال طلب السحب: ${error.message}`);
+  }
+
+  return {
+    id: data.id,
+    recipient_id: data.recipient_id,
+    recipient_name: payout.recipient_name,
+    recipient_type: data.recipient_type,
+    amount: Number(data.amount),
+    status: data.status,
+    method: data.method,
+    account_details: payout.account_details,
+    notes: data.notes,
+    created_at: data.created_at,
+  };
 }
 
 /**
@@ -954,7 +1090,7 @@ export async function saveSupabaseStore(store: Partial<Store>, options: SaveStor
     throw new Error(msg);
   }
 
-  const coords = parseGeoPoint(data.location || data, data.id || store.id || 'store-save');
+  const coords = extractCoordinates(data.location || data);
   const rawFee = data.base_delivery_fee ?? data.delivery_fee ?? store.delivery_fee;
   const fee = rawFee !== undefined && rawFee !== null && !isNaN(Number(rawFee)) ? Number(rawFee) : 15;
 
@@ -966,18 +1102,18 @@ export async function saveSupabaseStore(store: Partial<Store>, options: SaveStor
     category_id: data.category_id || '',
     category_name: data.categories?.name || store.category_name || 'عام',
     description: data.description || '',
-    logo_url: data.logo_url || 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=300',
-    banner_url: data.cover_url,
-    address: data.address || 'القاهرة، مصر',
-    lat: coords.lat,
-    lng: coords.lng,
-    phone: data.phone || '',
+    logo_url: data.logo_url || '',
+    banner_url: data.cover_url || null,
+    address: data.address || null,
+    lat: coords ? coords.lat : (data.lat ? Number(data.lat) : null),
+    lng: coords ? coords.lng : (data.lng ? Number(data.lng) : null),
+    phone: data.phone || null,
     is_approved: data.is_approved ?? true,
     is_open: data.is_active ?? true,
-    rating: Number(data.rating_avg) || 4.8,
-    reviews_count: data.rating_count || 12,
-    commission_rate: Number(data.commission_pct) || 15,
-    min_order_amount: Number(data.min_order_amount) || 0,
+    rating: data.rating_avg !== undefined && data.rating_avg !== null ? Number(data.rating_avg) : (data.rating !== undefined && data.rating !== null ? Number(data.rating) : null),
+    reviews_count: data.rating_count ? Number(data.rating_count) : 0,
+    commission_rate: Number(data.commission_pct || 15),
+    min_order_amount: Number(data.min_order_amount || 0),
     delivery_fee: fee,
     opening_hours: data.working_hours || { everyday: { open: '08:00', close: '23:00' } },
     created_at: data.created_at || new Date().toISOString(),
@@ -1136,15 +1272,15 @@ export async function saveSupabaseAgent(agent: Partial<DeliveryAgent>, options: 
     id: data.id,
     user_id: data.user_id,
     name: data.profiles?.full_name || agent.name || 'كابتن توصيل',
-    phone: data.profiles?.phone || agent.phone || '01200000000',
-    avatar_url: data.profiles?.avatar_url || agent.avatar_url,
+    phone: data.profiles?.phone || agent.phone || null,
+    avatar_url: data.profiles?.avatar_url || agent.avatar_url || null,
     vehicle_type: data.vehicle_type === 'motorcycle' ? 'motorcycle' : 'bicycle',
-    national_id: data.id_number || agent.national_id || '29900000000000',
-    license_plate: data.plate_number || agent.license_plate,
+    national_id: data.id_number || agent.national_id || null,
+    license_plate: data.plate_number || agent.license_plate || null,
     is_approved: data.is_approved ?? true,
     is_online: data.is_online ?? true,
-    active_zone: agent.active_zone || 'وسط البلد',
-    rating: Number(data.rating_avg) || 4.9,
+    active_zone: agent.active_zone || null,
+    rating: data.rating_avg !== undefined && data.rating_avg !== null ? Number(data.rating_avg) : (data.rating !== undefined && data.rating !== null ? Number(data.rating) : null),
     total_trips: Number(data.completed_deliveries || data.total_trips || agent.total_trips || 0),
     created_at: data.created_at || new Date().toISOString(),
   };
@@ -1340,10 +1476,10 @@ export async function saveSupabaseOrder(order: Partial<Order>): Promise<SecureOr
     items: order.items.map((i) => ({
       product_id: i.product_id,
       quantity: i.quantity,
-      notes: i.notes,
+      notes: i.notes || undefined,
     })),
-    coupon_code: order.coupon_code,
-    customer_notes: order.customer_notes,
+    coupon_code: order.coupon_code || undefined,
+    customer_notes: order.customer_notes || undefined,
     tip_amount: order.tip_amount || 0,
   });
 
@@ -1414,21 +1550,67 @@ export async function updateSupabaseOrderLocation(
 }
 
 /**
+ * Fetch Order Status History from order_status_history table in Supabase
+ */
+export async function fetchOrderStatusHistory(orderId: string): Promise<OrderStatusHistoryItem[]> {
+  try {
+    const validId = ensureUUID(orderId);
+    const { data, error } = await supabase
+      .from('order_status_history')
+      .select('*')
+      .eq('order_id', validId)
+      .order('created_at', { ascending: true });
+
+    if (error || !data) return [];
+
+    return data.map((row) => ({
+      status: (row.status || row.new_status || 'pending') as OrderStatus,
+      timestamp: row.created_at || row.timestamp || new Date().toISOString(),
+      note: row.notes || row.note || row.comment || undefined,
+    }));
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Save/Upsert Delivery Zone in Supabase
  */
-export async function saveSupabaseZone(zone: Partial<DeliveryZone>) {
-  try {
-    const payload = {
-      id: zone.id,
-      name: zone.name,
-      fee: zone.fee || zone.base_delivery_fee,
-      eta_minutes: zone.eta_minutes || zone.estimated_delivery_mins || 30,
-      is_active: zone.is_active ?? true,
-    };
-    await supabase.from('delivery_zones').upsert(payload);
-  } catch (err) {
-    console.error('Failed to save zone to Supabase:', err);
+export async function saveSupabaseZone(zone: Partial<DeliveryZone>): Promise<DeliveryZone> {
+  const validId = ensureUUID(zone.id);
+  const payload: Record<string, any> = {
+    id: validId,
+    name: zone.name,
+    fee: zone.fee ?? zone.base_delivery_fee ?? 15,
+    eta_minutes: zone.eta_minutes ?? zone.estimated_delivery_mins ?? 30,
+    polygon: zone.polygon ?? null,
+    is_active: zone.is_active ?? true,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { data, error } = await supabase
+    .from('delivery_zones')
+    .upsert(payload, { onConflict: 'id' })
+    .select('*');
+
+  if (error) {
+    console.error('Failed to save zone to Supabase:', error);
+    let msg = error.message || 'فشل حفظ المنطقة في قاعدة البيانات';
+    msg = msg.replace(/^ERROR:\s*/i, '').replace(/^[A-Z0-9]{5}:\s*/, '');
+    throw new Error(msg);
   }
+
+  const row = data && data[0] ? data[0] : payload;
+  return {
+    id: row.id,
+    name: row.name,
+    fee: Number(row.fee),
+    eta_minutes: Number(row.eta_minutes || 30),
+    is_active: row.is_active ?? true,
+    polygon: row.polygon || null,
+    base_delivery_fee: Number(row.fee),
+    estimated_delivery_mins: Number(row.eta_minutes || 30),
+  };
 }
 
 /**
@@ -1529,13 +1711,16 @@ export async function getSupabaseById<T>(table: string, id: string): Promise<T |
 export async function createSupabase<T>(table: string, data: Partial<T>): Promise<T> {
   try {
     const payload = { ...data };
-    if (!(payload as Record<string, unknown>).id) {
-      (payload as Record<string, unknown>).id = ensureUUID();
+    const currentId = (payload as Record<string, unknown>).id as string | undefined;
+    if (!currentId || !isValidUUID(currentId)) {
+      (payload as Record<string, unknown>).id = ensureUUID(currentId);
     }
     const { data: created, error } = await supabase.from(table).insert([payload as any]).select('*').single();
     if (error) {
       console.error(`Error in createSupabase('${table}'):`, error.message);
-      throw new Error(`Failed to create row in ${table}: ${error.message}`);
+      let msg = error.message || `Failed to create row in ${table}`;
+      msg = msg.replace(/^ERROR:\s*/i, '').replace(/^[A-Z0-9]{5}:\s*/, '');
+      throw new Error(msg);
     }
     return created as T;
   } catch (err) {

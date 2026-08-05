@@ -77,7 +77,7 @@ export const AdminAgentsView: React.FC = () => {
             <div className="grid grid-cols-2 gap-2 text-xs text-slate-600">
               <div>
                 <span className="font-bold block text-slate-800">المنطقة المغطاة:</span>
-                <span>{ag.active_zone}</span>
+                <span>{ag.active_zone || 'غير متاح'}</span>
               </div>
               <div>
                 <span className="font-bold block text-slate-800">المركبة:</span>
@@ -85,7 +85,7 @@ export const AdminAgentsView: React.FC = () => {
               </div>
               <div>
                 <span className="font-bold block text-slate-800">التقييم:</span>
-                <span className="font-bold text-amber-600">⭐ {ag.rating.toFixed(1)}</span>
+                <span className="font-bold text-amber-600">⭐ {ag.rating ? ag.rating.toFixed(1) : 'جديد'}</span>
               </div>
               <div>
                 <span className="font-bold block text-slate-800">إجمالي الرحلات:</span>

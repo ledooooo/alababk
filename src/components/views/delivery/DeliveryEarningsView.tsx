@@ -1,7 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StorageRepo } from '../../../lib/storage';
+import { fetchAgentStats } from '../../../lib/supabase';
 import { formatCurrency } from '../../../lib/formatters';
 import { Wallet, Truck, CheckCircle2, DollarSign, Calendar, Landmark, Smartphone, ArrowDownRight } from 'lucide-react';
+
+import { ensureUUID } from '../../../lib/supabase';
+import { Payout } from '../../../types/domain';
 
 export const DeliveryEarningsView: React.FC = () => {
   const currentAgent = StorageRepo.getCurrentAgent();
@@ -10,19 +14,62 @@ export const DeliveryEarningsView: React.FC = () => {
   );
 
   const completedDeliveries = orders.filter((o) => o.status === 'delivered');
-  const deliveryCommissions = completedDeliveries.reduce((acc, o) => acc + o.delivery_fee, 0);
-  const totalTips = completedDeliveries.reduce((acc, o) => acc + (o.tip_amount || 0), 0);
-  const totalEarnings = deliveryCommissions + totalTips;
+  const localDeliveryCommissions = completedDeliveries.reduce((acc, o) => acc + o.delivery_fee, 0);
+  const localTotalTips = completedDeliveries.reduce((acc, o) => acc + (o.tip_amount || 0), 0);
+
+  const [agentStats, setAgentStats] = useState<{ completed_deliveries: number; total_trips: number; total_earnings: number; total_tips: number; avg_rating: number } | null>(null);
+
+  useEffect(() => {
+    if (currentAgent?.id) {
+      fetchAgentStats(currentAgent.id).then((stats) => {
+        if (stats) setAgentStats(stats);
+      }).catch(() => {});
+    }
+  }, [currentAgent?.id]);
+
+  const totalEarnings = agentStats ? agentStats.total_earnings : (localDeliveryCommissions + localTotalTips);
+  const totalTips = agentStats ? agentStats.total_tips : localTotalTips;
+  const deliveryCommissions = agentStats ? Math.max(0, agentStats.total_earnings - agentStats.total_tips) : localDeliveryCommissions;
 
   const [payoutMethod, setPayoutMethod] = useState<'vodafone' | 'bank'>('vodafone');
   const [walletPhone, setWalletPhone] = useState(currentAgent?.phone || '01012345678');
   const [payoutAmount, setPayoutAmount] = useState(totalEarnings > 0 ? Math.floor(totalEarnings) : 350);
   const [successMsg, setSuccessMsg] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [errMsg, setErrMsg] = useState<string | null>(null);
 
-  const handlePayoutSubmit = (e: React.FormEvent) => {
+  const handlePayoutSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSuccessMsg(true);
-    setTimeout(() => setSuccessMsg(false), 4000);
+    setErrMsg(null);
+    const user = StorageRepo.getCurrentUser();
+    if (!user?.id) {
+      setErrMsg('يرجى تسجيل الدخول أولاً لإرسال طلب السحب');
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      const newPayout: Payout = {
+        id: ensureUUID(),
+        recipient_id: user.id, // auth.uid()
+        recipient_name: currentAgent?.name || user.name || 'كابتن',
+        recipient_type: 'agent',
+        amount: Number(payoutAmount),
+        status: 'pending',
+        method: payoutMethod === 'vodafone' ? 'محفظة كاش' : 'حساب بنكي',
+        account_details: walletPhone,
+        created_at: new Date().toISOString(),
+      };
+
+      await StorageRepo.savePayout(newPayout);
+      setSuccessMsg(true);
+      setTimeout(() => setSuccessMsg(false), 5000);
+    } catch (err: any) {
+      console.error('Failed to submit agent payout:', err);
+      setErrMsg(err?.message || 'تعذر إرسال طلب السحب');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
