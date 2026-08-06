@@ -169,17 +169,59 @@ export const CustomerOrderDetailView: React.FC<CustomerOrderDetailViewProps> = (
     });
   }
 
-  const handleCancelOrder = () => {
-    if (window.confirm('هل أنت تأكد من إلغاء هذا الطلب؟')) {
-      StorageRepo.updateOrderStatus(order.id, 'cancelled', 'تم الإلغاء بواسطة العميل.');
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  const handleCancelOrder = async () => {
+    if (!['pending', 'accepted'].includes(order.status)) {
+      alert('غير مسموح: لا يمكن إلغاء الطلب بعد دخوله مرحلة التحضير أو التوصيل. تواصل مع الدعم.');
+      return;
+    }
+
+    if (!window.confirm('هل أنت متأكد من إلغاء هذا الطلب؟')) return;
+
+    try {
+      setIsCancelling(true);
+      await StorageRepo.updateOrderStatus(order.id, 'cancelled', 'تم الإلغاء بواسطة العميل.');
+    } catch (err: any) {
+      console.error('Cancellation error:', err);
+      const msg = err?.message || 'غير مسموح: لا يمكن إلغاء الطلب بعد دخوله مرحلة التحضير أو التوصيل. تواصل مع الدعم.';
+      alert(msg);
+    } finally {
+      setIsCancelling(false);
     }
   };
 
-  const handleSubmitRating = () => {
-    setRatingSubmitted(true);
-    setTimeout(() => {
-      setShowRatingModal(false);
-    }, 1200);
+  const handleSubmitRating = async () => {
+    try {
+      const currentUser = StorageRepo.getCurrentUser();
+      const newReview = {
+        id: `rev-${Date.now()}`,
+        order_id: order.id,
+        store_id: order.store_id,
+        store_name: order.store_name,
+        customer_id: currentUser?.id || order.customer_id,
+        customer_name: currentUser?.full_name || 'عميل على بابك',
+        delivery_agent_id: order.delivery_agent_id,
+        delivery_agent_name: order.delivery_agent_name,
+        store_rating: ratingStore,
+        delivery_rating: ratingDelivery,
+        agent_rating: ratingDelivery,
+        rating: ratingStore,
+        comment: reviewComment,
+        store_comment: reviewComment,
+        agent_comment: reviewComment,
+        created_at: new Date().toISOString(),
+      };
+
+      await StorageRepo.saveReview(newReview);
+      setRatingSubmitted(true);
+      setTimeout(() => {
+        setShowRatingModal(false);
+      }, 1200);
+    } catch (err: any) {
+      console.error('Rating submission error:', err);
+      alert(`تعذر إرسال التقييم: ${err?.message || 'خطأ غير معروف'}`);
+    }
   };
 
   return (
@@ -221,16 +263,23 @@ export const CustomerOrderDetailView: React.FC<CustomerOrderDetailViewProps> = (
               <p className="text-xs text-slate-500 mt-1">
                 تاريخ الطلب: {formatDateArabic(order.created_at)}
               </p>
+              {order.eta_minutes && (
+                <p className="text-xs text-amber-700 font-bold mt-1 flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5 text-amber-600" />
+                  <span>وقت التوصيل المتوقع: {order.eta_minutes} دقيقة</span>
+                </p>
+              )}
             </div>
           </div>
 
-          {/* Cancel Button if still pending */}
-          {order.status === 'pending' && (
+          {/* Cancel Button if status is pending or accepted */}
+          {['pending', 'accepted'].includes(order.status) && (
             <button
               onClick={handleCancelOrder}
-              className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold rounded-xl border border-rose-200 transition-colors self-start sm:self-auto"
+              disabled={isCancelling}
+              className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 disabled:opacity-50 text-rose-700 text-xs font-bold rounded-xl border border-rose-200 transition-colors self-start sm:self-auto flex items-center gap-1.5"
             >
-              إلغاء الطلب
+              {isCancelling ? 'جاري الإلغاء...' : 'إلغاء الطلب'}
             </button>
           )}
 

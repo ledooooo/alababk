@@ -49,8 +49,10 @@ export const AdminSupabaseSync: React.FC = () => {
     checkConnection();
   }, []);
 
+  const isDevEnv = !!((import.meta as unknown as { env: Record<string, string> }).env?.DEV);
+
   const handleSeed = async () => {
-    if (!import.meta.env.DEV) {
+    if (!isDevEnv) {
       setSeedResult('عذراً، بذر البيانات التلقائي متاح فقط في بيئة التطوير (DEV) لحماية بيانات الإنتاج.');
       return;
     }
@@ -134,7 +136,7 @@ export const AdminSupabaseSync: React.FC = () => {
             <p className="text-xs text-slate-500 mt-0.5">عدد السجلات الحقيقية الموجودة في كل جدول بداخل Supabase DB</p>
           </div>
 
-          {import.meta.env.DEV ? (
+          {isDevEnv ? (
             <button
               onClick={handleSeed}
               disabled={seeding}

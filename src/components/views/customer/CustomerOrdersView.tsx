@@ -162,9 +162,16 @@ export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
                     </div>
                     <div>
                       <h3 className="font-bold text-slate-900 text-sm">{order.store_name}</h3>
-                      <p className="text-xs text-slate-500 mt-0.5">
-                        رقم الطلب: <span className="font-mono font-bold text-slate-800">#{order.order_number}</span> • {formatDateArabic(order.created_at)}
-                      </p>
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500 mt-0.5">
+                        <span>رقم الطلب: <span className="font-mono font-bold text-slate-800">#{order.order_number}</span></span>
+                        <span>• {formatDateArabic(order.created_at)}</span>
+                        {order.eta_minutes && (
+                          <span className="bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-md text-[11px] font-bold flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-amber-600" />
+                            <span>المتوقع: {order.eta_minutes} دقيقة</span>
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
 

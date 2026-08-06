@@ -366,15 +366,20 @@ export const StorageRepo = {
       const targetUser = userId || this.getCurrentUser()?.id;
       if (targetUser) {
         const list = await fetchSupabaseNotifications(targetUser);
-        setCached(STORAGE_KEYS.NOTIFICATIONS, list);
-        notifyStorageChange('notification', 'refresh', list);
-        return list;
+        if (list && list.length > 0) {
+          setCached(STORAGE_KEYS.NOTIFICATIONS, list);
+          notifyStorageChange('notification', 'refresh', list);
+          return list;
+        }
       } else {
         const list = await listAllSupabaseNotifications();
-        setCached(STORAGE_KEYS.NOTIFICATIONS, list);
-        notifyStorageChange('notification', 'refresh', list);
-        return list;
+        if (list && list.length > 0) {
+          setCached(STORAGE_KEYS.NOTIFICATIONS, list);
+          notifyStorageChange('notification', 'refresh', list);
+          return list;
+        }
       }
+      return this.getCachedNotifications();
     } catch (err) {
       console.warn('refreshNotifications offline fallback:', err);
       return this.getCachedNotifications();

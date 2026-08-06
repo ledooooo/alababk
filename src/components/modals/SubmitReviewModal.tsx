@@ -36,6 +36,7 @@ export const SubmitReviewModal: React.FC<SubmitReviewModalProps> = ({
       delivery_agent_id: order.delivery_agent_id,
       delivery_agent_name: order.delivery_agent_name,
       store_rating: storeRating,
+      delivery_rating: agentRating,
       agent_rating: agentRating,
       rating: storeRating,
       comment: storeComment || agentComment || '',

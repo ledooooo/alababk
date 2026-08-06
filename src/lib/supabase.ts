@@ -632,14 +632,18 @@ export async function fetchSupabaseReviews(storeId?: string): Promise<Review[]> 
 export async function saveSupabaseReview(review: Partial<Review>): Promise<Review> {
   const validId = ensureUUID(review.id);
 
+  // Unify agent_rating and delivery_rating so they are strictly identical or null
+  const deliveryRatingValue = review.delivery_rating ?? review.agent_rating ?? null;
+
   const payload: Record<string, any> = {
     id: validId,
     order_id: review.order_id ? ensureUUID(review.order_id) : null,
     store_id: review.store_id ? ensureUUID(review.store_id) : null,
     customer_id: review.customer_id ? ensureUUID(review.customer_id) : null,
     store_rating: review.store_rating || review.rating || 5,
-    agent_rating: review.delivery_rating || 5,
-    store_comment: review.comment || '',
+    delivery_rating: deliveryRatingValue,
+    agent_rating: deliveryRatingValue,
+    store_comment: review.comment || review.store_comment || '',
     created_at: new Date().toISOString(),
   };
 
@@ -651,6 +655,7 @@ export async function saveSupabaseReview(review: Partial<Review>): Promise<Revie
   }
 
   const r = data as any;
+  const ratingVal = r.agent_rating ?? r.delivery_rating ?? deliveryRatingValue ?? 5;
   return {
     id: r.id,
     order_id: r.order_id,
@@ -658,7 +663,8 @@ export async function saveSupabaseReview(review: Partial<Review>): Promise<Revie
     customer_id: r.customer_id,
     customer_name: r.profiles?.full_name || review.customer_name || 'عميل',
     store_rating: r.store_rating || 5,
-    delivery_rating: r.agent_rating || 5,
+    delivery_rating: ratingVal,
+    agent_rating: ratingVal,
     rating: r.store_rating || 5,
     comment: r.store_comment || r.agent_comment || '',
     store_response: r.store_reply,
@@ -734,11 +740,11 @@ export function mapNotificationRow(n: any): NotificationItem {
  */
 export async function fetchSupabaseNotifications(userId: string): Promise<NotificationItem[]> {
   try {
-    const validUserId = ensureUUID(userId);
+    if (!userId) return [];
     const { data, error } = await supabase
       .from('notifications')
       .select('*')
-      .eq('user_id', validUserId)
+      .eq('user_id', userId)
       .order('created_at', { ascending: false });
 
     if (error) {
