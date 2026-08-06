@@ -748,14 +748,12 @@ export async function fetchSupabaseNotifications(userId: string): Promise<Notifi
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.warn('fetchSupabaseNotifications error:', error.message);
       return [];
     }
 
     if (!data) return [];
     return data.map(mapNotificationRow);
-  } catch (err) {
-    console.warn('fetchSupabaseNotifications exception:', err);
+  } catch {
     return [];
   }
 }
@@ -771,14 +769,12 @@ export async function listAllSupabaseNotifications(): Promise<NotificationItem[]
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.warn('listAllSupabaseNotifications error:', error.message);
       return [];
     }
 
     if (!data) return [];
     return data.map(mapNotificationRow);
-  } catch (err) {
-    console.warn('listAllSupabaseNotifications exception:', err);
+  } catch {
     return [];
   }
 }

@@ -380,8 +380,7 @@ export const StorageRepo = {
         }
       }
       return this.getCachedNotifications();
-    } catch (err) {
-      console.warn('refreshNotifications offline fallback:', err);
+    } catch {
       return this.getCachedNotifications();
     }
   },
