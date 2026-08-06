@@ -50,6 +50,10 @@ export const AdminSupabaseSync: React.FC = () => {
   }, []);
 
   const handleSeed = async () => {
+    if (!import.meta.env.DEV) {
+      setSeedResult('عذراً، بذر البيانات التلقائي متاح فقط في بيئة التطوير (DEV) لحماية بيانات الإنتاج.');
+      return;
+    }
     setSeeding(true);
     const res = await seedSupabaseDatabase();
     setSeedResult(res.message);
@@ -130,14 +134,20 @@ export const AdminSupabaseSync: React.FC = () => {
             <p className="text-xs text-slate-500 mt-0.5">عدد السجلات الحقيقية الموجودة في كل جدول بداخل Supabase DB</p>
           </div>
 
-          <button
-            onClick={handleSeed}
-            disabled={seeding}
-            className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-2"
-          >
-            <Cpu className={`w-4 h-4 ${seeding ? 'animate-spin' : ''}`} />
-            <span>تغذية البيانات الأساسية تلقائياً</span>
-          </button>
+          {import.meta.env.DEV ? (
+            <button
+              onClick={handleSeed}
+              disabled={seeding}
+              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center gap-2"
+            >
+              <Cpu className={`w-4 h-4 ${seeding ? 'animate-spin' : ''}`} />
+              <span>تغذية البيانات الأساسية (بيئة التطوير)</span>
+            </button>
+          ) : (
+            <span className="px-3 py-1.5 bg-slate-100 text-slate-500 rounded-xl text-xs font-bold border border-slate-200">
+              بذر البيانات معطّل في الإنتاج
+            </span>
+          )}
         </div>
 
         {seedResult && (

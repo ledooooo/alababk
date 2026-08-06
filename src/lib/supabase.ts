@@ -204,7 +204,7 @@ export async function saveSupabaseUser(user: Partial<UserProfile>, options: Save
       updated_at: new Date().toISOString(),
     };
 
-    const { error } = await supabase.from('profiles').upsert(payload, { onConflict: 'id' });
+    const { error } = await (supabase.from('profiles') as any).upsert(payload, { onConflict: 'id' });
     if (error) {
       let msg = error.message || 'فشل تحديث بيانات المستخدم';
       msg = msg.replace(/^ERROR:\s*/i, '').replace(/^[A-Z0-9]{5}:\s*/, '');
@@ -221,9 +221,9 @@ export async function saveSupabaseUser(user: Partial<UserProfile>, options: Save
  */
 export async function fetchSupabaseUsers(): Promise<UserProfile[]> {
   try {
-    const { data, error } = await supabase.from('profiles').select('*');
+    const { data, error } = await (supabase.from('profiles') as any).select('*');
     if (!error && data && data.length > 0) {
-      return data.map((u) => ({
+      return (data as any[]).map((u) => ({
         id: u.id,
         email: u.email || '',
         name: u.full_name || u.name || 'مستخدم',
@@ -246,13 +246,13 @@ export async function fetchSupabaseUsers(): Promise<UserProfile[]> {
  */
 export async function fetchSupabaseCategories(): Promise<Category[]> {
   try {
-    const { data, error } = await supabase
-      .from('categories')
+    const { data, error } = await (supabase
+      .from('categories') as any)
       .select('*')
       .order('sort_order', { ascending: true });
 
     if (error || !data) return [];
-    return data.map((item) => ({
+    return (data as any[]).map((item) => ({
       id: item.id,
       name: item.name,
       slug: item.slug,
@@ -269,13 +269,13 @@ export async function fetchSupabaseCategories(): Promise<Category[]> {
  */
 export async function fetchSupabaseStores(): Promise<Store[]> {
   try {
-    const { data, error } = await supabase
-      .from('stores')
+    const { data, error } = await (supabase
+      .from('stores') as any)
       .select('*, categories(name)')
       .order('created_at', { ascending: false });
 
     if (error || !data) return [];
-    return data.map((s) => {
+    return (data as any[]).map((s) => {
       const coords = extractCoordinates(s.location || s);
       const rawFee = s.base_delivery_fee ?? s.delivery_fee ?? s.fee;
       const fee = rawFee !== undefined && rawFee !== null && !isNaN(Number(rawFee))
@@ -317,14 +317,14 @@ export async function fetchSupabaseStores(): Promise<Store[]> {
  */
 export async function fetchSupabaseProducts(storeId?: string): Promise<Product[]> {
   try {
-    let query = supabase.from('products').select('*');
+    let query = (supabase.from('products') as any).select('*');
     if (storeId) {
       query = query.eq('store_id', storeId);
     }
     const { data, error } = await query;
     if (error || !data) return [];
 
-    return data.map((p) => ({
+    return (data as any[]).map((p) => ({
       id: p.id,
       store_id: p.store_id,
       name: p.name,
@@ -550,10 +550,10 @@ export async function fetchSupabaseAgents(): Promise<DeliveryAgent[]> {
  */
 export async function fetchSupabaseZones(): Promise<DeliveryZone[]> {
   try {
-    const { data, error } = await supabase.from('delivery_zones').select('*');
+    const { data, error } = await (supabase.from('delivery_zones') as any).select('*');
     if (error || !data) return [];
 
-    return data.map((z) => ({
+    return (data as any[]).map((z) => ({
       id: z.id,
       name: z.name,
       fee: Number(z.fee),
@@ -575,10 +575,10 @@ export async function fetchSupabaseZones(): Promise<DeliveryZone[]> {
  */
 export async function fetchSupabaseCoupons(): Promise<Coupon[]> {
   try {
-    const { data, error } = await supabase.from('coupons').select('*');
+    const { data, error } = await (supabase.from('coupons') as any).select('*');
     if (error || !data) return [];
 
-    return data.map((c) => ({
+    return (data as any[]).map((c) => ({
       id: c.id,
       code: c.code,
       discount_type: (c.type === 'percent' ? 'percent' : 'fixed') as 'percent' | 'fixed',
@@ -600,7 +600,7 @@ export async function fetchSupabaseCoupons(): Promise<Coupon[]> {
  */
 export async function fetchSupabaseReviews(storeId?: string): Promise<Review[]> {
   try {
-    let query = supabase.from('reviews').select('*, profiles(full_name)');
+    let query = (supabase.from('reviews') as any).select('*, profiles(full_name)');
     if (storeId) {
       query = query.eq('store_id', storeId);
     }
@@ -608,7 +608,7 @@ export async function fetchSupabaseReviews(storeId?: string): Promise<Review[]> 
 
     if (error || !data) return [];
 
-    return data.map((r) => ({
+    return (data as any[]).map((r) => ({
       id: r.id,
       order_id: r.order_id,
       store_id: r.store_id || '',
@@ -643,25 +643,26 @@ export async function saveSupabaseReview(review: Partial<Review>): Promise<Revie
     created_at: new Date().toISOString(),
   };
 
-  const { data, error } = await supabase.from('reviews').insert([payload]).select('*, profiles(full_name)').single();
+  const { data, error } = await (supabase.from('reviews') as any).insert([payload]).select('*, profiles(full_name)').single();
   if (error) {
     let msg = error.message || 'فشل إضافة التقييم في قاعدة البيانات';
     msg = msg.replace(/^ERROR:\s*/i, '').replace(/^[A-Z0-9]{5}:\s*/, '');
     throw new Error(msg);
   }
 
+  const r = data as any;
   return {
-    id: data.id,
-    order_id: data.order_id,
-    store_id: data.store_id || '',
-    customer_id: data.customer_id,
-    customer_name: data.profiles?.full_name || review.customer_name || 'عميل',
-    store_rating: data.store_rating || 5,
-    delivery_rating: data.agent_rating || 5,
-    rating: data.store_rating || 5,
-    comment: data.store_comment || data.agent_comment || '',
-    store_response: data.store_reply,
-    created_at: data.created_at || new Date().toISOString(),
+    id: r.id,
+    order_id: r.order_id,
+    store_id: r.store_id || '',
+    customer_id: r.customer_id,
+    customer_name: r.profiles?.full_name || review.customer_name || 'عميل',
+    store_rating: r.store_rating || 5,
+    delivery_rating: r.agent_rating || 5,
+    rating: r.store_rating || 5,
+    comment: r.store_comment || r.agent_comment || '',
+    store_response: r.store_reply,
+    created_at: r.created_at || new Date().toISOString(),
   };
 }
 
@@ -676,8 +677,8 @@ export async function replySupabaseReview(reviewId: string, replyText: string): 
     updated_at: new Date().toISOString(),
   };
 
-  const { data, error } = await supabase
-    .from('reviews')
+  const { data, error } = await (supabase
+    .from('reviews') as any)
     .update(payload)
     .eq('id', validId)
     .select('*, profiles(full_name)')
@@ -689,18 +690,19 @@ export async function replySupabaseReview(reviewId: string, replyText: string): 
     throw new Error(msg);
   }
 
+  const r = data as any;
   return {
-    id: data.id,
-    order_id: data.order_id,
-    store_id: data.store_id || '',
-    customer_id: data.customer_id,
-    customer_name: data.profiles?.full_name || 'عميل',
-    store_rating: data.store_rating || 5,
-    delivery_rating: data.agent_rating || 5,
-    rating: data.store_rating || 5,
-    comment: data.store_comment || data.agent_comment || '',
-    store_response: data.store_reply,
-    created_at: data.created_at || new Date().toISOString(),
+    id: r.id,
+    order_id: r.order_id,
+    store_id: r.store_id || '',
+    customer_id: r.customer_id,
+    customer_name: r.profiles?.full_name || 'عميل',
+    store_rating: r.store_rating || 5,
+    delivery_rating: r.agent_rating || 5,
+    rating: r.store_rating || 5,
+    comment: r.store_comment || r.agent_comment || '',
+    store_response: r.store_reply,
+    created_at: r.created_at || new Date().toISOString(),
   };
 }
 
@@ -731,40 +733,48 @@ export function mapNotificationRow(n: any): NotificationItem {
  * Fetch Notifications from Supabase
  */
 export async function fetchSupabaseNotifications(userId: string): Promise<NotificationItem[]> {
-  const validUserId = ensureUUID(userId);
-  const { data, error } = await supabase
-    .from('notifications')
-    .select('*')
-    .eq('user_id', validUserId)
-    .order('created_at', { ascending: false });
+  try {
+    const validUserId = ensureUUID(userId);
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('user_id', validUserId)
+      .order('created_at', { ascending: false });
 
-  if (error) {
-    let msg = error.message || 'فشل جلب الإشعارات';
-    msg = msg.replace(/^ERROR:\s*/i, '').replace(/^[A-Z0-9]{5}:\s*/, '');
-    throw new Error(msg);
+    if (error) {
+      console.warn('fetchSupabaseNotifications error:', error.message);
+      return [];
+    }
+
+    if (!data) return [];
+    return data.map(mapNotificationRow);
+  } catch (err) {
+    console.warn('fetchSupabaseNotifications exception:', err);
+    return [];
   }
-
-  if (!data) return [];
-  return data.map(mapNotificationRow);
 }
 
 /**
  * List all notifications from Supabase
  */
 export async function listAllSupabaseNotifications(): Promise<NotificationItem[]> {
-  const { data, error } = await supabase
-    .from('notifications')
-    .select('*')
-    .order('created_at', { ascending: false });
+  try {
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('*')
+      .order('created_at', { ascending: false });
 
-  if (error) {
-    let msg = error.message || 'فشل جلب الإشعارات';
-    msg = msg.replace(/^ERROR:\s*/i, '').replace(/^[A-Z0-9]{5}:\s*/, '');
-    throw new Error(msg);
+    if (error) {
+      console.warn('listAllSupabaseNotifications error:', error.message);
+      return [];
+    }
+
+    if (!data) return [];
+    return data.map(mapNotificationRow);
+  } catch (err) {
+    console.warn('listAllSupabaseNotifications exception:', err);
+    return [];
   }
-
-  if (!data) return [];
-  return data.map(mapNotificationRow);
 }
 
 /**
@@ -777,7 +787,7 @@ export async function createSupabaseNotification(params: {
   type: string;
   data?: Record<string, any>;
 }): Promise<void> {
-  const { error } = await supabase.rpc('create_notification', {
+  const { error } = await (supabase.rpc as any)('create_notification', {
     p_user_id: ensureUUID(params.user_id),
     p_title: params.title,
     p_body: params.body,
@@ -800,8 +810,8 @@ export async function markSupabaseNotificationRead(id: string): Promise<void> {
   const payload = {
     read_at: new Date().toISOString(),
   };
-  const { data, error } = await supabase
-    .from('notifications')
+  const { data, error } = await (supabase
+    .from('notifications') as any)
     .update(payload)
     .eq('id', validId)
     .select();
@@ -821,7 +831,7 @@ export async function markSupabaseNotificationRead(id: string): Promise<void> {
  * Mark all notifications read in Supabase
  */
 export async function markAllSupabaseNotificationsRead(userId?: string): Promise<void> {
-  let query = supabase.from('notifications').update({
+  let query = (supabase.from('notifications') as any).update({
     read_at: new Date().toISOString(),
   });
   if (userId && userId !== 'all') {
@@ -846,8 +856,8 @@ export async function markAllSupabaseNotificationsRead(userId?: string): Promise
  */
 export async function deleteSupabaseNotification(id: string): Promise<void> {
   const validId = ensureUUID(id);
-  const { data, error } = await supabase
-    .from('notifications')
+  const { data, error } = await (supabase
+    .from('notifications') as any)
     .delete()
     .eq('id', validId)
     .select();
@@ -867,7 +877,7 @@ export async function deleteSupabaseNotification(id: string): Promise<void> {
  * Clear notifications in Supabase
  */
 export async function clearSupabaseNotifications(userId?: string): Promise<void> {
-  let query = supabase.from('notifications').delete();
+  let query = (supabase.from('notifications') as any).delete();
   if (userId && userId !== 'all') {
     query = query.eq('user_id', ensureUUID(userId));
   } else {
@@ -902,8 +912,8 @@ export async function createSupabasePayout(payout: Payout): Promise<Payout> {
     created_at: payout.created_at || new Date().toISOString(),
   };
 
-  const { data, error } = await supabase
-    .from('payouts')
+  const { data, error } = await (supabase
+    .from('payouts') as any)
     .insert([payload])
     .select()
     .single();
@@ -913,17 +923,18 @@ export async function createSupabasePayout(payout: Payout): Promise<Payout> {
     throw new Error(`فشل إدخال طلب السحب: ${error.message}`);
   }
 
+  const res = data as any;
   return {
-    id: data.id,
-    recipient_id: data.recipient_id,
+    id: res.id,
+    recipient_id: res.recipient_id,
     recipient_name: payout.recipient_name,
-    recipient_type: data.recipient_type,
-    amount: Number(data.amount),
-    status: data.status,
-    method: data.method,
+    recipient_type: res.recipient_type,
+    amount: Number(res.amount),
+    status: res.status,
+    method: res.method,
     account_details: payout.account_details,
-    notes: data.notes,
-    created_at: data.created_at,
+    notes: res.notes,
+    created_at: res.created_at,
   };
 }
 
@@ -932,14 +943,14 @@ export async function createSupabasePayout(payout: Payout): Promise<Payout> {
  */
 export async function fetchSupabasePayouts(): Promise<Payout[]> {
   try {
-    const { data, error } = await supabase
-      .from('payouts')
+    const { data, error } = await (supabase
+      .from('payouts') as any)
       .select('*, profiles(full_name)')
       .order('created_at', { ascending: false });
 
     if (error || !data) return [];
 
-    return data.map((p) => ({
+    return (data as any[]).map((p) => ({
       id: p.id,
       recipient_id: p.recipient_id,
       recipient_name: p.profiles?.full_name || 'مستفيد',
@@ -968,7 +979,7 @@ export async function updateSupabasePayoutStatus(
   newStatus: 'completed' | 'failed',
   notes?: string
 ): Promise<Payout> {
-  const { data, error } = await supabase.rpc('process_payout_secure', {
+  const { data, error } = await (supabase.rpc as any)('process_payout_secure', {
     p_payout_id: ensureUUID(payoutId),
     p_new_status: newStatus,
     p_notes: notes || null,
@@ -989,9 +1000,9 @@ export async function updateSupabasePayoutStatus(
 export async function seedSupabaseDatabase() {
   try {
     // 1. Seed categories if empty
-    const { count: catCount } = await supabase.from('categories').select('*', { count: 'exact', head: true });
+    const { count: catCount } = await (supabase.from('categories') as any).select('*', { count: 'exact', head: true });
     if (!catCount || catCount === 0) {
-      await supabase.from('categories').insert([
+      await (supabase.from('categories') as any).insert([
         { name: 'سوبر ماركت وبقالة', slug: 'grocery', icon: '🛒', sort_order: 1 },
         { name: 'خضروات وفواكه طازجة', slug: 'vegetables', icon: '🥬', sort_order: 2 },
         { name: 'لحوم ودواجن', slug: 'meat', icon: '🥩', sort_order: 3 },
@@ -1002,9 +1013,9 @@ export async function seedSupabaseDatabase() {
     }
 
     // 2. Seed delivery zones if empty
-    const { count: zoneCount } = await supabase.from('delivery_zones').select('*', { count: 'exact', head: true });
+    const { count: zoneCount } = await (supabase.from('delivery_zones') as any).select('*', { count: 'exact', head: true });
     if (!zoneCount || zoneCount === 0) {
-      await supabase.from('delivery_zones').insert([
+      await (supabase.from('delivery_zones') as any).insert([
         { name: 'وسط البلد - القاهرة', fee: 15.0, eta_minutes: 25, is_active: true },
         { name: 'مدينة نصر ومصر الجديدة', fee: 20.0, eta_minutes: 35, is_active: true },
         { name: 'المعادي والمقطم', fee: 22.0, eta_minutes: 40, is_active: true },
@@ -1013,9 +1024,9 @@ export async function seedSupabaseDatabase() {
     }
 
     // 3. Seed coupons if empty
-    const { count: couponCount } = await supabase.from('coupons').select('*', { count: 'exact', head: true });
+    const { count: couponCount } = await (supabase.from('coupons') as any).select('*', { count: 'exact', head: true });
     if (!couponCount || couponCount === 0) {
-      await supabase.from('coupons').insert([
+      await (supabase.from('coupons') as any).insert([
         { code: 'ALABABAK10', type: 'percent', value: 10, min_order_amount: 100, max_discount: 30, is_active: true },
         { code: 'FREE2026', type: 'fixed', value: 15, min_order_amount: 150, is_active: true },
       ]);
@@ -1083,40 +1094,41 @@ export async function saveSupabaseStore(store: Partial<Store>, options: SaveStor
     payload.category_id = store.category_id;
   }
 
-  const { data, error } = await supabase.from('stores').upsert(payload, { onConflict: 'id' }).select('*, categories(name)').single();
+  const { data, error } = await (supabase.from('stores') as any).upsert(payload, { onConflict: 'id' }).select('*, categories(name)').single();
   if (error) {
     let msg = error.message || 'فشل حفظ بيانات المتجر في قاعدة البيانات';
     msg = msg.replace(/^ERROR:\s*/i, '').replace(/^[A-Z0-9]{5}:\s*/, '');
     throw new Error(msg);
   }
 
-  const coords = extractCoordinates(data.location || data);
-  const rawFee = data.base_delivery_fee ?? data.delivery_fee ?? store.delivery_fee;
+  const s = data as any;
+  const coords = extractCoordinates(s.location || s);
+  const rawFee = s.base_delivery_fee ?? s.delivery_fee ?? store.delivery_fee;
   const fee = rawFee !== undefined && rawFee !== null && !isNaN(Number(rawFee)) ? Number(rawFee) : 15;
 
   return {
-    id: data.id,
-    name: data.name,
-    slug: data.slug || data.name,
-    owner_id: data.owner_id,
-    category_id: data.category_id || '',
-    category_name: data.categories?.name || store.category_name || 'عام',
-    description: data.description || '',
-    logo_url: data.logo_url || '',
-    banner_url: data.cover_url || null,
-    address: data.address || null,
-    lat: coords ? coords.lat : (data.lat ? Number(data.lat) : null),
-    lng: coords ? coords.lng : (data.lng ? Number(data.lng) : null),
-    phone: data.phone || null,
-    is_approved: data.is_approved ?? true,
-    is_open: data.is_active ?? true,
-    rating: data.rating_avg !== undefined && data.rating_avg !== null ? Number(data.rating_avg) : (data.rating !== undefined && data.rating !== null ? Number(data.rating) : null),
-    reviews_count: data.rating_count ? Number(data.rating_count) : 0,
-    commission_rate: Number(data.commission_pct || 15),
-    min_order_amount: Number(data.min_order_amount || 0),
+    id: s.id,
+    name: s.name,
+    slug: s.slug || s.name,
+    owner_id: s.owner_id,
+    category_id: s.category_id || '',
+    category_name: s.categories?.name || store.category_name || 'عام',
+    description: s.description || '',
+    logo_url: s.logo_url || '',
+    banner_url: s.cover_url || null,
+    address: s.address || null,
+    lat: coords ? coords.lat : (s.lat ? Number(s.lat) : null),
+    lng: coords ? coords.lng : (s.lng ? Number(s.lng) : null),
+    phone: s.phone || null,
+    is_approved: s.is_approved ?? true,
+    is_open: s.is_active ?? true,
+    rating: s.rating_avg !== undefined && s.rating_avg !== null ? Number(s.rating_avg) : (s.rating !== undefined && s.rating !== null ? Number(s.rating) : null),
+    reviews_count: s.rating_count ? Number(s.rating_count) : 0,
+    commission_rate: Number(s.commission_pct || 15),
+    min_order_amount: Number(s.min_order_amount || 0),
     delivery_fee: fee,
-    opening_hours: data.working_hours || { everyday: { open: '08:00', close: '23:00' } },
-    created_at: data.created_at || new Date().toISOString(),
+    opening_hours: s.working_hours || { everyday: { open: '08:00', close: '23:00' } },
+    created_at: s.created_at || new Date().toISOString(),
   };
 }
 
@@ -1145,26 +1157,27 @@ export async function saveSupabaseProduct(product: Partial<Product>): Promise<Pr
     updated_at: new Date().toISOString(),
   };
 
-  const { data, error } = await supabase.from('products').upsert(payload, { onConflict: 'id' }).select('*').single();
+  const { data, error } = await (supabase.from('products') as any).upsert(payload, { onConflict: 'id' }).select('*').single();
   if (error) {
     let msg = error.message || 'فشل حفظ المنتج في قاعدة البيانات';
     msg = msg.replace(/^ERROR:\s*/i, '').replace(/^[A-Z0-9]{5}:\s*/, '');
     throw new Error(msg);
   }
 
+  const p = data as any;
   return {
-    id: data.id,
-    store_id: data.store_id,
-    name: data.name,
-    description: data.description || '',
-    price: Number(data.price),
-    original_price: data.old_price ? Number(data.old_price) : undefined,
+    id: p.id,
+    store_id: p.store_id,
+    name: p.name,
+    description: p.description || '',
+    price: Number(p.price),
+    original_price: p.old_price ? Number(p.old_price) : undefined,
     category_name: product.category_name || 'عام',
-    image_url: data.images?.[0] || 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=300',
-    stock: data.stock ?? 50,
-    is_active: data.is_active ?? true,
+    image_url: p.images?.[0] || 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=300',
+    stock: p.stock ?? 50,
+    is_active: p.is_active ?? true,
     unit: product.unit || 'قطعة',
-    created_at: data.created_at || new Date().toISOString(),
+    created_at: p.created_at || new Date().toISOString(),
   };
 }
 
@@ -1210,8 +1223,8 @@ export async function saveSupabaseAgent(agent: Partial<DeliveryAgent>, options: 
     try {
       const { data: authData } = await supabase.auth.getUser();
       if (authData?.user?.id) {
-        const { data: profile } = await supabase
-          .from('profiles')
+        const { data: profile } = await (supabase
+          .from('profiles') as any)
           .select('role')
           .eq('id', authData.user.id)
           .maybeSingle();
@@ -1256,8 +1269,8 @@ export async function saveSupabaseAgent(agent: Partial<DeliveryAgent>, options: 
     payload.is_approved = agent.is_approved;
   }
 
-  const { data, error } = await supabase
-    .from('delivery_agents')
+  const { data, error } = await (supabase
+    .from('delivery_agents') as any)
     .upsert(payload, { onConflict: 'id' })
     .select('*, profiles(full_name, phone, avatar_url)')
     .single();
@@ -1347,7 +1360,7 @@ export async function quoteOrderSecure(params: {
     notes: item.notes ? String(item.notes).trim() : null,
   }));
 
-  const { data, error } = await supabase.rpc('quote_order_secure', {
+  const { data, error } = await (supabase.rpc as any)('quote_order_secure', {
     p_store_id: ensureUUID(params.store_id),
     p_address_id: validAddressId,
     p_items: formattedItems,
@@ -1361,14 +1374,15 @@ export async function quoteOrderSecure(params: {
     throw new Error(msg);
   }
 
+  const qData = data as any;
   return {
-    subtotal: Number(data?.subtotal || 0),
-    delivery_fee: Number(data?.delivery_fee || 0),
-    eta_minutes: data?.eta_minutes ? Number(data.eta_minutes) : undefined,
-    zone_id: data?.zone_id || undefined,
-    discount: Number(data?.discount || 0),
-    tip_amount: Number(data?.tip_amount || 0),
-    total: Number(data?.total || 0),
+    subtotal: Number(qData?.subtotal || 0),
+    delivery_fee: Number(qData?.delivery_fee || 0),
+    eta_minutes: qData?.eta_minutes ? Number(qData.eta_minutes) : undefined,
+    zone_id: qData?.zone_id || undefined,
+    discount: Number(qData?.discount || 0),
+    tip_amount: Number(qData?.tip_amount || 0),
+    total: Number(qData?.total || 0),
   };
 }
 
@@ -1396,7 +1410,7 @@ export async function createSecureOrder(params: SecureOrderPayload): Promise<Sec
     updated_at: new Date().toISOString(),
   };
 
-  const { error: addrErr } = await supabase.from('addresses').upsert(addressPayload, { onConflict: 'id' });
+  const { error: addrErr } = await (supabase.from('addresses') as any).upsert(addressPayload, { onConflict: 'id' });
   if (addrErr) {
     console.warn('Address upsert prior to secure order creation warning:', addrErr.message);
   }
@@ -1410,7 +1424,7 @@ export async function createSecureOrder(params: SecureOrderPayload): Promise<Sec
   }));
 
   // 3. Invoke create_order_secure RPC
-  const { data, error } = await supabase.rpc('create_order_secure', {
+  const { data, error } = await (supabase.rpc as any)('create_order_secure', {
     p_store_id: ensureUUID(params.store_id),
     p_address_id: validAddressId,
     p_payment_method: params.payment_method === 'online' ? 'online' : 'cash',
@@ -1426,23 +1440,24 @@ export async function createSecureOrder(params: SecureOrderPayload): Promise<Sec
     throw new Error(msg);
   }
 
-  if (!data || !data.order_id) {
+  const res = data as any;
+  if (!res || !res.order_id) {
     throw new Error('حدث خطأ غير متوقع أثناء معالجة الطلب على السيرفر.');
   }
 
   return {
-    order_id: data.order_id,
-    code: data.code,
-    subtotal: Number(data.subtotal || 0),
-    delivery_fee: Number(data.delivery_fee || 0),
-    tip_amount: Number(data.tip_amount || 0),
-    discount: Number(data.discount || 0),
-    total: Number(data.total || 0),
-    status: data.status || 'pending',
-    eta_minutes: data.eta_minutes ? Number(data.eta_minutes) : undefined,
-    zone_id: data.zone_id || undefined,
-    commission_pct: data.commission_pct ? Number(data.commission_pct) : undefined,
-    commission_amount: data.commission_amount ? Number(data.commission_amount) : undefined,
+    order_id: res.order_id,
+    code: res.code,
+    subtotal: Number(res.subtotal || 0),
+    delivery_fee: Number(res.delivery_fee || 0),
+    tip_amount: Number(res.tip_amount || 0),
+    discount: Number(res.discount || 0),
+    total: Number(res.total || 0),
+    status: res.status || 'pending',
+    eta_minutes: res.eta_minutes ? Number(res.eta_minutes) : undefined,
+    zone_id: res.zone_id || undefined,
+    commission_pct: res.commission_pct ? Number(res.commission_pct) : undefined,
+    commission_amount: res.commission_amount ? Number(res.commission_amount) : undefined,
   };
 }
 
@@ -1501,8 +1516,8 @@ export async function updateSupabaseOrder(
     updated_at: new Date().toISOString(),
   };
 
-  const { error } = await supabase
-    .from('orders')
+  const { error } = await (supabase
+    .from('orders') as any)
     .update(payload)
     .eq('id', validId);
 
@@ -1535,8 +1550,8 @@ export async function updateSupabaseOrderLocation(
   lng: number
 ): Promise<void> {
   const validId = ensureUUID(orderId);
-  const { error } = await supabase
-    .from('orders')
+  const { error } = await (supabase
+    .from('orders') as any)
     .update({
       delivery_agent_lat: lat,
       delivery_agent_lng: lng,
@@ -1555,15 +1570,15 @@ export async function updateSupabaseOrderLocation(
 export async function fetchOrderStatusHistory(orderId: string): Promise<OrderStatusHistoryItem[]> {
   try {
     const validId = ensureUUID(orderId);
-    const { data, error } = await supabase
-      .from('order_status_history')
+    const { data, error } = await (supabase
+      .from('order_status_history') as any)
       .select('*')
       .eq('order_id', validId)
       .order('created_at', { ascending: true });
 
     if (error || !data) return [];
 
-    return data.map((row) => ({
+    return (data as any[]).map((row) => ({
       status: (row.status || row.new_status || 'pending') as OrderStatus,
       timestamp: row.created_at || row.timestamp || new Date().toISOString(),
       note: row.notes || row.note || row.comment || undefined,
@@ -1588,8 +1603,8 @@ export async function saveSupabaseZone(zone: Partial<DeliveryZone>): Promise<Del
     updated_at: new Date().toISOString(),
   };
 
-  const { data, error } = await supabase
-    .from('delivery_zones')
+  const { data, error } = await (supabase
+    .from('delivery_zones') as any)
     .upsert(payload, { onConflict: 'id' })
     .select('*');
 
@@ -1629,7 +1644,7 @@ export async function saveSupabaseCoupon(coupon: Partial<Coupon>) {
       is_active: coupon.is_active ?? true,
       valid_until: coupon.valid_until,
     };
-    await supabase.from('coupons').upsert(payload);
+    await (supabase.from('coupons') as any).upsert(payload);
   } catch (err) {
     console.error('Failed to save coupon to Supabase:', err);
   }
@@ -1715,7 +1730,7 @@ export async function createSupabase<T>(table: string, data: Partial<T>): Promis
     if (!currentId || !isValidUUID(currentId)) {
       (payload as Record<string, unknown>).id = ensureUUID(currentId);
     }
-    const { data: created, error } = await supabase.from(table).insert([payload as any]).select('*').single();
+    const { data: created, error } = await (supabase.from(table as any) as any).insert([payload as any]).select('*').single();
     if (error) {
       console.error(`Error in createSupabase('${table}'):`, error.message);
       let msg = error.message || `Failed to create row in ${table}`;
@@ -1735,7 +1750,7 @@ export async function createSupabase<T>(table: string, data: Partial<T>): Promis
 export async function updateSupabase<T>(table: string, id: string, data: Partial<T>): Promise<T> {
   try {
     const payload = { ...data, updated_at: new Date().toISOString() };
-    const { data: updated, error } = await supabase.from(table).update(payload).eq('id', id).select('*').single();
+    const { data: updated, error } = await (supabase.from(table as any) as any).update(payload).eq('id', id).select('*').single();
     if (error) {
       console.error(`Error in updateSupabase('${table}', '${id}'):`, error.message);
       throw new Error(`Failed to update ${table}: ${error.message}`);
@@ -1752,7 +1767,7 @@ export async function updateSupabase<T>(table: string, id: string, data: Partial
  */
 export async function deleteSupabase(table: string, id: string): Promise<void> {
   try {
-    const { error } = await supabase.from(table).delete().eq('id', id);
+    const { error } = await (supabase.from(table as any) as any).delete().eq('id', id);
     if (error) {
       console.error(`Error in deleteSupabase('${table}', '${id}'):`, error.message);
       throw new Error(`Failed to delete row from ${table}: ${error.message}`);
@@ -1940,20 +1955,21 @@ export async function fetchStoreStats(
   storeId: string
 ): Promise<{ delivered_orders: number; total_orders: number; total_revenue: number; total_commission: number; avg_rating: number } | null> {
   try {
-    const { data, error } = await supabase
-      .from('store_stats')
+    const { data, error } = await (supabase
+      .from('store_stats') as any)
       .select('*')
       .eq('store_id', storeId)
       .maybeSingle();
 
     if (error || !data) return null;
 
+    const s = data as any;
     return {
-      delivered_orders: Number(data.delivered_orders || 0),
-      total_orders: Number(data.total_orders || 0),
-      total_revenue: Number(data.total_revenue || 0),
-      total_commission: Number(data.total_commission || 0),
-      avg_rating: Number(data.avg_rating || data.rating || 0),
+      delivered_orders: Number(s.delivered_orders || 0),
+      total_orders: Number(s.total_orders || 0),
+      total_revenue: Number(s.total_revenue || 0),
+      total_commission: Number(s.total_commission || 0),
+      avg_rating: Number(s.avg_rating || s.rating || 0),
     };
   } catch (err) {
     console.error('Error in fetchStoreStats:', err);
@@ -1969,20 +1985,21 @@ export async function fetchAgentStats(
   agentId: string
 ): Promise<{ completed_deliveries: number; total_trips: number; total_earnings: number; total_tips: number; avg_rating: number } | null> {
   try {
-    const { data, error } = await supabase
-      .from('agent_stats')
+    const { data, error } = await (supabase
+      .from('agent_stats') as any)
       .select('*')
       .eq('agent_id', agentId)
       .maybeSingle();
 
     if (error || !data) return null;
 
+    const a = data as any;
     return {
-      completed_deliveries: Number(data.completed_deliveries || 0),
-      total_trips: Number(data.total_trips || 0),
-      total_earnings: Number(data.total_earnings || 0),
-      total_tips: Number(data.total_tips || 0),
-      avg_rating: Number(data.avg_rating || data.rating || 0),
+      completed_deliveries: Number(a.completed_deliveries || 0),
+      total_trips: Number(a.total_trips || 0),
+      total_earnings: Number(a.total_earnings || 0),
+      total_tips: Number(a.total_tips || 0),
+      avg_rating: Number(a.avg_rating || a.rating || 0),
     };
   } catch (err) {
     console.error('Error in fetchAgentStats:', err);
@@ -2006,14 +2023,14 @@ export interface FinanceSummaryItem {
  */
 export async function fetchFinanceSummary(): Promise<FinanceSummaryItem[]> {
   try {
-    const { data, error } = await supabase
-      .from('finance_summary')
+    const { data, error } = await (supabase
+      .from('finance_summary') as any)
       .select('*')
       .order('day', { ascending: false });
 
     if (error || !data) return [];
 
-    return data.map((row) => ({
+    return (data as any[]).map((row) => ({
       day: row.day,
       store_id: row.store_id,
       delivered_orders: Number(row.delivered_orders || 0),

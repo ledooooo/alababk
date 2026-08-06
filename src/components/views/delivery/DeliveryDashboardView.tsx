@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
-import { subscribeSupabase } from '../../../lib/supabase';
+import { subscribeSupabase, fetchSupabaseOrders, fetchSupabaseAgents } from '../../../lib/supabase';
 import { DeliveryAgent, Order } from '../../../types/domain';
 import { formatCurrency, formatPhoneNumber } from '../../../lib/formatters';
 import {
@@ -12,7 +12,10 @@ import {
   Star,
   CheckCircle2,
   ArrowUpRight,
-  PhoneCall
+  PhoneCall,
+  RefreshCw,
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 
 interface DeliveryDashboardViewProps {
@@ -24,48 +27,54 @@ export const DeliveryDashboardView: React.FC<DeliveryDashboardViewProps> = ({ on
   const [agent, setAgent] = useState<DeliveryAgent | null>(
     StorageRepo.getAgentByUserId(currentUser?.id || 'usr-agent-1')
   );
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [orders, setOrders] = useState<Order[]>(StorageRepo.getCachedOrders());
+  const [loading, setLoading] = useState<boolean>(StorageRepo.getCachedOrders().length === 0);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadCaptainDataDirectly = async (showBadge = true) => {
+    if (showBadge) setIsRefreshing(true);
+    try {
+      const user = StorageRepo.getCurrentUser();
+      const [allAgents, allOrders] = await Promise.all([
+        fetchSupabaseAgents(),
+        fetchSupabaseOrders(),
+      ]);
+      const ag = user ? allAgents.find((a) => a.user_id === user.id) || allAgents[0] : allAgents[0];
+      setAgent(ag || null);
+      setOrders(allOrders);
+      setError(null);
+    } catch (err: any) {
+      console.error('Error in DeliveryDashboardView direct fetch:', err);
+      setError('تعذر قراءة بيانات الكابتن والطلبات من الخادم مباشرة.');
+    } finally {
+      setLoading(false);
+      setIsRefreshing(false);
+    }
+  };
 
   useEffect(() => {
-    const refresh = () => {
-      const user = StorageRepo.getCurrentUser();
-      if (user) {
-        const ag = StorageRepo.getAgentByUserId(user.id) || StorageRepo.getAgents()[0];
-        setAgent(ag || null);
-        if (ag) {
-          const allOrders = StorageRepo.getOrders();
-          setOrders(allOrders);
-        }
-      }
-    };
-
-    refresh();
-    StorageRepo.refreshAgents();
-    StorageRepo.refreshOrders();
+    loadCaptainDataDirectly();
 
     const unsubscribeStorage = subscribeToStorageChange(() => {
-      refresh();
+      const user = StorageRepo.getCurrentUser();
+      const ag = user ? StorageRepo.getAgentByUserId(user.id) || StorageRepo.getAgents()[0] : null;
+      setAgent(ag || null);
+      setOrders(StorageRepo.getCachedOrders());
     });
 
-    const user = StorageRepo.getCurrentUser();
-    const currentAg = user ? StorageRepo.getAgentByUserId(user.id) || StorageRepo.getAgents()[0] : null;
-
-    const unsubscribeRealtimeAgent = subscribeSupabase<DeliveryAgent>(
-      'delivery_agents',
-      () => {
-        StorageRepo.refreshAgents();
-      },
-      currentAg?.id ? `id=eq.${currentAg.id}` : (user?.id ? `user_id=eq.${user.id}` : undefined)
-    );
-
     const unsubscribeRealtimeOrders = subscribeSupabase<Order>('orders', () => {
-      StorageRepo.refreshOrders();
+      loadCaptainDataDirectly(false);
+    });
+
+    const unsubscribeRealtimeAgents = subscribeSupabase<DeliveryAgent>('delivery_agents', () => {
+      loadCaptainDataDirectly(false);
     });
 
     return () => {
       unsubscribeStorage();
-      unsubscribeRealtimeAgent();
       unsubscribeRealtimeOrders();
+      unsubscribeRealtimeAgents();
     };
   }, []);
 
@@ -118,9 +127,17 @@ export const DeliveryDashboardView: React.FC<DeliveryDashboardViewProps> = ({ on
             </div>
           </div>
 
-          <div className="flex items-center gap-1 bg-amber-500/20 border border-amber-500/30 text-amber-300 font-bold text-xs px-2.5 py-1 rounded-xl">
-            <Star className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
-            <span>{agent.rating ? agent.rating.toFixed(1) : 'جديد'}</span>
+          <div className="flex items-center gap-2">
+            {isRefreshing && (
+              <div className="flex items-center gap-1.5 px-3 py-1 bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-bold animate-pulse">
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                <span>تحديث...</span>
+              </div>
+            )}
+            <div className="flex items-center gap-1 bg-amber-500/20 border border-amber-500/30 text-amber-300 font-bold text-xs px-2.5 py-1 rounded-xl">
+              <Star className="w-3.5 h-3.5 fill-amber-300 text-amber-300" />
+              <span>{agent.rating ? agent.rating.toFixed(1) : 'جديد'}</span>
+            </div>
           </div>
         </div>
 
@@ -146,6 +163,29 @@ export const DeliveryDashboardView: React.FC<DeliveryDashboardViewProps> = ({ on
           </button>
         </div>
       </div>
+
+      {error && (
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-xs font-bold text-rose-800 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>{error}</span>
+          </div>
+          <button
+            onClick={() => loadCaptainDataDirectly()}
+            className="px-3 py-1 bg-rose-600 text-white rounded-xl text-xs hover:bg-rose-700 transition-all shadow-xs"
+          >
+            إعادة المحاولة
+          </button>
+        </div>
+      )}
+
+      {loading ? (
+        <div className="p-8 text-center space-y-2 bg-slate-800/80 rounded-2xl border border-slate-700">
+          <Loader2 className="w-6 h-6 text-orange-400 animate-spin mx-auto" />
+          <p className="text-xs font-bold text-slate-300">جاري قراءة أحدث بيانات الكابتن والرحلات...</p>
+        </div>
+      ) : (
+        <>
 
       {/* Active Delivery Trip Alert Banner */}
       {activeTrip && (
@@ -206,6 +246,8 @@ export const DeliveryDashboardView: React.FC<DeliveryDashboardViewProps> = ({ on
           <p className="text-[11px] text-slate-500">تفاصيل المحفظة والرحلات</p>
         </button>
       </div>
+        </>
+      )}
     </div>
   );
 };

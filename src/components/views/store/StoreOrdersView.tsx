@@ -177,6 +177,7 @@ export const StoreOrdersView: React.FC = () => {
           <p className="text-xs font-bold text-slate-600">جاري قراءة أحدث طلبات المتجر من Supabase...</p>
         </div>
       ) : (
+        <>
 
       {/* Tabs Row */}
       <div className="flex items-center gap-2 overflow-x-auto pb-2">
@@ -403,6 +404,7 @@ export const StoreOrdersView: React.FC = () => {
           </div>
         </div>
       )}
+        </>
       )}
     </div>
   );

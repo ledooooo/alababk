@@ -94,15 +94,23 @@ export const Navbar: React.FC<NavbarProps> = ({
     };
 
     // Refresh immediately from Supabase on login/mount
-    StorageRepo.refreshNotifications(currentUser.id).then(() => {
-      syncUnread();
-    });
+    StorageRepo.refreshNotifications(currentUser.id)
+      .then(() => {
+        syncUnread();
+      })
+      .catch(() => {
+        syncUnread();
+      });
 
     // Real-time listener for new/updated notifications
     const unsubscribeNotifs = subscribeToNotifications(currentUser.id, () => {
-      StorageRepo.refreshNotifications(currentUser.id).then(() => {
-        syncUnread();
-      });
+      StorageRepo.refreshNotifications(currentUser.id)
+        .then(() => {
+          syncUnread();
+        })
+        .catch(() => {
+          syncUnread();
+        });
     });
 
     // Clean up channel on logout or unmount

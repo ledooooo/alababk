@@ -116,8 +116,8 @@ export const AdminOrdersView: React.FC = () => {
           <p className="text-xs font-bold text-slate-600">جاري تحميل الطلبات مباشرة من خادم Supabase...</p>
         </div>
       ) : (
-
-      {/* Filters Row */}
+        <>
+          {/* Filters Row */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-3" />
@@ -235,6 +235,7 @@ export const AdminOrdersView: React.FC = () => {
           className="p-4"
         />
       </div>
+        </>
       )}
     </div>
   );

@@ -140,8 +140,8 @@ export default function App() {
     StorageRepo.syncWithSupabase().catch(() => {});
 
     try {
-      const { data: profile } = await supabase
-        .from('profiles')
+      const { data: profile } = await (supabase
+        .from('profiles') as any)
         .select('*')
         .eq('id', userId)
         .maybeSingle();

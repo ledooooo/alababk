@@ -47,7 +47,7 @@ export const AdminCategoriesView: React.FC = () => {
 
     // Save to Supabase
     try {
-      await supabase.from('categories').insert([
+      await (supabase.from('categories') as any).insert([
         {
           id: newCategory.id,
           name: newCategory.name,

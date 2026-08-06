@@ -1,6 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
-import { subscribeSupabase, fetchFinanceSummary, FinanceSummaryItem } from '../../../lib/supabase';
+import {
+  subscribeSupabase,
+  fetchFinanceSummary,
+  FinanceSummaryItem,
+  fetchSupabaseOrders,
+  fetchSupabaseStores,
+  fetchSupabasePayouts,
+} from '../../../lib/supabase';
 import { Store, Order, PayoutRequest, Payout } from '../../../types/domain';
 import {
   DollarSign,
@@ -19,44 +26,70 @@ import {
   Download,
   Percent,
   Wallet,
-  Coins
+  Coins,
+  RefreshCw,
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 
 export const FinanceAdminDashboardView: React.FC = () => {
-  const [orders, setOrders] = useState<Order[]>(StorageRepo.getOrders());
-  const [stores, setStores] = useState<Store[]>(StorageRepo.getStores());
-  const [payouts, setPayouts] = useState<PayoutRequest[]>(StorageRepo.getPayouts());
+  const [orders, setOrders] = useState<Order[]>(StorageRepo.getCachedOrders());
+  const [stores, setStores] = useState<Store[]>(StorageRepo.getCachedStores());
+  const [payouts, setPayouts] = useState<PayoutRequest[]>(StorageRepo.getCachedPayouts());
   const [financeSummary, setFinanceSummary] = useState<FinanceSummaryItem[]>([]);
+  const [loading, setLoading] = useState<boolean>(StorageRepo.getCachedOrders().length === 0);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  useEffect(() => {
-    const sync = () => {
-      setOrders(StorageRepo.getOrders());
-      setStores(StorageRepo.getStores());
-      setPayouts(StorageRepo.getPayouts());
-    };
-    sync();
-    StorageRepo.refreshPayouts();
-
-    fetchFinanceSummary().then((summary) => {
+  const loadFinanceDataDirectly = async (showBadge = true) => {
+    if (showBadge) setIsRefreshing(true);
+    try {
+      const [freshOrders, freshStores, freshPayouts, summary] = await Promise.all([
+        fetchSupabaseOrders(),
+        fetchSupabaseStores(),
+        fetchSupabasePayouts(),
+        fetchFinanceSummary().catch(() => []),
+      ]);
+      setOrders(freshOrders);
+      setStores(freshStores);
+      setPayouts(freshPayouts);
       if (summary && summary.length > 0) {
         setFinanceSummary(summary);
       }
-    }).catch(() => {});
+      setError(null);
+    } catch (err: any) {
+      console.error('Error fetching finance data directly:', err);
+      setError('تعذر تحميل أحدث البيانات المالية من خادم Supabase.');
+    } finally {
+      setLoading(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    loadFinanceDataDirectly();
 
     const unsubStorage = subscribeToStorageChange(() => {
-      sync();
+      setOrders(StorageRepo.getCachedOrders());
+      setStores(StorageRepo.getCachedStores());
+      setPayouts(StorageRepo.getCachedPayouts());
     });
 
-    const unsubRealtime = subscribeSupabase<Payout>('payouts', () => {
-      StorageRepo.refreshPayouts();
+    const unsubRealtimePayouts = subscribeSupabase<Payout>('payouts', () => {
+      loadFinanceDataDirectly(false);
+    });
+
+    const unsubRealtimeOrders = subscribeSupabase<Order>('orders', () => {
+      loadFinanceDataDirectly(false);
     });
 
     return () => {
       unsubStorage();
-      unsubRealtime();
+      unsubRealtimePayouts();
+      unsubRealtimeOrders();
     };
   }, []);
 
@@ -139,7 +172,7 @@ export const FinanceAdminDashboardView: React.FC = () => {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-xl sm:text-2xl font-black">المسؤول المالي والإداري - منصة جِهَات</h1>
+                <h1 className="text-xl sm:text-2xl font-black">المسؤول المالي والإداري - منصة على بابك</h1>
                 <span className="bg-emerald-500/30 text-emerald-300 text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-emerald-400/20">
                   الإدارة المالية والضرائب
                 </span>
@@ -150,15 +183,46 @@ export const FinanceAdminDashboardView: React.FC = () => {
             </div>
           </div>
 
-          <button
-            onClick={() => showToast('تم تصدير التقرير المالي المعتمد بصيغة Excel/PDF')}
-            className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl transition-all shadow-md flex items-center gap-2"
-          >
-            <Download className="w-4 h-4" />
-            <span>تصدير كشف الحسابات</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {isRefreshing && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-800/80 text-emerald-200 border border-emerald-600/40 rounded-xl text-xs font-bold animate-pulse">
+                <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-300" />
+                <span>يتم تحديث المالية...</span>
+              </div>
+            )}
+            <button
+              onClick={() => showToast('تم تصدير التقرير المالي المعتمد بصيغة Excel/PDF')}
+              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl transition-all shadow-md flex items-center gap-2"
+            >
+              <Download className="w-4 h-4" />
+              <span>تصدير كشف الحسابات</span>
+            </button>
+          </div>
         </div>
       </div>
+
+      {error && (
+        <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl text-xs font-bold text-rose-800 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>{error}</span>
+          </div>
+          <button
+            onClick={() => loadFinanceDataDirectly()}
+            className="px-3 py-1 bg-rose-600 text-white rounded-xl text-xs hover:bg-rose-700 transition-all shadow-xs"
+          >
+            إعادة المحاولة
+          </button>
+        </div>
+      )}
+
+      {loading ? (
+        <div className="p-12 text-center space-y-3 bg-white rounded-3xl border border-slate-200">
+          <Loader2 className="w-8 h-8 text-emerald-600 animate-spin mx-auto" />
+          <p className="text-xs font-bold text-slate-600">جاري قراءة أحدث الحسابات والماليات مباشرة من Supabase...</p>
+        </div>
+      ) : (
+        <>
 
       {/* Financial KPIs */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -364,6 +428,8 @@ export const FinanceAdminDashboardView: React.FC = () => {
           ))}
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 };

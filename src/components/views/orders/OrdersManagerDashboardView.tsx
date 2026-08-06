@@ -245,8 +245,8 @@ export const OrdersManagerDashboardView: React.FC = () => {
           <p className="text-xs font-bold text-slate-600">جاري قراءة أحدث بيانات الطلبات من الخادم...</p>
         </div>
       ) : (
-
-      {/* SLA Metric Counters */}
+        <>
+          {/* SLA Metric Counters */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="bg-white p-5 rounded-3xl border border-amber-200 shadow-xs space-y-1">
           <div className="flex items-center justify-between text-amber-700">
@@ -479,6 +479,9 @@ export const OrdersManagerDashboardView: React.FC = () => {
         </div>
       )}
 
+        </>
+      )}
+
       {/* Order Details Modal */}
       {selectedOrder && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
@@ -537,7 +540,6 @@ export const OrdersManagerDashboardView: React.FC = () => {
             </div>
           </div>
         </div>
-      )}
       )}
     </div>
   );

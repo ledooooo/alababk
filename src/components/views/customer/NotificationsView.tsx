@@ -34,7 +34,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
   useEffect(() => {
     loadNotifications();
     if (currentUser?.id) {
-      StorageRepo.refreshNotifications(currentUser.id);
+      StorageRepo.refreshNotifications(currentUser.id).catch(() => {});
     }
     const unsubscribeStorage = subscribeToStorageChange(() => {
       loadNotifications();
@@ -43,9 +43,13 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
     let unsubscribeRealtime: (() => void) | undefined;
     if (currentUser?.id) {
       unsubscribeRealtime = subscribeToNotifications(currentUser.id, () => {
-        StorageRepo.refreshNotifications(currentUser.id).then(() => {
-          loadNotifications();
-        });
+        StorageRepo.refreshNotifications(currentUser.id)
+          .then(() => {
+            loadNotifications();
+          })
+          .catch(() => {
+            loadNotifications();
+          });
       });
     }
 

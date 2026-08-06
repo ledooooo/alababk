@@ -81,6 +81,8 @@ const STORAGE_KEYS = {
   WISHLIST_PRODUCTS: 'alababak_wishlist_products',
 };
 
+const SESSION_STORAGE_KEYS = Object.values(STORAGE_KEYS);
+
 function migrateStorageKeys() {
   if (typeof window === 'undefined') return;
   const legacyMap: Record<string, string> = {
@@ -248,7 +250,7 @@ export const StorageRepo = {
       notifyStorageChange('store', 'refresh', stores);
       return stores;
     } catch (err) {
-      console.error('refreshStores error:', err);
+      console.warn('refreshStores error:', err);
       return this.getCachedStores();
     }
   },
@@ -266,7 +268,7 @@ export const StorageRepo = {
       notifyStorageChange('product', 'refresh', products);
       return products;
     } catch (err) {
-      console.error('refreshProducts error:', err);
+      console.warn('refreshProducts error:', err);
       return this.getProducts(storeId);
     }
   },
@@ -278,7 +280,7 @@ export const StorageRepo = {
       notifyStorageChange('order', 'refresh', orders);
       return orders;
     } catch (err) {
-      console.error('refreshOrders error:', err);
+      console.warn('refreshOrders error:', err);
       return this.getCachedOrders();
     }
   },
@@ -290,7 +292,7 @@ export const StorageRepo = {
       notifyStorageChange('user', 'refresh', users);
       return users;
     } catch (err) {
-      console.error('refreshUsers error:', err);
+      console.warn('refreshUsers error:', err);
       return this.getCachedUsers();
     }
   },
@@ -302,7 +304,7 @@ export const StorageRepo = {
       notifyStorageChange('agent', 'refresh', agents);
       return agents;
     } catch (err) {
-      console.error('refreshAgents error:', err);
+      console.warn('refreshAgents error:', err);
       return this.getCachedAgents();
     }
   },
@@ -314,7 +316,7 @@ export const StorageRepo = {
       notifyStorageChange('zone', 'refresh', zones);
       return zones;
     } catch (err) {
-      console.error('refreshZones error:', err);
+      console.warn('refreshZones error:', err);
       return this.getZones();
     }
   },
@@ -326,7 +328,7 @@ export const StorageRepo = {
       notifyStorageChange('coupon', 'refresh', coupons);
       return coupons;
     } catch (err) {
-      console.error('refreshCoupons error:', err);
+      console.warn('refreshCoupons error:', err);
       return this.getCachedCoupons();
     }
   },
@@ -339,7 +341,7 @@ export const StorageRepo = {
       notifyStorageChange('category', 'refresh', list);
       return list;
     } catch (err) {
-      console.error('refreshCategories error:', err);
+      console.warn('refreshCategories error:', err);
       return this.getCategories();
     }
   },
@@ -354,7 +356,7 @@ export const StorageRepo = {
       notifyStorageChange('review', 'refresh', result);
       return result;
     } catch (err) {
-      console.error('refreshReviews error:', err);
+      console.warn('refreshReviews error:', err);
       return this.getReviews(storeId);
     }
   },
@@ -374,7 +376,7 @@ export const StorageRepo = {
         return list;
       }
     } catch (err) {
-      console.error('refreshNotifications error:', err);
+      console.warn('refreshNotifications offline fallback:', err);
       return this.getCachedNotifications();
     }
   },
@@ -388,7 +390,7 @@ export const StorageRepo = {
       notifyStorageChange('payout', 'refresh', updated);
       return updated;
     } catch (err) {
-      console.error('refreshPayouts error:', err);
+      console.warn('refreshPayouts error:', err);
       return this.getCachedPayouts();
     }
   },
@@ -1045,7 +1047,7 @@ export const StorageRepo = {
     });
 
     if (notification.user_id) {
-      await this.refreshNotifications(notification.user_id);
+      await this.refreshNotifications(notification.user_id).catch(() => {});
     }
   },
 

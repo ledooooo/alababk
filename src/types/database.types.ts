@@ -251,7 +251,7 @@ export interface Database {
           created_at: string | null;
         };
         Insert: {
-          id: string;
+          id?: string;
           name: string;
           fee?: number | null;
           base_delivery_fee?: number | null;
@@ -530,7 +530,7 @@ export interface Database {
           created_at: string | null;
         };
         Insert: {
-          id: string;
+          id?: string;
           code: string;
           discount_percent?: number | null;
           discount_amount?: number | null;
@@ -648,13 +648,124 @@ export interface Database {
       };
     };
     Views: {
-      [key: string]: {
-        Row: Record<string, any>;
+      store_stats: {
+        Row: {
+          store_id: string;
+          delivered_orders: number | null;
+          total_orders: number | null;
+          total_revenue: number | null;
+          total_commission: number | null;
+          avg_rating: number | null;
+          rating: number | null;
+        };
+      };
+      agent_stats: {
+        Row: {
+          agent_id: string;
+          completed_deliveries: number | null;
+          total_trips: number | null;
+          total_earnings: number | null;
+          total_tips: number | null;
+          avg_rating: number | null;
+          rating: number | null;
+        };
+      };
+      finance_summary: {
+        Row: {
+          day: string;
+          store_id: string | null;
+          delivered_orders: number | null;
+          gmv: number | null;
+          net_sales: number | null;
+          commissions: number | null;
+          delivery_fees: number | null;
+          tips: number | null;
+        };
       };
     };
     Functions: {
-      [key: string]: {
+      quote_order_secure: {
+        Args: {
+          p_store_id: string;
+          p_address_id: string;
+          p_items: Json;
+          p_coupon_code: string | null;
+          p_tip_amount: number;
+        };
+        Returns: {
+          subtotal: number;
+          delivery_fee: number;
+          eta_minutes: number;
+          zone_id: string;
+          discount: number;
+          tip_amount: number;
+          total: number;
+        };
+      };
+      create_order_secure: {
+        Args: {
+          p_store_id: string;
+          p_address_id: string;
+          p_payment_method: string;
+          p_items: Json;
+          p_coupon_code: string | null;
+          p_customer_notes: string | null;
+          p_tip_amount: number;
+        };
+        Returns: {
+          order_id: string;
+          code: string;
+          subtotal: number;
+          delivery_fee: number;
+          tip_amount: number;
+          discount: number;
+          total: number;
+          status: string;
+          eta_minutes: number;
+          zone_id: string;
+          commission_pct: number;
+          commission_amount: number;
+        };
+      };
+      create_checkout_order: {
+        Args: {
+          p_store_id: string;
+          p_address_id: string;
+          p_payment_method: string;
+          p_items: Json;
+          p_coupon_code: string | null;
+          p_customer_notes: string | null;
+          p_tip_amount: number;
+        };
+        Returns: {
+          order_id: string;
+          code: string;
+          subtotal: number;
+          delivery_fee: number;
+          tip_amount: number;
+          discount: number;
+          total: number;
+          status: string;
+          eta_minutes: number;
+          zone_id: string;
+          commission_pct: number;
+          commission_amount: number;
+        };
+      };
+      get_finance_summary: {
         Args: Record<string, any>;
+        Returns: any;
+      };
+      get_store_analytics: {
+        Args: { p_store_id: string };
+        Returns: any;
+      };
+      get_agent_analytics: {
+        Args: { p_agent_id: string };
+        Returns: any;
+      };
+      get_daily_sales_chart: {
+        Args: { p_days?: number };
         Returns: any;
       };
     };
