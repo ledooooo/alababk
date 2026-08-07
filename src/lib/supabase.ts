@@ -158,10 +158,14 @@ export function extractCoordinates(locationObj: any): { lat: number; lng: number
 
 export interface SaveUserOptions {
   isSelf?: boolean;
+  isAdministrative?: boolean;
+  callerRole?: UserRole | string;
 }
 
 /**
- * Save / Upsert User profile in Supabase database
+ * Save / Update User profile in Supabase database
+ * - Uses UPDATE instead of UPSERT because RLS policies restrict INSERT on profiles
+ * - Profiles are created automatically via handle_new_user trigger on auth.users
  */
 export async function saveSupabaseUser(user: Partial<UserProfile>, options: SaveUserOptions = {}) {
   try {
@@ -184,32 +188,60 @@ export async function saveSupabaseUser(user: Partial<UserProfile>, options: Save
       throw new Error('مُعرّف المستخدم (user.id) مفقود أو ليس UUID صالحاً');
     }
 
-    user.id = validId; // Ensure user object retains the valid UUID
+    user.id = validId;
 
     const userName = user.name || (user as any).full_name || 'مستخدم';
-    let userRole = user.role || 'customer';
-    if (!(USER_ROLES as readonly string[]).includes(userRole)) {
-      userRole = 'customer';
-    }
+    const isAdmin = options.isAdministrative || options.callerRole === 'admin';
 
-    // Exact payload strictly matching public.profiles columns in SQL schema:
-    // id (UUID, FK auth.users), role, full_name, phone (UNIQUE), avatar_url, is_active, updated_at
+    // بناء payload للتحديث
+    // ملاحظة: role لا يُرسل إلا في المسار الإداري لتجنب trigger prevent_role_self_escalation
     const payload: Record<string, any> = {
-      id: validId,
-      role: userRole,
       full_name: userName,
-      phone: user.phone?.trim() ? user.phone.trim() : null, // null if empty to satisfy UNIQUE constraint
-      avatar_url: user.avatar_url || null,
-      is_active: (user as any).is_active ?? true,
       updated_at: new Date().toISOString(),
     };
 
-    const { error } = await (supabase.from('profiles') as any).upsert(payload, { onConflict: 'id' });
+    // phone: يمكن تحديثه فقط إذا تم تمرير قيمة
+    if (user.phone !== undefined) {
+      payload.phone = user.phone?.trim() || null;
+    }
+
+    if (user.avatar_url !== undefined) {
+      payload.avatar_url = user.avatar_url || null;
+    }
+
+    if (user.is_active !== undefined) {
+      payload.is_active = user.is_active;
+    }
+
+    // role: فقط إذا كان المستخدم الحالي admin (مسار إداري)
+    if (user.role && isAdmin) {
+      payload.role = user.role;
+    }
+
+    // إذا كان التحديث الذاتي، لا نرسل role أبداً
+    if (options.isSelf) {
+      delete payload.role;
+    }
+
+    // تنفيذ UPDATE بدلاً من UPSERT
+    const { data, error } = await (supabase
+      .from('profiles') as any)
+      .update(payload)
+      .eq('id', validId)
+      .select('*');
+
     if (error) {
       let msg = error.message || 'فشل تحديث بيانات المستخدم';
       msg = msg.replace(/^ERROR:\s*/i, '').replace(/^[A-Z0-9]{5}:\s*/, '');
       throw new Error(msg);
     }
+
+    // التحقق من أن التحديث أثّر على صف موجود
+    if (!data || data.length === 0) {
+      throw new Error('لم يتم العثور على الملف الشخصي للمستخدم. قد يكون الحساب غير مكتمل، يرجى الاتصال بالدعم.');
+    }
+
+    return data[0];
   } catch (err) {
     console.warn('Sync profile info error:', err);
     throw err;
@@ -230,7 +262,6 @@ export async function fetchSupabaseUsers(): Promise<UserProfile[]> {
         phone: u.phone || '',
         role: (u.role as UserRole) || 'customer',
         avatar_url: u.avatar_url,
-        associated_store_id: u.associated_store_id,
         is_active: u.is_active ?? true,
         created_at: u.created_at || new Date().toISOString(),
       }));
@@ -1059,6 +1090,8 @@ export interface SaveStoreOptions {
 
 /**
  * Save/Upsert Store in Supabase
+ * - For new applications: INSERT with is_approved = false (policy allows this)
+ * - For updates: UPDATE with proper permissions
  */
 export async function saveSupabaseStore(store: Partial<Store>, options: SaveStoreOptions = {}): Promise<Store> {
   const validStoreId = store.id && isValidUUID(store.id) ? store.id : ensureUUID(store.id);
@@ -1098,9 +1131,12 @@ export async function saveSupabaseStore(store: Partial<Store>, options: SaveStor
     updated_at: new Date().toISOString(),
   };
 
+  // Only approved if explicitly set (admin only)
   if (store.is_approved !== undefined) {
     payload.is_approved = store.is_approved;
   }
+  
+  // commission_pct: only finance admins can modify
   if (store.commission_rate !== undefined) {
     payload.commission_pct = store.commission_rate;
   }
@@ -1109,14 +1145,45 @@ export async function saveSupabaseStore(store: Partial<Store>, options: SaveStor
     payload.category_id = store.category_id;
   }
 
-  const { data, error } = await (supabase.from('stores') as any).upsert(payload, { onConflict: 'id' }).select('*, categories(name)').single();
-  if (error) {
-    let msg = error.message || 'فشل حفظ بيانات المتجر في قاعدة البيانات';
-    msg = msg.replace(/^ERROR:\s*/i, '').replace(/^[A-Z0-9]{5}:\s*/, '');
-    throw new Error(msg);
+  // تحديد ما إذا كان هذا إدراج جديد أم تحديث
+  const existingStore = await (supabase
+    .from('stores') as any)
+    .select('id')
+    .eq('id', validStoreId)
+    .maybeSingle();
+
+  let result;
+  if (!existingStore?.data) {
+    // INSERT - new store application (policy requires is_approved = false for new stores)
+    payload.is_approved = false;
+    const { data, error } = await (supabase
+      .from('stores') as any)
+      .insert([payload])
+      .select('*, categories(name)')
+      .single();
+    if (error) {
+      let msg = error.message || 'فشل تقديم طلب إنشاء المتجر';
+      msg = msg.replace(/^ERROR:\s*/i, '').replace(/^[A-Z0-9]{5}:\s*/, '');
+      throw new Error(msg);
+    }
+    result = data;
+  } else {
+    // UPDATE - existing store
+    const { data, error } = await (supabase
+      .from('stores') as any)
+      .update(payload)
+      .eq('id', validStoreId)
+      .select('*, categories(name)')
+      .single();
+    if (error) {
+      let msg = error.message || 'فشل تحديث بيانات المتجر';
+      msg = msg.replace(/^ERROR:\s*/i, '').replace(/^[A-Z0-9]{5}:\s*/, '');
+      throw new Error(msg);
+    }
+    result = data;
   }
 
-  const s = data as any;
+  const s = result as any;
   const coords = extractCoordinates(s.location || s);
   const rawFee = s.base_delivery_fee ?? s.delivery_fee ?? store.delivery_fee;
   const fee = rawFee !== undefined && rawFee !== null && !isNaN(Number(rawFee)) ? Number(rawFee) : 15;
@@ -1204,6 +1271,8 @@ export interface SaveAgentOptions {
 
 /**
  * Save/Upsert Delivery Agent in Supabase
+ * - For new applications: INSERT with is_approved = false (policy allows this)
+ * - For updates: UPDATE with proper permissions
  */
 export async function saveSupabaseAgent(agent: Partial<DeliveryAgent>, options: SaveAgentOptions = {}): Promise<DeliveryAgent> {
   const validAgentId = agent.id && isValidUUID(agent.id) ? agent.id : ensureUUID(agent.id);
@@ -1280,37 +1349,67 @@ export async function saveSupabaseAgent(agent: Partial<DeliveryAgent>, options: 
     }
   }
 
-  if (agent.is_approved !== undefined) {
+  // is_approved: only admins/supervisors can approve
+  if (agent.is_approved !== undefined && isAdminOrSupervisor) {
     payload.is_approved = agent.is_approved;
+  } else if (agent.is_approved !== undefined && !isAdminOrSupervisor) {
+    // Non-admins cannot change is_approved, ignore it
+    delete payload.is_approved;
   }
 
-  const { data, error } = await (supabase
+  // تحديد ما إذا كان هذا إدراج جديد أم تحديث
+  const existingAgent = await (supabase
     .from('delivery_agents') as any)
-    .upsert(payload, { onConflict: 'id' })
-    .select('*, profiles(full_name, phone, avatar_url)')
-    .single();
+    .select('id')
+    .eq('id', validAgentId)
+    .maybeSingle();
 
-  if (error) {
-    let msg = error.message || 'فشل حفظ بيانات كابتن التوصيل في قاعدة البيانات';
-    msg = msg.replace(/^ERROR:\s*/i, '').replace(/^[A-Z0-9]{5}:\s*/, '');
-    throw new Error(msg);
+  let result;
+  if (!existingAgent?.data) {
+    // INSERT - new agent application (policy requires is_approved = false)
+    payload.is_approved = false;
+    const { data, error } = await (supabase
+      .from('delivery_agents') as any)
+      .insert([payload])
+      .select('*, profiles(full_name, phone, avatar_url)')
+      .single();
+    if (error) {
+      let msg = error.message || 'فشل تقديم طلب الانضمام ككابتن توصيل';
+      msg = msg.replace(/^ERROR:\s*/i, '').replace(/^[A-Z0-9]{5}:\s*/, '');
+      throw new Error(msg);
+    }
+    result = data;
+  } else {
+    // UPDATE - existing agent
+    const { data, error } = await (supabase
+      .from('delivery_agents') as any)
+      .update(payload)
+      .eq('id', validAgentId)
+      .select('*, profiles(full_name, phone, avatar_url)')
+      .single();
+    if (error) {
+      let msg = error.message || 'فشل تحديث بيانات كابتن التوصيل';
+      msg = msg.replace(/^ERROR:\s*/i, '').replace(/^[A-Z0-9]{5}:\s*/, '');
+      throw new Error(msg);
+    }
+    result = data;
   }
 
   return {
-    id: data.id,
-    user_id: data.user_id,
-    name: data.profiles?.full_name || agent.name || 'كابتن توصيل',
-    phone: data.profiles?.phone || agent.phone || null,
-    avatar_url: data.profiles?.avatar_url || agent.avatar_url || null,
-    vehicle_type: data.vehicle_type === 'motorcycle' ? 'motorcycle' : 'bicycle',
-    national_id: data.id_number || agent.national_id || null,
-    license_plate: data.plate_number || agent.license_plate || null,
-    is_approved: data.is_approved ?? true,
-    is_online: data.is_online ?? true,
+    id: result.id,
+    user_id: result.user_id,
+    name: result.profiles?.full_name || agent.name || 'كابتن توصيل',
+    phone: result.profiles?.phone || agent.phone || null,
+    avatar_url: result.profiles?.avatar_url || agent.avatar_url || null,
+    vehicle_type: result.vehicle_type === 'motorcycle' ? 'motorcycle' : 'bicycle',
+    national_id: result.id_number || agent.national_id || null,
+    license_plate: result.plate_number || agent.license_plate || null,
+    is_approved: result.is_approved ?? true,
+    is_online: result.is_online ?? true,
     active_zone: agent.active_zone || null,
-    rating: data.rating_avg !== undefined && data.rating_avg !== null ? Number(data.rating_avg) : (data.rating !== undefined && data.rating !== null ? Number(data.rating) : null),
-    total_trips: Number(data.completed_deliveries || data.total_trips || agent.total_trips || 0),
-    created_at: data.created_at || new Date().toISOString(),
+    rating: result.rating_avg !== undefined && result.rating_avg !== null ? Number(result.rating_avg) : (result.rating !== undefined && result.rating !== null ? Number(result.rating) : null),
+    total_trips: Number(result.completed_deliveries || result.total_trips || agent.total_trips || 0),
+    created_at: result.created_at || new Date().toISOString(),
   };
 }
 

@@ -461,7 +461,7 @@ export const StorageRepo = {
     return cached;
   },
 
-  async saveUser(user: UserProfile, options?: { isSelf?: boolean }): Promise<UserProfile> {
+  async saveUser(user: UserProfile, options?: { isSelf?: boolean; isAdministrative?: boolean }): Promise<UserProfile> {
     const users = mergeById(this.getCachedUsers(), user);
     setCached(STORAGE_KEYS.USERS, users);
     const currentUser = this.getCurrentUser();
@@ -472,10 +472,14 @@ export const StorageRepo = {
 
     try {
       const isSelf = options?.isSelf ?? (currentUser?.id === user.id);
-      await saveSupabaseUser(user, { isSelf });
+      const isAdministrative = options?.isAdministrative ?? (currentUser?.role === 'admin');
+      const callerRole = currentUser?.role;
+      
+      await saveSupabaseUser(user, { isSelf, isAdministrative, callerRole });
       return user;
     } catch (err) {
       console.error('Failed to save user to Supabase:', err);
+      // رجوع الكاش للحالة السابقة
       this.refreshUsers();
       throw err;
     }
