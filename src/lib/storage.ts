@@ -59,7 +59,7 @@ import {
   deleteSupabaseProduct,
   deleteSupabaseStore,
   deleteSupabaseAgent,
-  fetchMyStore, // استيراد الدالة الجديدة
+  fetchMyStore,
 } from './supabase';
 
 const lastLocationUpdateMap = new Map<string, number>();
@@ -248,7 +248,7 @@ export const StorageRepo = {
     try {
       const stores = await fetchSupabaseStores();
       setCached(STORAGE_KEYS.STORES, stores);
-      this.clearMyStoreCache(); // إضافة مسح الكاش عند التحديث
+      this.clearMyStoreCache();
       notifyStorageChange('store', 'refresh', stores);
       return stores;
     } catch (err) {
@@ -498,7 +498,7 @@ export const StorageRepo = {
 
       const stores = mergeById(this.getCachedStores(), saved);
       setCached(STORAGE_KEYS.STORES, stores);
-      this.clearMyStoreCache(); // إضافة مسح الكاش عند الحفظ
+      this.clearMyStoreCache();
       notifyStorageChange('store', 'save', saved);
 
       this.refreshStores().catch(() => {});
@@ -515,7 +515,7 @@ export const StorageRepo = {
 
       const stores = this.getCachedStores().filter((s) => s.id !== id);
       setCached(STORAGE_KEYS.STORES, stores);
-      this.clearMyStoreCache(); // إضافة مسح الكاش عند الحذف
+      this.clearMyStoreCache();
       notifyStorageChange('store', 'delete', { id });
 
       this.refreshStores().catch(() => {});
@@ -952,14 +952,10 @@ export const StorageRepo = {
     }
   },
 
-  // ** الجزء المُعدَّل: getCurrentStore أصبح غير متزامن ويستخدم getMyStore **
-  async getCurrentStore(): Promise<Store | null> {
-    return this.getMyStore();
-  },
-
+  // ======== الجزء المُعدَّل: كاش المتجر الحالي ========
   // ** دوال الكاش الخاصة بالمتجر الحالي **
   _myStoreCache: { store: Store | null; timestamp: number } | null = null,
-  MY_STORE_CACHE_TTL: 30000, // 30 ثانية
+  MY_STORE_CACHE_TTL = 30000, // 30 ثانية
 
   clearMyStoreCache() {
     this._myStoreCache = null;
@@ -982,6 +978,13 @@ export const StorageRepo = {
       return null;
     }
   },
+
+  // getCurrentStore أصبح غير متزامن ويستخدم getMyStore
+  async getCurrentStore(): Promise<Store | null> {
+    return this.getMyStore();
+  },
+
+  // ======== نهاية الجزء المُعدَّل ========
 
   getCurrentAgent(): DeliveryAgent | null {
     const user = this.getCurrentUser();
