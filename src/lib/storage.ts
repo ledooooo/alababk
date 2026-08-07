@@ -62,6 +62,12 @@ import {
   fetchMyStore,
 } from './supabase';
 
+// تعريف النوع الجديد لحل مشكلة التحليل
+type MyStoreCache = {
+  store: Store | null;
+  timestamp: number;
+} | null;
+
 const lastLocationUpdateMap = new Map<string, number>();
 
 const STORAGE_KEYS = {
@@ -954,8 +960,8 @@ export const StorageRepo = {
 
   // ======== الجزء المُعدَّل: كاش المتجر الحالي ========
   // ** دوال الكاش الخاصة بالمتجر الحالي **
-  _myStoreCache: { store: Store | null; timestamp: number } | null = null,
-  MY_STORE_CACHE_TTL = 30000, // 30 ثانية
+  _myStoreCache: MyStoreCache = null,
+  MY_STORE_CACHE_TTL: number = 30000, // 30 ثانية
 
   clearMyStoreCache() {
     this._myStoreCache = null;
@@ -983,7 +989,6 @@ export const StorageRepo = {
   async getCurrentStore(): Promise<Store | null> {
     return this.getMyStore();
   },
-
   // ======== نهاية الجزء المُعدَّل ========
 
   getCurrentAgent(): DeliveryAgent | null {
