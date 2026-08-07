@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
 import { fetchSupabaseOrders, subscribeSupabase } from '../../../lib/supabase';
-import { Order, OrderStatus } from '../../../types/domain';
+import { Order, OrderStatus, Store } from '../../../types/domain';
 import { formatCurrency, formatDateArabic, formatPhoneNumber } from '../../../lib/formatters';
 import { ORDER_STATUS_LABELS, getOrderStatusConfig } from '../../../lib/constants';
 import { Pagination } from '../../shared/Pagination';
@@ -18,15 +18,18 @@ import {
   VolumeX,
   AlertCircle,
   RefreshCw,
-  Loader2
+  Loader2,
+  Store as StoreIcon
 } from 'lucide-react';
 
-export const StoreOrdersView: React.FC = () => {
-  const currentUser = StorageRepo.getCurrentUser();
-  const storeId = currentUser?.associated_store_id || 'store-1';
-  const initialCached = StorageRepo.getCachedOrders().filter((o) => o.store_id === storeId);
-  const [orders, setOrders] = useState<Order[]>(initialCached);
-  const [loading, setLoading] = useState<boolean>(initialCached.length === 0);
+interface StoreOrdersViewProps {
+  onNavigate: (tab: string) => void;
+}
+
+export const StoreOrdersView: React.FC<StoreOrdersViewProps> = ({ onNavigate }) => {
+  const [store, setStore] = useState<Store | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'pending' | 'preparing' | 'ready' | 'completed'>('pending');
@@ -40,43 +43,53 @@ export const StoreOrdersView: React.FC = () => {
     setCurrentPage(1);
   }, [activeTab]);
 
-  const loadStoreOrdersDirectly = async (showBadge = true) => {
-    if (showBadge) setIsRefreshing(true);
-    try {
-      const allOrders = await fetchSupabaseOrders();
-      const storeOrders = allOrders.filter((o) => o.store_id === storeId);
-      setOrders(storeOrders);
-      setError(null);
-    } catch (err: any) {
-      console.error('Error fetching direct orders in StoreOrdersView:', err);
-      setError('تعذر تحديث طلبات المتجر مباشرة من الخادم.');
-    } finally {
-      setLoading(false);
-      setIsRefreshing(false);
+  const loadData = async () => {
+    setLoading(true);
+    const myStore = await StorageRepo.getMyStore();
+    setStore(myStore);
+    if (myStore) {
+      try {
+        const allOrders = await fetchSupabaseOrders();
+        const storeOrders = allOrders.filter((o) => o.store_id === myStore.id);
+        setOrders(storeOrders);
+        setError(null);
+      } catch (err: any) {
+        console.error('Error fetching direct orders in StoreOrdersView:', err);
+        setError('تعذر تحديث طلبات المتجر مباشرة من الخادم.');
+      }
+    } else {
+      setOrders([]);
     }
+    setLoading(false);
   };
 
   useEffect(() => {
-    loadStoreOrdersDirectly();
+    loadData();
 
     const unsubscribeStorage = subscribeToStorageChange(() => {
-      const storeOrders = StorageRepo.getCachedOrders().filter((o) => o.store_id === storeId);
-      setOrders(storeOrders);
+      loadData();
     });
 
-    const unsubscribeRealtime = subscribeSupabase<Order>(
+    const currentUser = StorageRepo.getCurrentUser();
+    const filter = currentUser ? `owner_id=eq.${currentUser.id}` : undefined;
+    const unsubscribeRealtimeStore = subscribeSupabase<Store>(
+      'stores',
+      () => { loadData(); },
+      filter
+    );
+
+    const unsubscribeRealtimeOrders = subscribeSupabase<Order>(
       'orders',
-      () => {
-        loadStoreOrdersDirectly(false);
-      },
-      storeId ? `store_id=eq.${storeId}` : undefined
+      () => { loadData(); },
+      store ? `store_id=eq.${store.id}` : undefined
     );
 
     return () => {
       unsubscribeStorage();
-      unsubscribeRealtime();
+      unsubscribeRealtimeStore();
+      unsubscribeRealtimeOrders();
     };
-  }, [storeId]);
+  }, []);
 
   const handleAcceptOrder = (orderId: string, prepTimeMinutes = 20) => {
     StorageRepo.updateOrderStatus(
@@ -121,6 +134,31 @@ export const StoreOrdersView: React.FC = () => {
   const preparingCount = orders.filter((o) => ['accepted', 'preparing'].includes(o.status)).length;
   const readyCount = orders.filter((o) => ['ready', 'assigned', 'picked_up', 'on_the_way'].includes(o.status)).length;
 
+  if (loading) {
+    return (
+      <div className="bg-white rounded-2xl p-8 text-center border border-slate-200">
+        <Loader2 className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-3" />
+        <p className="text-xs font-bold text-slate-600">جاري تحميل طلبات المتجر...</p>
+      </div>
+    );
+  }
+
+  if (!store) {
+    return (
+      <div className="bg-white rounded-2xl p-8 text-center border border-slate-200">
+        <StoreIcon className="w-16 h-16 text-slate-300 mx-auto mb-3" />
+        <h3 className="font-bold text-slate-800 text-lg">لا يوجد متجر مرتبط بحسابك</h3>
+        <p className="text-sm text-slate-500 mt-1">لا يمكنك إدارة الطلبات بدون متجر. قم بتقديم طلب انضمام متجر.</p>
+        <button
+          onClick={() => onNavigate('apply-store')}
+          className="mt-4 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl shadow-md transition-all"
+        >
+          تقديم طلب انضمام متجر
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 dir-rtl pb-16">
       {/* Header & Sound Toggle */}
@@ -163,21 +201,13 @@ export const StoreOrdersView: React.FC = () => {
             <span>{error}</span>
           </div>
           <button
-            onClick={() => loadStoreOrdersDirectly()}
+            onClick={() => loadData()}
             className="px-3 py-1 bg-rose-600 text-white rounded-xl text-xs hover:bg-rose-700 transition-all shadow-xs"
           >
             إعادة المحاولة
           </button>
         </div>
       )}
-
-      {loading ? (
-        <div className="p-12 text-center space-y-3 bg-white rounded-2xl border border-slate-200">
-          <Loader2 className="w-8 h-8 text-blue-600 animate-spin mx-auto" />
-          <p className="text-xs font-bold text-slate-600">جاري قراءة أحدث طلبات المتجر من Supabase...</p>
-        </div>
-      ) : (
-        <>
 
       {/* Tabs Row */}
       <div className="flex items-center gap-2 overflow-x-auto pb-2">
@@ -403,8 +433,6 @@ export const StoreOrdersView: React.FC = () => {
             </div>
           </div>
         </div>
-      )}
-        </>
       )}
     </div>
   );

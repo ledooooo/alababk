@@ -172,7 +172,6 @@ export const AuthView: React.FC<AuthViewProps> = ({
         phone: profile?.phone || data.user.user_metadata?.phone || '',
         role: assignedRole,
         avatar_url: profile?.avatar_url,
-        associated_store_id: profile?.associated_store_id,
         is_active: profile?.is_active ?? true,
         created_at: profile?.created_at || data.user.created_at,
       };

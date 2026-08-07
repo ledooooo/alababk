@@ -59,6 +59,7 @@ import {
   deleteSupabaseProduct,
   deleteSupabaseStore,
   deleteSupabaseAgent,
+  fetchMyStore, // استيراد الدالة الجديدة
 } from './supabase';
 
 const lastLocationUpdateMap = new Map<string, number>();
@@ -247,6 +248,7 @@ export const StorageRepo = {
     try {
       const stores = await fetchSupabaseStores();
       setCached(STORAGE_KEYS.STORES, stores);
+      this.clearMyStoreCache(); // إضافة مسح الكاش عند التحديث
       notifyStorageChange('store', 'refresh', stores);
       return stores;
     } catch (err) {
@@ -492,12 +494,11 @@ export const StorageRepo = {
     try {
       const currentUser = this.getCurrentUser();
       const isSelf = options?.isSelf ?? (currentUser?.id === store.owner_id);
-      // 1. Save to Supabase first and await result
       const saved = await saveSupabaseStore(store, { isSelf });
 
-      // 2. Update local cache and notify subscribers on success
       const stores = mergeById(this.getCachedStores(), saved);
       setCached(STORAGE_KEYS.STORES, stores);
+      this.clearMyStoreCache(); // إضافة مسح الكاش عند الحفظ
       notifyStorageChange('store', 'save', saved);
 
       this.refreshStores().catch(() => {});
@@ -510,12 +511,11 @@ export const StorageRepo = {
 
   async deleteStore(id: string): Promise<void> {
     try {
-      // 1. Delete from Supabase first
       await deleteSupabaseStore(id);
 
-      // 2. Remove from local cache and notify subscribers on success
       const stores = this.getCachedStores().filter((s) => s.id !== id);
       setCached(STORAGE_KEYS.STORES, stores);
+      this.clearMyStoreCache(); // إضافة مسح الكاش عند الحذف
       notifyStorageChange('store', 'delete', { id });
 
       this.refreshStores().catch(() => {});
@@ -541,10 +541,8 @@ export const StorageRepo = {
 
   async saveProduct(product: Product): Promise<Product> {
     try {
-      // 1. Write to Supabase first and await result
       const saved = await saveSupabaseProduct(product);
 
-      // 2. Update local cache and notify subscribers on success
       const products = mergeById(this.getCachedProducts(), saved);
       setCached(STORAGE_KEYS.PRODUCTS, products);
       notifyStorageChange('product', 'save', saved);
@@ -559,10 +557,8 @@ export const StorageRepo = {
 
   async deleteProduct(id: string): Promise<void> {
     try {
-      // 1. Delete from Supabase first and await result
       await deleteSupabaseProduct(id);
 
-      // 2. Remove from local cache and notify subscribers on success
       const products = this.getCachedProducts().filter((p) => p.id !== id);
       setCached(STORAGE_KEYS.PRODUCTS, products);
       notifyStorageChange('product', 'delete', { id });
@@ -628,10 +624,8 @@ export const StorageRepo = {
 
   async saveOrder(order: Order): Promise<Order> {
     try {
-      // 1. Invoke secure order creation RPC via saveSupabaseOrder
       const secureResult = await saveSupabaseOrder(order);
 
-      // 2. Build updated order with server-calculated fields from RPC
       const serverConfirmedOrder: Order = {
         ...order,
         id: secureResult.order_id,
@@ -649,12 +643,10 @@ export const StorageRepo = {
         updated_at: new Date().toISOString(),
       };
 
-      // 3. Cache only upon server confirmation
       const orders = mergeById(this.getCachedOrders(), serverConfirmedOrder);
       setCached(STORAGE_KEYS.ORDERS, orders);
       notifyStorageChange('order', 'save', serverConfirmedOrder);
 
-      // Refresh orders list in background
       this.refreshOrders().catch(() => {});
 
       return serverConfirmedOrder;
@@ -673,7 +665,6 @@ export const StorageRepo = {
     const order = this.getOrderById(orderId);
     if (!order) return null;
 
-    // Prepare fields to update on the existing order in Supabase
     const fieldsToUpdate: Record<string, any> = {
       status,
     };
@@ -690,10 +681,8 @@ export const StorageRepo = {
       if (agentInfo.delivery_agent_lng !== undefined) fieldsToUpdate.delivery_agent_lng = agentInfo.delivery_agent_lng;
     }
 
-    // 1. Await actual DB UPDATE query first (throws if error occurs)
     await updateSupabaseOrder(orderId, fieldsToUpdate, note);
 
-    // 2. Update local state & cache after DB update confirmation
     order.status = status;
     order.updated_at = new Date().toISOString();
     order.status_history.push({
@@ -754,7 +743,6 @@ export const StorageRepo = {
       notifyStorageChange('order', 'save', updatedOrder);
     }
 
-    // Throttle location updates to Supabase to at most once every 5 seconds per orderId
     const now = Date.now();
     const lastTime = lastLocationUpdateMap.get(orderId) || 0;
     if (now - lastTime >= 5000) {
@@ -803,14 +791,12 @@ export const StorageRepo = {
     notes?: string
   ): Promise<Payout> {
     try {
-      // 1. Await atomic RPC update first
       const updated = await updateSupabasePayoutStatus(
         payoutId,
         status,
         notes
       );
 
-      // 2. Update local state on success
       const payouts = this.getCachedPayouts();
       const idx = payouts.findIndex((p) => p.id === payoutId);
       if (idx >= 0) {
@@ -845,10 +831,8 @@ export const StorageRepo = {
       const isAdministrative = options?.isAdministrative ?? (currentUser?.role === 'admin' || currentUser?.role === 'delivery_supervisor');
       const callerRole = options?.callerRole ?? currentUser?.role;
 
-      // 1. Save to Supabase first and await result
       const saved = await saveSupabaseAgent(agent, { isSelf, isAdministrative, callerRole });
 
-      // 2. Update local cache and notify subscribers on success
       const agents = mergeById(this.getCachedAgents(), saved);
       setCached(STORAGE_KEYS.AGENTS, agents);
       notifyStorageChange('agent', 'save', saved);
@@ -863,10 +847,8 @@ export const StorageRepo = {
 
   async deleteAgent(id: string): Promise<void> {
     try {
-      // 1. Delete from Supabase first
       await deleteSupabaseAgent(id);
 
-      // 2. Remove from local cache and notify subscribers on success
       const agents = this.getCachedAgents().filter((a) => a.id !== id);
       setCached(STORAGE_KEYS.AGENTS, agents);
       notifyStorageChange('agent', 'delete', { id });
@@ -970,14 +952,35 @@ export const StorageRepo = {
     }
   },
 
-  getCurrentStore(): Store | null {
-    const user = this.getCurrentUser();
-    const stores = this.getStores();
-    if (!user) return stores[0] || null;
-    if (user.associated_store_id) {
-      return this.getStoreById(user.associated_store_id) || stores[0] || null;
+  // ** الجزء المُعدَّل: getCurrentStore أصبح غير متزامن ويستخدم getMyStore **
+  async getCurrentStore(): Promise<Store | null> {
+    return this.getMyStore();
+  },
+
+  // ** دوال الكاش الخاصة بالمتجر الحالي **
+  _myStoreCache: { store: Store | null; timestamp: number } | null = null,
+  MY_STORE_CACHE_TTL: 30000, // 30 ثانية
+
+  clearMyStoreCache() {
+    this._myStoreCache = null;
+  },
+
+  async getMyStore(): Promise<Store | null> {
+    const currentUser = this.getCurrentUser();
+    if (!currentUser) return null;
+
+    if (this._myStoreCache && (Date.now() - this._myStoreCache.timestamp) < this.MY_STORE_CACHE_TTL) {
+      return this._myStoreCache.store;
     }
-    return stores.find((s) => s.owner_id === user.id) || stores[0] || null;
+
+    try {
+      const store = await fetchMyStore();
+      this._myStoreCache = { store, timestamp: Date.now() };
+      return store;
+    } catch (err) {
+      console.error('Error fetching my store:', err);
+      return null;
+    }
   },
 
   getCurrentAgent(): DeliveryAgent | null {

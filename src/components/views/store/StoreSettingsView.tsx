@@ -5,52 +5,47 @@ import { Store } from '../../../types/domain';
 import { formatCurrency } from '../../../lib/formatters';
 import { Store as StoreIcon, Clock, MapPin, Phone, Save, Check, Loader2, AlertCircle } from 'lucide-react';
 
-export const StoreSettingsView: React.FC = () => {
-  const currentUser = StorageRepo.getCurrentUser();
-  const storeId = currentUser?.associated_store_id || 'store-1';
-  const [store, setStore] = useState<Store | null>(StorageRepo.getStoreById(storeId));
+interface StoreSettingsViewProps {
+  onNavigate: (tab: string) => void;
+}
+
+export const StoreSettingsView: React.FC<StoreSettingsViewProps> = ({ onNavigate }) => {
+  const [store, setStore] = useState<Store | null>(null);
+  const [loading, setLoading] = useState(true);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
 
+  const loadData = async () => {
+    setLoading(true);
+    const myStore = await StorageRepo.getMyStore();
+    setStore(myStore);
+    setLoading(false);
+  };
+
   useEffect(() => {
-    const sync = () => {
-      const s = StorageRepo.getStoreById(storeId);
-      if (s) setStore(s);
-    };
+    loadData();
 
-    sync();
-    if (storeId) {
-      StorageRepo.refreshStores();
-    }
-
-    const unsubStorage = subscribeToStorageChange(() => {
-      sync();
+    const unsubscribeStorage = subscribeToStorageChange(() => {
+      loadData();
     });
 
-    const unsubRealtime = subscribeSupabase<Store>(
+    const currentUser = StorageRepo.getCurrentUser();
+    const filter = currentUser ? `owner_id=eq.${currentUser.id}` : undefined;
+    const unsubscribeRealtimeStore = subscribeSupabase<Store>(
       'stores',
-      () => {
-        StorageRepo.refreshStores();
-      },
-      storeId ? `id=eq.${storeId}` : undefined
+      () => { loadData(); },
+      filter
     );
 
     return () => {
-      unsubStorage();
-      unsubRealtime();
+      unsubscribeStorage();
+      unsubscribeRealtimeStore();
     };
-  }, [storeId]);
-
-  if (!store) {
-    return (
-      <div className="bg-white rounded-2xl p-8 text-center border border-slate-200">
-        <h3 className="font-bold text-slate-800">جاري تحميل إعدادات المتجر...</h3>
-      </div>
-    );
-  }
+  }, []);
 
   const handleSave = async () => {
+    if (!store) return;
     setSaveError('');
     try {
       setIsSaving(true);
@@ -64,6 +59,31 @@ export const StoreSettingsView: React.FC = () => {
       setIsSaving(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-2xl p-8 text-center border border-slate-200">
+        <Loader2 className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-3" />
+        <p className="text-xs font-bold text-slate-600">جاري تحميل إعدادات المتجر...</p>
+      </div>
+    );
+  }
+
+  if (!store) {
+    return (
+      <div className="bg-white rounded-2xl p-8 text-center border border-slate-200">
+        <StoreIcon className="w-16 h-16 text-slate-300 mx-auto mb-3" />
+        <h3 className="font-bold text-slate-800 text-lg">لا يوجد متجر مرتبط بحسابك</h3>
+        <p className="text-sm text-slate-500 mt-1">لا يمكنك تعديل إعدادات المتجر بدون متجر. قم بتقديم طلب انضمام متجر.</p>
+        <button
+          onClick={() => onNavigate('apply-store')}
+          className="mt-4 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl shadow-md transition-all"
+        >
+          تقديم طلب انضمام متجر
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-3xl mx-auto space-y-6 dir-rtl pb-16">

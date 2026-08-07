@@ -99,7 +99,7 @@ export interface UserProfile {
   avatar_url?: string;
   is_active?: boolean;
   created_at: string;
-  associated_store_id?: string; // For store_owner
+  // associated_store_id تم حذفه نهائياً
 }
 
 export interface Category {

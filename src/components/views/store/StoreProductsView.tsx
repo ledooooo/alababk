@@ -1,14 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
 import { subscribeSupabase } from '../../../lib/supabase';
-import { Product } from '../../../types/domain';
+import { Product, Store } from '../../../types/domain';
 import { formatCurrency } from '../../../lib/formatters';
 import { Pagination } from '../../shared/Pagination';
-import { Package, Plus, Edit2, Trash2, Search, Check, X, Image as ImageIcon, AlertCircle, Loader2 } from 'lucide-react';
+import { Package, Plus, Edit2, Trash2, Search, Check, X, Image as ImageIcon, AlertCircle, Loader2, Store as StoreIcon } from 'lucide-react';
 
-export const StoreProductsView: React.FC = () => {
-  const currentUser = StorageRepo.getCurrentUser();
-  const storeId = currentUser?.associated_store_id || 'store-1';
+interface StoreProductsViewProps {
+  onNavigate: (tab: string) => void;
+}
+
+export const StoreProductsView: React.FC<StoreProductsViewProps> = ({ onNavigate }) => {
+  const [store, setStore] = useState<Store | null>(null);
+  const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -16,52 +20,59 @@ export const StoreProductsView: React.FC = () => {
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string>('');
+  const [saveError, setSaveError] = useState('');
 
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery]);
 
-  useEffect(() => {
-    const syncProducts = () => {
-      if (storeId) {
-        setProducts(StorageRepo.getProducts(storeId));
-      }
-    };
-
-    // 1. Initial display from cache + trigger refresh from Supabase
-    syncProducts();
-    if (storeId) {
-      StorageRepo.refreshProducts(storeId);
+  const loadData = async () => {
+    setLoading(true);
+    const myStore = await StorageRepo.getMyStore();
+    setStore(myStore);
+    if (myStore) {
+      const storeProds = StorageRepo.getProducts(myStore.id);
+      setProducts(storeProds);
+    } else {
+      setProducts([]);
     }
+    setLoading(false);
+  };
 
-    // 2. Local storage change listener
+  useEffect(() => {
+    loadData();
+
     const unsubscribeStorage = subscribeToStorageChange(() => {
-      syncProducts();
+      loadData();
     });
 
-    // 3. Supabase Realtime subscription for products table
-    const unsubscribeRealtime = subscribeSupabase<Product>(
+    const currentUser = StorageRepo.getCurrentUser();
+    const filter = currentUser ? `owner_id=eq.${currentUser.id}` : undefined;
+    const unsubscribeRealtimeStore = subscribeSupabase<Store>(
+      'stores',
+      () => { loadData(); },
+      filter
+    );
+
+    const unsubscribeRealtimeProducts = subscribeSupabase<Product>(
       'products',
-      () => {
-        if (storeId) {
-          StorageRepo.refreshProducts(storeId);
-        }
-      },
-      storeId ? `store_id=eq.${storeId}` : undefined
+      () => { loadData(); },
+      store ? `store_id=eq.${store.id}` : undefined
     );
 
     return () => {
       unsubscribeStorage();
-      unsubscribeRealtime();
+      unsubscribeRealtimeStore();
+      unsubscribeRealtimeProducts();
     };
-  }, [storeId]);
+  }, []);
 
   const handleOpenNew = () => {
+    if (!store) return;
     setSaveError('');
     setEditingProduct({
       id: `prod-${Date.now()}`,
-      store_id: storeId,
+      store_id: store.id,
       name: '',
       description: '',
       price: 10,
@@ -90,7 +101,7 @@ export const StoreProductsView: React.FC = () => {
 
     const fullProd: Product = {
       id: editingProduct.id || `prod-${Date.now()}`,
-      store_id: storeId,
+      store_id: store!.id,
       name: editingProduct.name,
       description: editingProduct.description || '',
       price: Number(editingProduct.price),
@@ -145,6 +156,31 @@ export const StoreProductsView: React.FC = () => {
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE
   );
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-2xl p-8 text-center border border-slate-200">
+        <Loader2 className="w-8 h-8 text-emerald-600 animate-spin mx-auto mb-3" />
+        <p className="text-xs font-bold text-slate-600">جاري تحميل منتجات المتجر...</p>
+      </div>
+    );
+  }
+
+  if (!store) {
+    return (
+      <div className="bg-white rounded-2xl p-8 text-center border border-slate-200">
+        <StoreIcon className="w-16 h-16 text-slate-300 mx-auto mb-3" />
+        <h3 className="font-bold text-slate-800 text-lg">لا يوجد متجر مرتبط بحسابك</h3>
+        <p className="text-sm text-slate-500 mt-1">لا يمكنك إدارة المنتجات بدون متجر. قم بتقديم طلب انضمام متجر.</p>
+        <button
+          onClick={() => onNavigate('apply-store')}
+          className="mt-4 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl shadow-md transition-all"
+        >
+          تقديم طلب انضمام متجر
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 dir-rtl pb-16">

@@ -264,49 +264,62 @@ export async function fetchSupabaseCategories(): Promise<Category[]> {
   }
 }
 
-/**
- * Fetch Stores from Supabase
- */
+// ========== دالة مساعدة لتحويل صف المتجر إلى كائن Store ==========
+export function mapStoreRow(s: any): Store {
+  const coords = extractCoordinates(s.location || s);
+  const rawFee = s.base_delivery_fee ?? s.delivery_fee ?? s.fee;
+  const fee = rawFee !== undefined && rawFee !== null && !isNaN(Number(rawFee))
+    ? Number(rawFee)
+    : 15;
+
+  return {
+    id: s.id,
+    name: s.name,
+    slug: s.slug || s.name,
+    owner_id: s.owner_id,
+    category_id: s.category_id || '',
+    category_name: s.categories?.name || 'عام',
+    description: s.description || '',
+    logo_url: s.logo_url || '',
+    banner_url: s.cover_url || null,
+    address: s.address || null,
+    lat: coords ? coords.lat : (s.lat ? Number(s.lat) : null),
+    lng: coords ? coords.lng : (s.lng ? Number(s.lng) : null),
+    phone: s.phone || null,
+    is_approved: s.is_approved ?? true,
+    is_open: s.is_active ?? true,
+    rating: s.rating_avg !== undefined && s.rating_avg !== null ? Number(s.rating_avg) : (s.rating !== undefined && s.rating !== null ? Number(s.rating) : null),
+    reviews_count: s.rating_count ? Number(s.rating_count) : 0,
+    commission_rate: Number(s.commission_pct || 15),
+    min_order_amount: Number(s.min_order_amount || 0),
+    delivery_fee: fee,
+    opening_hours: s.working_hours || { everyday: { open: '08:00', close: '23:00' } },
+    created_at: s.created_at || new Date().toISOString(),
+  };
+}
+
+// ========== دالة جلب متجر المستخدم الحالي ==========
+export async function fetchMyStore(): Promise<Store | null> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data, error } = await (supabase
+    .from('stores') as any)
+    .select('*, categories(name)')
+    .eq('owner_id', user.id)
+    .maybeSingle();
+  if (error || !data) return null;
+  return mapStoreRow(data);
+}
+
+// ========== تعديل fetchSupabaseStores لاستخدام mapStoreRow ==========
 export async function fetchSupabaseStores(): Promise<Store[]> {
   try {
     const { data, error } = await (supabase
       .from('stores') as any)
       .select('*, categories(name)')
       .order('created_at', { ascending: false });
-
     if (error || !data) return [];
-    return (data as any[]).map((s) => {
-      const coords = extractCoordinates(s.location || s);
-      const rawFee = s.base_delivery_fee ?? s.delivery_fee ?? s.fee;
-      const fee = rawFee !== undefined && rawFee !== null && !isNaN(Number(rawFee))
-        ? Number(rawFee)
-        : 15;
-
-      return {
-        id: s.id,
-        name: s.name,
-        slug: s.slug || s.name,
-        owner_id: s.owner_id,
-        category_id: s.category_id || '',
-        category_name: s.categories?.name || 'عام',
-        description: s.description || '',
-        logo_url: s.logo_url || '',
-        banner_url: s.cover_url || null,
-        address: s.address || null,
-        lat: coords ? coords.lat : (s.lat ? Number(s.lat) : null),
-        lng: coords ? coords.lng : (s.lng ? Number(s.lng) : null),
-        phone: s.phone || null,
-        is_approved: s.is_approved ?? true,
-        is_open: s.is_active ?? true,
-        rating: s.rating_avg !== undefined && s.rating_avg !== null ? Number(s.rating_avg) : (s.rating !== undefined && s.rating !== null ? Number(s.rating) : null),
-        reviews_count: s.rating_count ? Number(s.rating_count) : 0,
-        commission_rate: Number(s.commission_pct || 15),
-        min_order_amount: Number(s.min_order_amount || 0),
-        delivery_fee: fee,
-        opening_hours: s.working_hours || { everyday: { open: '08:00', close: '23:00' } },
-        created_at: s.created_at || new Date().toISOString(),
-      };
-    });
+    return data.map(mapStoreRow);
   } catch {
     return [];
   }
@@ -2049,6 +2062,3 @@ export async function fetchFinanceSummary(): Promise<FinanceSummaryItem[]> {
 }
 
 // قاعدة أمان هامة: مُعرّف الجلسة لا يُستخدم أبداً لتحديد السجل المُستهدف.
-
-
-

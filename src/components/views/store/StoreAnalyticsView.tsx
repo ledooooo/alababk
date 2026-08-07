@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { StorageRepo } from '../../../lib/storage';
-import { Order, Product } from '../../../types/domain';
+import { subscribeSupabase } from '../../../lib/supabase';
+import { Order, Product, Store } from '../../../types/domain';
 import { formatCurrency } from '../../../lib/formatters';
-import { TrendingUp, ShoppingBag, DollarSign, Award, Calendar, BarChart2 } from 'lucide-react';
+import { TrendingUp, ShoppingBag, DollarSign, Award, Calendar, BarChart2, Loader2, Store as StoreIcon } from 'lucide-react';
 import {
   ResponsiveContainer,
   LineChart,
@@ -14,20 +15,67 @@ import {
   Legend,
 } from 'recharts';
 
-export const StoreAnalyticsView: React.FC = () => {
-  const currentUser = StorageRepo.getCurrentUser();
-  const storeId = currentUser?.associated_store_id || 'store-1';
+interface StoreAnalyticsViewProps {
+  onNavigate: (tab: string) => void;
+}
+
+export const StoreAnalyticsView: React.FC<StoreAnalyticsViewProps> = ({ onNavigate }) => {
+  const [store, setStore] = useState<Store | null>(null);
+  const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<Order[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [timeRange, setTimeRange] = useState<'7days' | '14days' | '30days'>('7days');
 
-  useEffect(() => {
-    if (storeId) {
-      const storeOrders = StorageRepo.getOrders().filter((o) => o.store_id === storeId);
+  const loadData = async () => {
+    setLoading(true);
+    const myStore = await StorageRepo.getMyStore();
+    setStore(myStore);
+    if (myStore) {
+      const storeOrders = StorageRepo.getOrders().filter((o) => o.store_id === myStore.id);
       setOrders(storeOrders);
-      setProducts(StorageRepo.getProducts(storeId));
+      const storeProds = StorageRepo.getProducts(myStore.id);
+      setProducts(storeProds);
+    } else {
+      setOrders([]);
+      setProducts([]);
     }
-  }, [storeId]);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadData();
+
+    const unsubscribeStorage = subscribeToStorageChange(() => {
+      loadData();
+    });
+
+    const currentUser = StorageRepo.getCurrentUser();
+    const filter = currentUser ? `owner_id=eq.${currentUser.id}` : undefined;
+    const unsubscribeRealtimeStore = subscribeSupabase<Store>(
+      'stores',
+      () => { loadData(); },
+      filter
+    );
+
+    const unsubscribeRealtimeOrders = subscribeSupabase<Order>(
+      'orders',
+      () => { loadData(); },
+      store ? `store_id=eq.${store.id}` : undefined
+    );
+
+    const unsubscribeRealtimeProducts = subscribeSupabase<Product>(
+      'products',
+      () => { loadData(); },
+      store ? `store_id=eq.${store.id}` : undefined
+    );
+
+    return () => {
+      unsubscribeStorage();
+      unsubscribeRealtimeStore();
+      unsubscribeRealtimeOrders();
+      unsubscribeRealtimeProducts();
+    };
+  }, []);
 
   const deliveredOrders = orders.filter((o) => o.status === 'delivered');
   const totalRevenue = deliveredOrders.reduce((sum, o) => sum + o.subtotal, 0);
@@ -114,6 +162,31 @@ export const StoreAnalyticsView: React.FC = () => {
     }
     return null;
   };
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-2xl p-8 text-center border border-slate-200">
+        <Loader2 className="w-8 h-8 text-blue-600 animate-spin mx-auto mb-3" />
+        <p className="text-xs font-bold text-slate-600">جاري تحميل البيانات التحليلية...</p>
+      </div>
+    );
+  }
+
+  if (!store) {
+    return (
+      <div className="bg-white rounded-2xl p-8 text-center border border-slate-200">
+        <StoreIcon className="w-16 h-16 text-slate-300 mx-auto mb-3" />
+        <h3 className="font-bold text-slate-800 text-lg">لا يوجد متجر مرتبط بحسابك</h3>
+        <p className="text-sm text-slate-500 mt-1">لا يمكنك عرض التحليلات بدون متجر. قم بتقديم طلب انضمام متجر.</p>
+        <button
+          onClick={() => onNavigate('apply-store')}
+          className="mt-4 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl shadow-md transition-all"
+        >
+          تقديم طلب انضمام متجر
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 dir-rtl pb-16">
@@ -299,4 +372,3 @@ export const StoreAnalyticsView: React.FC = () => {
     </div>
   );
 };
-

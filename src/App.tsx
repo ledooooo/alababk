@@ -155,7 +155,6 @@ export default function App() {
           phone: profile.phone || currentSession.user.user_metadata?.phone || '',
           role: (profile.role as UserRole) || 'customer',
           avatar_url: profile.avatar_url,
-          associated_store_id: profile.associated_store_id,
           is_active: profile.is_active ?? true,
           created_at: profile.created_at || currentSession.user.created_at,
         };
@@ -418,13 +417,27 @@ export default function App() {
               {activeTab === 'store-dashboard' && (
                 <StoreDashboardView onNavigate={(tab) => setActiveTab(tab)} />
               )}
-              {activeTab === 'store-orders' && <StoreOrdersView />}
-              {activeTab === 'store-products' && <StoreProductsView />}
-              {activeTab === 'store-reviews' && <StoreReviewsView />}
-              {activeTab === 'store-payouts' && <StorePayoutsView />}
-              {activeTab === 'store-analytics' && <StoreAnalyticsView />}
-              {activeTab === 'store-notifications' && <StoreNotificationsView />}
-              {activeTab === 'store-settings' && <StoreSettingsView />}
+              {activeTab === 'store-orders' && (
+                <StoreOrdersView onNavigate={(tab) => setActiveTab(tab)} />
+              )}
+              {activeTab === 'store-products' && (
+                <StoreProductsView onNavigate={(tab) => setActiveTab(tab)} />
+              )}
+              {activeTab === 'store-reviews' && (
+                <StoreReviewsView onNavigate={(tab) => setActiveTab(tab)} />
+              )}
+              {activeTab === 'store-payouts' && (
+                <StorePayoutsView onNavigate={(tab) => setActiveTab(tab)} />
+              )}
+              {activeTab === 'store-analytics' && (
+                <StoreAnalyticsView onNavigate={(tab) => setActiveTab(tab)} />
+              )}
+              {activeTab === 'store-notifications' && (
+                <StoreNotificationsView onNavigate={(tab) => setActiveTab(tab)} />
+              )}
+              {activeTab === 'store-settings' && (
+                <StoreSettingsView onNavigate={(tab) => setActiveTab(tab)} />
+              )}
             </>
           )}
 

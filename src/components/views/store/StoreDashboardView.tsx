@@ -13,7 +13,8 @@ import {
   CheckCircle2,
   Package,
   ArrowUpRight,
-  Bell
+  Bell,
+  Loader2
 } from 'lucide-react';
 
 interface StoreDashboardViewProps {
@@ -21,67 +22,64 @@ interface StoreDashboardViewProps {
 }
 
 export const StoreDashboardView: React.FC<StoreDashboardViewProps> = ({ onNavigate }) => {
-  const currentUser = StorageRepo.getCurrentUser();
-  const storeId = currentUser?.associated_store_id || 'store-1';
-  const [store, setStore] = useState<Store | null>(StorageRepo.getStoreById(storeId));
+  const [store, setStore] = useState<Store | null>(null);
+  const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<Order[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
 
-  useEffect(() => {
-    const refresh = () => {
-      const s = StorageRepo.getStoreById(storeId);
-      setStore(s);
-      if (s) {
-        const storeOrders = StorageRepo.getOrders().filter((o) => o.store_id === s.id);
-        setOrders(storeOrders);
-        const storeProds = StorageRepo.getProducts(s.id);
-        setProducts(storeProds);
-      }
-    };
-
-    refresh();
-    if (storeId) {
-      StorageRepo.refreshStores();
+  const loadData = async () => {
+    setLoading(true);
+    const myStore = await StorageRepo.getMyStore();
+    setStore(myStore);
+    if (myStore) {
+      const storeOrders = StorageRepo.getOrders().filter((o) => o.store_id === myStore.id);
+      setOrders(storeOrders);
+      const storeProds = StorageRepo.getProducts(myStore.id);
+      setProducts(storeProds);
+    } else {
+      setOrders([]);
+      setProducts([]);
     }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    loadData();
 
     const unsubscribeStorage = subscribeToStorageChange(() => {
-      refresh();
+      loadData();
     });
+
+    const currentUser = StorageRepo.getCurrentUser();
+    const filter = currentUser ? `owner_id=eq.${currentUser.id}` : undefined;
+    const unsubscribeRealtimeStore = subscribeSupabase<Store>(
+      'stores',
+      () => { loadData(); },
+      filter
+    );
+
+    const unsubscribeRealtimeOrders = subscribeSupabase<Order>(
+      'orders',
+      () => { loadData(); },
+      store ? `store_id=eq.${store.id}` : undefined
+    );
 
     const unsubscribeRealtimeProducts = subscribeSupabase<Product>(
       'products',
-      () => {
-        if (storeId) {
-          StorageRepo.refreshProducts(storeId);
-        }
-      },
-      storeId ? `store_id=eq.${storeId}` : undefined
-    );
-
-    const unsubscribeRealtimeStore = subscribeSupabase<Store>(
-      'stores',
-      () => {
-        StorageRepo.refreshStores();
-      },
-      storeId ? `id=eq.${storeId}` : undefined
+      () => { loadData(); },
+      store ? `store_id=eq.${store.id}` : undefined
     );
 
     return () => {
       unsubscribeStorage();
-      unsubscribeRealtimeProducts();
       unsubscribeRealtimeStore();
+      unsubscribeRealtimeOrders();
+      unsubscribeRealtimeProducts();
     };
-  }, [storeId]);
-
-  if (!store) {
-    return (
-      <div className="bg-white rounded-2xl p-8 text-center border border-slate-200">
-        <h3 className="font-bold text-slate-800">جاري تحميل بيانات المتجر...</h3>
-      </div>
-    );
-  }
+  }, []);
 
   const toggleStoreOpen = async () => {
+    if (!store) return;
     try {
       const updated = { ...store, is_open: !store.is_open };
       await StorageRepo.saveStore(updated);
@@ -89,6 +87,31 @@ export const StoreDashboardView: React.FC<StoreDashboardViewProps> = ({ onNaviga
       alert(`تعذر تغيير حالة المتجر: ${err.message || 'خطأ غير معروف'}`);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-2xl p-8 text-center border border-slate-200">
+        <Loader2 className="w-10 h-10 text-emerald-600 animate-spin mx-auto mb-3" />
+        <p className="text-xs font-bold text-slate-600">جاري تحميل بيانات المتجر...</p>
+      </div>
+    );
+  }
+
+  if (!store) {
+    return (
+      <div className="bg-white rounded-2xl p-8 text-center border border-slate-200">
+        <StoreIcon className="w-16 h-16 text-slate-300 mx-auto mb-3" />
+        <h3 className="font-bold text-slate-800 text-lg">لا يوجد متجر مرتبط بحسابك</h3>
+        <p className="text-sm text-slate-500 mt-1">يمكنك تقديم طلب لإنشاء متجر جديد والانضمام إلى منصة التوصيل.</p>
+        <button
+          onClick={() => onNavigate('apply-store')}
+          className="mt-4 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl shadow-md transition-all"
+        >
+          تقديم طلب انضمام متجر
+        </button>
+      </div>
+    );
+  }
 
   const pendingOrders = orders.filter((o) => o.status === 'pending');
   const preparingOrders = orders.filter((o) => ['accepted', 'preparing'].includes(o.status));
