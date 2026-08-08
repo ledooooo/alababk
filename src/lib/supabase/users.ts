@@ -1,6 +1,6 @@
 // src/lib/supabase/users.ts
 import { supabase } from './client';
-import { ensureUUID, isValidUUID, translateSupabaseError } from './helpers';
+import { isValidUUID, translateSupabaseError } from './helpers';
 import { UserProfile, UserRole } from '../../types/domain';
 
 export async function fetchSupabaseUsers(): Promise<UserProfile[]> {
@@ -28,7 +28,9 @@ export async function saveSupabaseUser(user: Partial<UserProfile>, options: Save
   let validId = user.id && isValidUUID(user.id) ? user.id : '';
   if (!validId && options.isSelf) {
     const { data: authData } = await supabase.auth.getUser();
-    if (authData?.user?.id) validId = authData.user.id;
+    if (authData?.user?.id && isValidUUID(authData.user.id)) {
+      validId = authData.user.id;
+    }
   }
   if (!validId || !isValidUUID(validId)) {
     throw new Error('مُعرّف المستخدم مفقود أو غير صالح');

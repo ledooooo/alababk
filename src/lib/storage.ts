@@ -7,7 +7,6 @@ import {
 } from '../types/domain';
 import { DEFAULT_CATEGORIES, EGYPT_DEFAULT_ZONES } from './constants';
 
-// استيراد جميع الدوال من المجلد supabase
 import {
   supabase,
   ensureUUID,
@@ -56,7 +55,9 @@ import {
   fetchAddresses,
   deleteAddress,
   translateSupabaseError,
-} from './supabase'; // <-- المجلد، وليس الملف
+} from './supabase';
+
+// ... باقي الكود (نفس الكود السابق) ...
 
 
 // تعريف النوع الجديد لحل مشكلة التحليل
