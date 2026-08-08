@@ -26,9 +26,9 @@ export interface StoreStats {
   rating: number;
 }
 
-export interface FinanceSummary {
+export interface FinanceSummaryItem {
   day: string;
-  store_id?: string | null;
+  store_id: string | null;
   delivered_orders: number;
   gmv: number;
   net_sales: number;
@@ -37,44 +37,102 @@ export interface FinanceSummary {
   tips: number;
 }
 
+/**
+ * Fetch agent statistics from agent_stats view
+ */
 export async function fetchAgentStats(agentId: string): Promise<AgentStats | null> {
-  const { data, error } = await supabase
-    .from('agent_stats')
-    .select('*')
-    .eq('agent_id', agentId)
-    .maybeSingle();
+  try {
+    const { data, error } = await supabase
+      .from('agent_stats')
+      .select('*')
+      .eq('agent_id', agentId)
+      .maybeSingle();
 
-  if (error) {
-    // قد لا يكون العرض موجوداً، نعيد null
-    console.warn('fetchAgentStats error:', error);
+    if (error) {
+      const translated = translateSupabaseError(error);
+      throw new Error(translated.message);
+    }
+    if (!data) return null;
+
+    const a = data as any;
+    return {
+      agent_id: a.agent_id,
+      user_id: a.user_id,
+      full_name: a.full_name,
+      completed_deliveries: Number(a.completed_deliveries || 0),
+      total_trips: Number(a.total_trips || 0),
+      total_earnings: Number(a.total_earnings || 0),
+      total_tips: Number(a.total_tips || 0),
+      avg_rating: Number(a.avg_rating || 0),
+      rating: Number(a.rating || 0),
+    };
+  } catch (err) {
+    console.error('Error fetching agent stats:', err);
     return null;
   }
-  return data as AgentStats || null;
 }
 
+/**
+ * Fetch store statistics from store_stats view
+ */
 export async function fetchStoreStats(storeId: string): Promise<StoreStats | null> {
-  const { data, error } = await supabase
-    .from('store_stats')
-    .select('*')
-    .eq('store_id', storeId)
-    .maybeSingle();
+  try {
+    const { data, error } = await supabase
+      .from('store_stats')
+      .select('*')
+      .eq('store_id', storeId)
+      .maybeSingle();
 
-  if (error) {
-    console.warn('fetchStoreStats error:', error);
+    if (error) {
+      const translated = translateSupabaseError(error);
+      throw new Error(translated.message);
+    }
+    if (!data) return null;
+
+    const s = data as any;
+    return {
+      store_id: s.store_id,
+      name: s.name,
+      owner_id: s.owner_id,
+      delivered_orders: Number(s.delivered_orders || 0),
+      total_orders: Number(s.total_orders || 0),
+      total_revenue: Number(s.total_revenue || 0),
+      total_commission: Number(s.total_commission || 0),
+      avg_rating: Number(s.avg_rating || 0),
+      rating: Number(s.rating || 0),
+    };
+  } catch (err) {
+    console.error('Error fetching store stats:', err);
     return null;
   }
-  return data as StoreStats || null;
 }
 
-export async function fetchFinanceSummary(): Promise<FinanceSummary[]> {
-  const { data, error } = await supabase
-    .from('finance_summary')
-    .select('*')
-    .order('day', { ascending: false });
+/**
+ * Fetch finance summary from finance_summary view
+ */
+export async function fetchFinanceSummary(): Promise<FinanceSummaryItem[]> {
+  try {
+    const { data, error } = await supabase
+      .from('finance_summary')
+      .select('*')
+      .order('day', { ascending: false });
 
-  if (error) {
-    console.warn('fetchFinanceSummary error:', error);
+    if (error) {
+      const translated = translateSupabaseError(error);
+      throw new Error(translated.message);
+    }
+    return (data || []).map((row: any) => ({
+      day: row.day,
+      store_id: row.store_id,
+      delivered_orders: Number(row.delivered_orders || 0),
+      gmv: Number(row.gmv || 0),
+      net_sales: Number(row.net_sales || 0),
+      commissions: Number(row.commissions || 0),
+      delivery_fees: Number(row.delivery_fees || 0),
+      tips: Number(row.tips || 0),
+    }));
+  } catch (err) {
+    console.error('Error fetching finance summary:', err);
     return [];
   }
-  return (data || []) as FinanceSummary[];
 }
