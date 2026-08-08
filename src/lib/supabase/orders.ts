@@ -1,7 +1,7 @@
 // src/lib/supabase/orders.ts
 import { supabase } from './client';
 import { ensureUUID, isValidUUID, extractCoordinates, translateSupabaseError } from './helpers';
-import { upsertAddress, rowToAddress } from './addresses';
+import { upsertAddress } from './addresses';
 import { Order, CustomerAddress, OrderQuoteResponse, SecureOrderResponse } from '../../types/domain';
 
 type OrderUpdateResult = { success: true; order: any } | { success: false; error: string };
@@ -123,7 +123,6 @@ export async function createSecureOrder(params: SecureOrderPayload): Promise<Sec
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) throw new Error('يجب تسجيل الدخول');
 
-  // 1. حفظ العنوان عبر upsert_address_secure (يرمي خطأ عند الفشل)
   let addressId = params.address.id;
   if (!addressId || !isValidUUID(addressId)) addressId = ensureUUID();
 
@@ -143,7 +142,6 @@ export async function createSecureOrder(params: SecureOrderPayload): Promise<Sec
 
   const savedAddress = await upsertAddress(addressToSave);
 
-  // 2. إعداد العناصر (بدون Math.max)
   const formattedItems = params.items.map((item) => ({
     product_id: ensureUUID(item.product_id),
     quantity: Number(item.quantity) || 1,
@@ -151,7 +149,6 @@ export async function createSecureOrder(params: SecureOrderPayload): Promise<Sec
     notes: item.notes ? String(item.notes).trim() : null,
   }));
 
-  // 3. استدعاء create_order_secure
   const { data, error } = await supabase.rpc('create_order_secure', {
     p_store_id: ensureUUID(params.store_id),
     p_address_id: savedAddress.id,
@@ -192,11 +189,7 @@ export async function quoteOrderSecure(params: {
   return data as OrderQuoteResponse;
 }
 
-// ===== Fetch Orders (المضافة حديثاً) =====
-
-/**
- * مساعد لتحويل بيانات الطلب من قاعدة البيانات إلى كائن Order المطلوب
- */
+// ===== Fetch Orders =====
 function mapOrders(ordersData: any[]): Order[] {
   return ordersData.map((o) => {
     const custProfile = o.profiles || {};
@@ -288,10 +281,6 @@ function mapOrders(ordersData: any[]): Order[] {
   });
 }
 
-/**
- * Fetch Orders from Supabase with optional filters
- * مطابق تماماً للدالة القديمة في supabase.ts
- */
 export async function fetchSupabaseOrders(filters?: {
   customer_id?: string;
   store_id?: string;
@@ -313,7 +302,6 @@ export async function fetchSupabaseOrders(filters?: {
     const { data, error } = await query.order('placed_at', { ascending: false });
 
     if (error) {
-      // محاولة ثانية بدون products(images) في حال فشل العلاقة
       const fallbackQuery = supabase
         .from('orders')
         .select('*, order_items(*), stores(*), profiles:customer_id(full_name, phone, avatar_url), addresses(*)');

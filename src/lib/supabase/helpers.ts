@@ -1,10 +1,6 @@
 // src/lib/supabase/helpers.ts
 import { supabase } from './client';
-import { translateSupabaseError, isNotFoundError, isPermissionError } from './errors';
-import { Result } from './errors';
-
-// إعادة تصدير دوال errors لسهولة الاستيراد من helpers
-export { translateSupabaseError, isNotFoundError, isPermissionError };
+import { translateSupabaseError, isNotFoundError, isPermissionError, Result } from './errors';
 
 export function isValidUUID(id?: string): boolean {
   return !!id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
@@ -72,7 +68,9 @@ export function extractCoordinates(locationObj: any): { lat: number; lng: number
   return null;
 }
 
-// ===== دوال آمنة للجلب مع Result =====
+// Re-export error utilities for convenience
+export { translateSupabaseError, isNotFoundError, isPermissionError, Result };
+
 export async function listSupabaseSafe<T>(
   table: string,
   options?: {
