@@ -7,7 +7,7 @@ import {
 } from '../types/domain';
 import { DEFAULT_CATEGORIES, EGYPT_DEFAULT_ZONES } from './constants';
 
-// استيراد جميع الدوال الجديدة من supabase/index
+// استيراد جميع الدوال الجديدة من المجلد supabase (وليس supabase.ts)
 import {
   supabase,
   ensureUUID,
@@ -56,7 +56,7 @@ import {
   fetchAddresses,
   deleteAddress,
   translateSupabaseError,
-} from './supabase';
+} from './supabase';  // <-- هذا هو المسار الصحيح للمجلد
 
 // تعريف النوع الجديد لحل مشكلة التحليل
 type MyStoreCache = { store: Store | null; timestamp: number; } | null;
