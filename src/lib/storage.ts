@@ -56,7 +56,7 @@ import {
   fetchAddresses,
   deleteAddress,
   translateSupabaseError,
-} from './supabase';  // <-- هذا هو المسار الصحيح للمجلد
+} from './supabase';
 
 // تعريف النوع الجديد لحل مشكلة التحليل
 type MyStoreCache = { store: Store | null; timestamp: number; } | null;

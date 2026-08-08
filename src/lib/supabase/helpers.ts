@@ -1,6 +1,6 @@
 // src/lib/supabase/helpers.ts
 import { supabase } from './client';
-import { translateSupabaseError, isNotFoundError, Result } from './errors';
+import { translateSupabaseError, isNotFoundError, isPermissionError, Result } from './errors';
 
 export function isValidUUID(id?: string): boolean {
   return !!id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
@@ -16,10 +16,6 @@ export function ensureUUID(id?: string): string {
   });
 }
 
-/**
- * Extract lat/lng coordinates ONLY from location (GeoJSON / PostGIS WKB / WKT / object).
- * Returns null if location is missing, empty, or invalid.
- */
 export function extractCoordinates(locationObj: any): { lat: number; lng: number } | null {
   if (!locationObj) return null;
   try {
@@ -45,7 +41,6 @@ export function extractCoordinates(locationObj: any): { lat: number; lng: number
           if (!isNaN(lat) && !isNaN(lng) && (lat !== 0 || lng !== 0)) return { lat, lng };
         }
       }
-      // EWKB Hex string parsing (PostGIS EWKB Hex)
       if (/^[0-9a-fA-F]{42,}$/.test(trimmed)) {
         const isLittleEndian = trimmed.substring(0, 2) === '01';
         let offset = 2;
@@ -68,12 +63,11 @@ export function extractCoordinates(locationObj: any): { lat: number; lng: number
       }
     }
   } catch {
-    // Return null if parsing fails
+    // ignore
   }
   return null;
 }
 
-// ===== دوال آمنة للجلب مع Result =====
 export async function listSupabaseSafe<T>(
   table: string,
   options?: {
@@ -125,3 +119,6 @@ export async function getSupabaseByIdSafe<T>(table: string, id: string): Promise
     return { success: false, error: translated.message, code: translated.code };
   }
 }
+
+// إعادة تصدير دوال الأخطاء لتكون متاحة من helpers
+export { translateSupabaseError, isNotFoundError, isPermissionError };
