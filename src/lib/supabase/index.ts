@@ -1,5 +1,4 @@
 // src/lib/supabase/index.ts
-// src/lib/supabase/index.ts
 export * from './client';
 export * from './errors';
 export * from './helpers';
@@ -18,3 +17,4 @@ export * from './reviews';
 export * from './notifications';
 export * from './payouts';
 export * from './realtime';
+export * from './stats';   // <-- إضافة
