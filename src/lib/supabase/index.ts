@@ -1,7 +1,9 @@
 // src/lib/supabase/index.ts
+// src/lib/supabase/index.ts
 export * from './client';
 export * from './errors';
 export * from './helpers';
+export * from './crud';
 export * from './auth';
 export * from './users';
 export * from './categories';

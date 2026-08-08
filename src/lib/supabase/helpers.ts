@@ -1,4 +1,4 @@
-// src/lib/supabase/helpers.ts (مُحدَّث)
+// src/lib/supabase/helpers.ts
 import { supabase } from './client';
 import { translateSupabaseError, isNotFoundError, isPermissionError, Result } from './errors';
 
@@ -52,7 +52,7 @@ export function extractCoordinates(locationObj: any): { lat: number; lng: number
 // أعد تصدير دوال الأخطاء من errors.ts
 export { translateSupabaseError, isNotFoundError, isPermissionError } from './errors';
 
-// ===== دوال CRUD العامة =====
+// دوال مساعدة للجلب الآمن (بدون CRUD)
 export async function listSupabaseSafe<T>(
   table: string,
   options?: {
@@ -103,24 +103,4 @@ export async function getSupabaseByIdSafe<T>(table: string, id: string): Promise
     const translated = translateSupabaseError(err);
     return { success: false, error: translated.message, code: translated.code };
   }
-}
-
-// دوال CRUD العامة (تستخدم في storage.ts)
-export async function deleteSupabase(table: string, id: string): Promise<void> {
-  const { error } = await supabase.from(table).delete().eq('id', id);
-  if (error) throw new Error(translateSupabaseError(error).message);
-}
-
-export async function createSupabase<T>(table: string, data: Partial<T>): Promise<T> {
-  const payload = { ...data, id: data.id ? ensureUUID(data.id as string) : ensureUUID() };
-  const { data: created, error } = await supabase.from(table).insert([payload]).select('*').single();
-  if (error) throw new Error(translateSupabaseError(error).message);
-  return created as T;
-}
-
-export async function updateSupabase<T>(table: string, id: string, data: Partial<T>): Promise<T> {
-  const payload = { ...data, updated_at: new Date().toISOString() };
-  const { data: updated, error } = await supabase.from(table).update(payload).eq('id', id).select('*').single();
-  if (error) throw new Error(translateSupabaseError(error).message);
-  return updated as T;
 }
