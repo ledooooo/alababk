@@ -25,7 +25,6 @@ export function mapStoreRow(s: any): Store {
     reviews_count: s.rating_count ? Number(s.rating_count) : 0,
     commission_rate: Number(s.commission_pct ?? 15),
     min_order_amount: Number(s.min_order_amount ?? 0),
-    // delivery_fee محذوف - يُحسب من الدالة calculate_delivery_fee
     opening_hours: s.working_hours || { everyday: { open: '08:00', close: '23:00' } },
     created_at: s.created_at || new Date().toISOString(),
   };
@@ -37,10 +36,7 @@ export async function fetchSupabaseStores(): Promise<Store[]> {
     .select('*, categories(name)')
     .order('created_at', { ascending: false });
 
-  if (error) {
-    const translated = translateSupabaseError(error);
-    throw new Error(translated.message);
-  }
+  if (error) throw new Error(translateSupabaseError(error).message);
   return (data || []).map(mapStoreRow);
 }
 
@@ -53,10 +49,7 @@ export async function fetchMyStore(): Promise<Store | null> {
     .eq('owner_id', user.id)
     .maybeSingle();
 
-  if (error) {
-    const translated = translateSupabaseError(error);
-    throw new Error(translated.message);
-  }
+  if (error) throw new Error(translateSupabaseError(error).message);
   return data ? mapStoreRow(data) : null;
 }
 
@@ -91,11 +84,9 @@ export async function saveSupabaseStore(store: Partial<Store>, options: SaveStor
     updated_at: new Date().toISOString(),
   };
 
-  // is_approved: فقط للإدارة
   if (store.is_approved !== undefined && !options.isSelf) {
     payload.is_approved = store.is_approved;
   }
-  // commission_pct: فقط للمالية
   if (store.commission_rate !== undefined && !options.isSelf) {
     payload.commission_pct = store.commission_rate;
   }
@@ -103,7 +94,6 @@ export async function saveSupabaseStore(store: Partial<Store>, options: SaveStor
   const existing = await supabase.from('stores').select('id').eq('id', validStoreId).maybeSingle();
   let result;
   if (!existing.data) {
-    // INSERT - new store
     payload.is_approved = false;
     const { data, error } = await supabase.from('stores').insert([payload]).select('*, categories(name)').single();
     if (error) throw new Error(translateSupabaseError(error).message);

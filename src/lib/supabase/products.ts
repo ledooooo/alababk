@@ -19,14 +19,13 @@ export async function fetchSupabaseProducts(storeId?: string): Promise<Product[]
       original_price: p.old_price != null ? Number(p.old_price) : undefined,
       category_name: 'عام',
       image_url: p.images?.[0] || '',
-      stock: p.stock ?? 0, // استخدم ?? بدلاً من || لتفادي تحويل 0 إلى 50
+      stock: p.stock ?? 0,
       is_active: p.is_active ?? true,
       unit: p.attributes?.unit || 'قطعة',
       created_at: p.created_at || new Date().toISOString(),
     }));
   } catch (err) {
-    const translated = translateSupabaseError(err);
-    throw new Error(translated.message);
+    throw new Error(translateSupabaseError(err).message);
   }
 }
 

@@ -102,10 +102,7 @@ export async function updateSupabaseOrderLocation(orderId: string, lat: number, 
     .from('orders')
     .update({ delivery_agent_lat: lat, delivery_agent_lng: lng, updated_at: new Date().toISOString() })
     .eq('id', ensureUUID(orderId));
-  if (error) {
-    const translated = translateSupabaseError(error);
-    throw new Error(translated.message);
-  }
+  if (error) throw new Error(translateSupabaseError(error).message);
 }
 
 // ===== Secure Order RPC =====
@@ -189,7 +186,50 @@ export async function quoteOrderSecure(params: {
   return data as OrderQuoteResponse;
 }
 
-// ===== Fetch Orders =====
+// ===== دالة جلب الطلبات =====
+export async function fetchSupabaseOrders(filters?: {
+  customer_id?: string;
+  store_id?: string;
+  delivery_agent_id?: string;
+  status?: string;
+  is_unassigned?: boolean;
+}): Promise<Order[]> {
+  try {
+    let query = supabase
+      .from('orders')
+      .select('*, order_items(*, products(images)), stores(*), profiles:customer_id(full_name, phone, avatar_url), addresses(*)');
+
+    if (filters?.customer_id) query = query.eq('customer_id', filters.customer_id);
+    if (filters?.store_id) query = query.eq('store_id', filters.store_id);
+    if (filters?.delivery_agent_id) query = query.eq('delivery_agent_id', filters.delivery_agent_id);
+    if (filters?.status) query = query.eq('status', filters.status);
+    if (filters?.is_unassigned) query = query.is('delivery_agent_id', null);
+
+    const { data, error } = await query.order('placed_at', { ascending: false });
+
+    if (error) {
+      // محاولة ثانية بدون products(images) في حال فشل العلاقة
+      const fallbackQuery = supabase
+        .from('orders')
+        .select('*, order_items(*), stores(*), profiles:customer_id(full_name, phone, avatar_url), addresses(*)');
+
+      if (filters?.customer_id) fallbackQuery.eq('customer_id', filters.customer_id);
+      if (filters?.store_id) fallbackQuery.eq('store_id', filters.store_id);
+      if (filters?.delivery_agent_id) fallbackQuery.eq('delivery_agent_id', filters.delivery_agent_id);
+      if (filters?.status) fallbackQuery.eq('status', filters.status);
+      if (filters?.is_unassigned) fallbackQuery.is('delivery_agent_id', null);
+
+      const fallbackRes = await fallbackQuery.order('placed_at', { ascending: false });
+      if (fallbackRes.error) throw fallbackRes.error;
+      return mapOrders(fallbackRes.data || []);
+    }
+
+    return mapOrders(data || []);
+  } catch (err) {
+    throw new Error(translateSupabaseError(err).message);
+  }
+}
+
 function mapOrders(ordersData: any[]): Order[] {
   return ordersData.map((o) => {
     const custProfile = o.profiles || {};
@@ -279,47 +319,4 @@ function mapOrders(ordersData: any[]): Order[] {
       updated_at: o.updated_at || new Date().toISOString(),
     };
   });
-}
-
-export async function fetchSupabaseOrders(filters?: {
-  customer_id?: string;
-  store_id?: string;
-  delivery_agent_id?: string;
-  status?: string;
-  is_unassigned?: boolean;
-}): Promise<Order[]> {
-  try {
-    let query = supabase
-      .from('orders')
-      .select('*, order_items(*, products(images)), stores(*), profiles:customer_id(full_name, phone, avatar_url), addresses(*)');
-
-    if (filters?.customer_id) query = query.eq('customer_id', filters.customer_id);
-    if (filters?.store_id) query = query.eq('store_id', filters.store_id);
-    if (filters?.delivery_agent_id) query = query.eq('delivery_agent_id', filters.delivery_agent_id);
-    if (filters?.status) query = query.eq('status', filters.status);
-    if (filters?.is_unassigned) query = query.is('delivery_agent_id', null);
-
-    const { data, error } = await query.order('placed_at', { ascending: false });
-
-    if (error) {
-      const fallbackQuery = supabase
-        .from('orders')
-        .select('*, order_items(*), stores(*), profiles:customer_id(full_name, phone, avatar_url), addresses(*)');
-
-      if (filters?.customer_id) fallbackQuery.eq('customer_id', filters.customer_id);
-      if (filters?.store_id) fallbackQuery.eq('store_id', filters.store_id);
-      if (filters?.delivery_agent_id) fallbackQuery.eq('delivery_agent_id', filters.delivery_agent_id);
-      if (filters?.status) fallbackQuery.eq('status', filters.status);
-      if (filters?.is_unassigned) fallbackQuery.is('delivery_agent_id', null);
-
-      const fallbackRes = await fallbackQuery.order('placed_at', { ascending: false });
-      if (fallbackRes.error) throw fallbackRes.error;
-      return mapOrders(fallbackRes.data || []);
-    }
-
-    return mapOrders(data || []);
-  } catch (err) {
-    const translated = translateSupabaseError(err);
-    throw new Error(translated.message);
-  }
 }
