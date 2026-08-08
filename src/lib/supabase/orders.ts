@@ -1,6 +1,6 @@
 // src/lib/supabase/orders.ts
 import { supabase } from './client';
-import { ensureUUID, isValidUUID, translateSupabaseError } from './helpers';
+import { ensureUUID, isValidUUID, extractCoordinates, translateSupabaseError } from './helpers';
 import { upsertAddress, rowToAddress } from './addresses';
 import { Order, CustomerAddress, OrderQuoteResponse, SecureOrderResponse } from '../../types/domain';
 
@@ -190,4 +190,148 @@ export async function quoteOrderSecure(params: {
 
   if (error) throw new Error(translateSupabaseError(error).message);
   return data as OrderQuoteResponse;
+}
+
+// ===== Fetch Orders (المضافة حديثاً) =====
+
+/**
+ * مساعد لتحويل بيانات الطلب من قاعدة البيانات إلى كائن Order المطلوب
+ */
+function mapOrders(ordersData: any[]): Order[] {
+  return ordersData.map((o) => {
+    const custProfile = o.profiles || {};
+    const custName = custProfile.full_name || custProfile.name || o.customer_name || null;
+    const custPhone = custProfile.phone || o.customer_phone || null;
+
+    const storeObj = o.stores || {};
+    const storeName = storeObj.name || o.store_name || null;
+    const storePhone = storeObj.phone || null;
+    const storeAddress = storeObj.address || null;
+    const storeCoords = extractCoordinates(storeObj.location || storeObj);
+
+    const addrObj = o.addresses || o.address || null;
+    const addrCoords = extractCoordinates(addrObj?.location || addrObj);
+
+    const items = (o.order_items || []).map((item: any) => {
+      const itemImg =
+        item.product_image ||
+        item.image_url ||
+        (Array.isArray(item.products?.images) ? item.products.images[0] : null) ||
+        item.products?.image_url ||
+        '';
+
+      return {
+        id: item.id,
+        product_id: item.product_id || '',
+        product_name: item.name || item.product_name || 'منتج',
+        product_image: itemImg,
+        unit_price: Number(item.price || item.unit_price || 0),
+        quantity: Number(item.quantity || 1),
+        total_price: Number(item.subtotal || item.total_price || 0),
+        notes: item.notes || null,
+      };
+    });
+
+    return {
+      id: o.id,
+      order_number: o.code || `ORD-${o.id.slice(0, 8)}`,
+      customer_id: o.customer_id,
+      customer_name: custName,
+      customer_phone: custPhone,
+      store_id: o.store_id,
+      store_name: storeName,
+      store_phone: storePhone,
+      store_address: storeAddress,
+      store_lat: storeCoords?.lat ?? (storeObj.lat ? Number(storeObj.lat) : null),
+      store_lng: storeCoords?.lng ?? (storeObj.lng ? Number(storeObj.lng) : null),
+      delivery_address: {
+        id: addrObj?.id || o.address_id || undefined,
+        user_id: o.customer_id,
+        title: addrObj?.label || addrObj?.title || 'عنوان التوصيل',
+        address_line: addrObj?.street || addrObj?.address_line || addrObj?.label || 'عنوان التوصيل',
+        street: addrObj?.street ?? null,
+        building: addrObj?.building ?? null,
+        floor: addrObj?.floor ?? null,
+        apartment: addrObj?.apartment ?? null,
+        lat: addrCoords?.lat ?? (addrObj?.lat ? Number(addrObj.lat) : null),
+        lng: addrCoords?.lng ?? (addrObj?.lng ? Number(addrObj.lng) : null),
+        notes: addrObj?.notes ?? null,
+        is_default: addrObj?.is_default ?? false,
+      },
+      delivery_agent_id: o.delivery_agent_id,
+      items,
+      subtotal: Number(o.subtotal || 0),
+      delivery_fee: Number(o.delivery_fee || 0),
+      tip_amount: o.tip_amount !== undefined && o.tip_amount !== null ? Number(o.tip_amount) : 0,
+      discount_amount: Number(o.discount || 0),
+      coupon_code: o.coupon_code ?? null,
+      total: Number(o.total || 0),
+      payment_method: (o.payment_method === 'online' ? 'online' : 'cash') as 'cash' | 'online',
+      payment_status: o.payment_status === 'paid' ? 'paid' : 'pending',
+      status: o.status || 'pending',
+      status_history: [
+        {
+          status: o.status || 'pending',
+          timestamp: o.placed_at || new Date().toISOString(),
+          note: 'تم إنشاء الطلب',
+        },
+      ],
+      rejection_reason: o.rejection_reason ?? null,
+      customer_notes: o.customer_notes ?? null,
+      zone_id: o.zone_id ?? null,
+      commission_pct: o.commission_pct !== undefined && o.commission_pct !== null ? Number(o.commission_pct) : null,
+      commission_amount: o.commission_amount !== undefined && o.commission_amount !== null ? Number(o.commission_amount) : null,
+      eta_minutes: o.eta_minutes !== undefined && o.eta_minutes !== null ? Number(o.eta_minutes) : null,
+      created_at: o.placed_at || o.created_at || new Date().toISOString(),
+      updated_at: o.updated_at || new Date().toISOString(),
+    };
+  });
+}
+
+/**
+ * Fetch Orders from Supabase with optional filters
+ * مطابق تماماً للدالة القديمة في supabase.ts
+ */
+export async function fetchSupabaseOrders(filters?: {
+  customer_id?: string;
+  store_id?: string;
+  delivery_agent_id?: string;
+  status?: string;
+  is_unassigned?: boolean;
+}): Promise<Order[]> {
+  try {
+    let query = supabase
+      .from('orders')
+      .select('*, order_items(*, products(images)), stores(*), profiles:customer_id(full_name, phone, avatar_url), addresses(*)');
+
+    if (filters?.customer_id) query = query.eq('customer_id', filters.customer_id);
+    if (filters?.store_id) query = query.eq('store_id', filters.store_id);
+    if (filters?.delivery_agent_id) query = query.eq('delivery_agent_id', filters.delivery_agent_id);
+    if (filters?.status) query = query.eq('status', filters.status);
+    if (filters?.is_unassigned) query = query.is('delivery_agent_id', null);
+
+    const { data, error } = await query.order('placed_at', { ascending: false });
+
+    if (error) {
+      // محاولة ثانية بدون products(images) في حال فشل العلاقة
+      const fallbackQuery = supabase
+        .from('orders')
+        .select('*, order_items(*), stores(*), profiles:customer_id(full_name, phone, avatar_url), addresses(*)');
+
+      if (filters?.customer_id) fallbackQuery.eq('customer_id', filters.customer_id);
+      if (filters?.store_id) fallbackQuery.eq('store_id', filters.store_id);
+      if (filters?.delivery_agent_id) fallbackQuery.eq('delivery_agent_id', filters.delivery_agent_id);
+      if (filters?.status) fallbackQuery.eq('status', filters.status);
+      if (filters?.is_unassigned) fallbackQuery.is('delivery_agent_id', null);
+
+      const fallbackRes = await fallbackQuery.order('placed_at', { ascending: false });
+      if (fallbackRes.error) throw fallbackRes.error;
+      return mapOrders(fallbackRes.data || []);
+    }
+
+    return mapOrders(data || []);
+  } catch (err) {
+    const translated = translateSupabaseError(err);
+    throw new Error(translated.message);
+  }
 }

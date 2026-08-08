@@ -308,13 +308,11 @@ export const StorageRepo = {
   },
 
   async saveUser(user: UserProfile, options?: { isSelf?: boolean; isAdministrative?: boolean }): Promise<UserProfile> {
-    // نحدّث الكاش أولاً (للتفاعل السريع)، لكن نستخدم try/catch للرجوع للخلف عند الفشل
     const currentUser = this.getCurrentUser();
     const isSelf = options?.isSelf ?? (currentUser?.id === user.id);
     const isAdministrative = options?.isAdministrative ?? (currentUser?.role === 'admin');
     const callerRole = currentUser?.role;
     
-    // كاش مؤقت
     const prevUsers = this.getCachedUsers();
     const updatedUsers = mergeById(prevUsers, user);
     setCached(STORAGE_KEYS.USERS, updatedUsers);
@@ -325,7 +323,6 @@ export const StorageRepo = {
       await saveSupabaseUser(user, { isSelf, isAdministrative, callerRole });
       return user;
     } catch (err) {
-      // استرجاع الكاش السابق
       setCached(STORAGE_KEYS.USERS, prevUsers);
       if (currentUser) this.setCurrentUser(currentUser);
       else this.setCurrentUser(null);
@@ -427,7 +424,7 @@ export const StorageRepo = {
     }
   },
 
-  // --- ADDRESSES (باستخدام upsert_address_secure) ---
+  // --- ADDRESSES ---
   getAddresses(userId?: string): CustomerAddress[] {
     const targetUserId = userId || this.getCurrentUser()?.id;
     if (!targetUserId) return [];

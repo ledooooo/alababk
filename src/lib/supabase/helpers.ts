@@ -1,6 +1,10 @@
 // src/lib/supabase/helpers.ts
 import { supabase } from './client';
-import { translateSupabaseError, isNotFoundError, isPermissionError, Result } from './errors';
+import { translateSupabaseError, isNotFoundError, isPermissionError } from './errors';
+import { Result } from './errors';
+
+// إعادة تصدير دوال errors لسهولة الاستيراد من helpers
+export { translateSupabaseError, isNotFoundError, isPermissionError };
 
 export function isValidUUID(id?: string): boolean {
   return !!id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
@@ -63,11 +67,12 @@ export function extractCoordinates(locationObj: any): { lat: number; lng: number
       }
     }
   } catch {
-    // ignore
+    // Return null if parsing fails
   }
   return null;
 }
 
+// ===== دوال آمنة للجلب مع Result =====
 export async function listSupabaseSafe<T>(
   table: string,
   options?: {
@@ -119,6 +124,3 @@ export async function getSupabaseByIdSafe<T>(table: string, id: string): Promise
     return { success: false, error: translated.message, code: translated.code };
   }
 }
-
-// إعادة تصدير دوال الأخطاء لتكون متاحة من helpers
-export { translateSupabaseError, isNotFoundError, isPermissionError };
