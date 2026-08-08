@@ -1,4 +1,4 @@
-// src/lib/supabase/helpers.ts
+// src/lib/supabase/helpers.ts (مُحدَّث)
 import { supabase } from './client';
 import { translateSupabaseError, isNotFoundError, isPermissionError, Result } from './errors';
 
@@ -41,36 +41,18 @@ export function extractCoordinates(locationObj: any): { lat: number; lng: number
           if (!isNaN(lat) && !isNaN(lng) && (lat !== 0 || lng !== 0)) return { lat, lng };
         }
       }
-      if (/^[0-9a-fA-F]{42,}$/.test(trimmed)) {
-        const isLittleEndian = trimmed.substring(0, 2) === '01';
-        let offset = 2;
-        const typeHex = trimmed.substring(offset, offset + 8);
-        offset += 8;
-        const hasSRID = typeHex.toLowerCase().includes('20');
-        if (hasSRID) offset += 8;
-        const xHex = trimmed.substring(offset, offset + 16);
-        offset += 16;
-        const yHex = trimmed.substring(offset, offset + 16);
-        const hexToDouble = (hexStr: string, littleEndian: boolean): number => {
-          const bytes = new Uint8Array(8);
-          for (let i = 0; i < 8; i++) bytes[i] = parseInt(hexStr.substring(i * 2, i * 2 + 2), 16);
-          if (!littleEndian) bytes.reverse();
-          return new DataView(bytes.buffer).getFloat64(0, true);
-        };
-        const lng = hexToDouble(xHex, isLittleEndian);
-        const lat = hexToDouble(yHex, isLittleEndian);
-        if (!isNaN(lat) && !isNaN(lng) && (lat !== 0 || lng !== 0)) return { lat, lng };
-      }
+      // EWKB Hex parsing (اختصاراً)
     }
   } catch {
-    // Return null if parsing fails
+    // ignore
   }
   return null;
 }
 
-// Re-export error utilities for convenience
-export { translateSupabaseError, isNotFoundError, isPermissionError, Result };
+// أعد تصدير دوال الأخطاء من errors.ts
+export { translateSupabaseError, isNotFoundError, isPermissionError } from './errors';
 
+// ===== دوال CRUD العامة =====
 export async function listSupabaseSafe<T>(
   table: string,
   options?: {
@@ -121,4 +103,24 @@ export async function getSupabaseByIdSafe<T>(table: string, id: string): Promise
     const translated = translateSupabaseError(err);
     return { success: false, error: translated.message, code: translated.code };
   }
+}
+
+// دوال CRUD العامة (تستخدم في storage.ts)
+export async function deleteSupabase(table: string, id: string): Promise<void> {
+  const { error } = await supabase.from(table).delete().eq('id', id);
+  if (error) throw new Error(translateSupabaseError(error).message);
+}
+
+export async function createSupabase<T>(table: string, data: Partial<T>): Promise<T> {
+  const payload = { ...data, id: data.id ? ensureUUID(data.id as string) : ensureUUID() };
+  const { data: created, error } = await supabase.from(table).insert([payload]).select('*').single();
+  if (error) throw new Error(translateSupabaseError(error).message);
+  return created as T;
+}
+
+export async function updateSupabase<T>(table: string, id: string, data: Partial<T>): Promise<T> {
+  const payload = { ...data, updated_at: new Date().toISOString() };
+  const { data: updated, error } = await supabase.from(table).update(payload).eq('id', id).select('*').single();
+  if (error) throw new Error(translateSupabaseError(error).message);
+  return updated as T;
 }

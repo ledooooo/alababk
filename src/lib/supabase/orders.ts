@@ -2,7 +2,7 @@
 import { supabase } from './client';
 import { ensureUUID, isValidUUID, extractCoordinates, translateSupabaseError } from './helpers';
 import { upsertAddress } from './addresses';
-import { Order, CustomerAddress, OrderQuoteResponse, SecureOrderResponse } from '../../types/domain';
+import { Order, CustomerAddress, OrderQuoteResponse, SecureOrderResponse, OrderStatus, OrderStatusHistoryItem } from '../../types/domain';
 
 type OrderUpdateResult = { success: true; order: any } | { success: false; error: string };
 
@@ -319,4 +319,26 @@ function mapOrders(ordersData: any[]): Order[] {
       updated_at: o.updated_at || new Date().toISOString(),
     };
   });
+}
+
+// ===== جلب تاريخ حالة الطلب =====
+export async function fetchOrderStatusHistory(orderId: string): Promise<OrderStatusHistoryItem[]> {
+  try {
+    const validId = ensureUUID(orderId);
+    const { data, error } = await supabase
+      .from('order_status_history')
+      .select('*')
+      .eq('order_id', validId)
+      .order('created_at', { ascending: true });
+
+    if (error || !data) return [];
+
+    return (data as any[]).map((row) => ({
+      status: (row.status || row.new_status || 'pending') as OrderStatus,
+      timestamp: row.created_at || row.timestamp || new Date().toISOString(),
+      note: row.notes || row.note || row.comment || undefined,
+    }));
+  } catch {
+    return [];
+  }
 }
