@@ -1,12 +1,22 @@
 // src/lib/storage.ts
 import { Session } from '@supabase/supabase-js';
 import {
-  UserProfile, UserRole, Store, Product, CustomerAddress, Order,
-  DeliveryAgent, DeliveryZone, Coupon, Review, Category, NotificationItem,
-  OrderStatus, Payout
+  UserProfile,
+  UserRole,
+  Store,
+  Product,
+  CustomerAddress,
+  Order,
+  DeliveryAgent,
+  DeliveryZone,
+  Coupon,
+  Review,
+  Category,
+  NotificationItem,
+  OrderStatus,
+  Payout,
 } from '../types/domain';
 import { DEFAULT_CATEGORIES, EGYPT_DEFAULT_ZONES } from './constants';
-
 import {
   supabase,
   ensureUUID,
@@ -57,11 +67,8 @@ import {
   translateSupabaseError,
 } from './supabase';
 
-// ... باقي الكود (نفس الكود السابق) ...
-
-
-// تعريف النوع الجديد لحل مشكلة التحليل
-type MyStoreCache = { store: Store | null; timestamp: number; } | null;
+// تعريف النوع مباشرة بدون تصدير
+type MyStoreCacheType = { store: Store | null; timestamp: number } | null;
 
 const lastLocationUpdateMap = new Map<string, number>();
 
@@ -85,24 +92,37 @@ const STORAGE_KEYS = {
 
 const SESSION_STORAGE_KEYS = Object.values(STORAGE_KEYS);
 
-// ===== Broadcast Channel =====
+// Broadcast Channel
 let broadcastChannel: BroadcastChannel | null = null;
 if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
-  try { broadcastChannel = new BroadcastChannel('alababak_realtime_events'); } catch { broadcastChannel = null; }
+  try {
+    broadcastChannel = new BroadcastChannel('alababak_realtime_events');
+  } catch {
+    broadcastChannel = null;
+  }
 }
 
 export function notifyStorageChange(entityType: string, action = 'update', data?: unknown) {
   if (typeof window !== 'undefined') {
-    const event = new CustomEvent('alababak_data_change', { detail: { entityType, action, data, timestamp: Date.now() } });
+    const event = new CustomEvent('alababak_data_change', {
+      detail: { entityType, action, data, timestamp: Date.now() },
+    });
     window.dispatchEvent(event);
-    if (broadcastChannel) broadcastChannel.postMessage({ entityType, action, data, timestamp: Date.now() });
+    if (broadcastChannel) {
+      broadcastChannel.postMessage({ entityType, action, data, timestamp: Date.now() });
+    }
   }
 }
 
 export function subscribeToStorageChange(callback: (detail: { entityType: string; action: string; data?: unknown }) => void) {
   if (typeof window === 'undefined') return () => {};
-  const handleCustomEvent = (e: Event) => { const ce = e as CustomEvent; if (ce.detail) callback(ce.detail); };
-  const handleBroadcast = (e: MessageEvent) => { if (e.data) callback(e.data); };
+  const handleCustomEvent = (e: Event) => {
+    const ce = e as CustomEvent;
+    if (ce.detail) callback(ce.detail);
+  };
+  const handleBroadcast = (e: MessageEvent) => {
+    if (e.data) callback(e.data);
+  };
   window.addEventListener('alababak_data_change', handleCustomEvent);
   if (broadcastChannel) broadcastChannel.addEventListener('message', handleBroadcast);
   return () => {
@@ -111,24 +131,34 @@ export function subscribeToStorageChange(callback: (detail: { entityType: string
   };
 }
 
-// ===== مساعدات الكاش =====
-function getStorageForKey(_key: string): Storage | null { return typeof window !== 'undefined' ? localStorage : null; }
+function getStorageForKey(_key: string): Storage | null {
+  return typeof window !== 'undefined' ? localStorage : null;
+}
 
 function getCached<T>(key: string): T[] {
   const storage = getStorageForKey(key);
   if (!storage) return [];
-  try { const data = storage.getItem(key); return data ? JSON.parse(data) : []; } catch { return []; }
+  try {
+    const data = storage.getItem(key);
+    return data ? JSON.parse(data) : [];
+  } catch {
+    return [];
+  }
 }
 
 function setCached<T>(key: string, data: T[]): void {
   const storage = getStorageForKey(key);
   if (!storage) return;
-  try { storage.setItem(key, JSON.stringify(data)); } catch (err) { console.warn(`Failed to update cache for key '${key}':`, err); }
+  try {
+    storage.setItem(key, JSON.stringify(data));
+  } catch (err) {
+    console.warn(`Failed to update cache for key '${key}':`, err);
+  }
 }
 
 function mergeById<T extends { id: string }>(items: T[], item: T): T[] {
   const copy = [...items];
-  const idx = copy.findIndex(i => i.id === item.id);
+  const idx = copy.findIndex((i) => i.id === item.id);
   if (idx >= 0) copy[idx] = item;
   else copy.unshift(item);
   return copy;
@@ -136,29 +166,61 @@ function mergeById<T extends { id: string }>(items: T[], item: T): T[] {
 
 function mergeManyById<T extends { id: string }>(existing: T[], incoming: T[]): T[] {
   const map = new Map<string, T>();
-  existing.forEach(item => map.set(item.id, item));
-  incoming.forEach(item => map.set(item.id, item));
+  existing.forEach((item) => map.set(item.id, item));
+  incoming.forEach((item) => map.set(item.id, item));
   return Array.from(map.values());
 }
 
-// ===== StorageRepo =====
 export const StorageRepo = {
   // --- CACHE HELPERS ---
-  getCachedStores(): Store[] { return getCached<Store>(STORAGE_KEYS.STORES); },
-  getCachedProducts(): Product[] { return getCached<Product>(STORAGE_KEYS.PRODUCTS); },
-  getCachedOrders(): Order[] { return getCached<Order>(STORAGE_KEYS.ORDERS); },
-  getCachedUsers(): UserProfile[] { return getCached<UserProfile>(STORAGE_KEYS.USERS); },
-  getCachedAgents(): DeliveryAgent[] { return getCached<DeliveryAgent>(STORAGE_KEYS.AGENTS); },
-  getCachedZones(): DeliveryZone[] { return getCached<DeliveryZone>(STORAGE_KEYS.ZONES); },
-  getCachedCoupons(): Coupon[] { return getCached<Coupon>(STORAGE_KEYS.COUPONS); },
-  getCachedReviews(): Review[] { return getCached<Review>(STORAGE_KEYS.REVIEWS); },
-  getCachedNotifications(): NotificationItem[] { return getCached<NotificationItem>(STORAGE_KEYS.NOTIFICATIONS); },
-  getCachedPayouts(): Payout[] { return getCached<Payout>(STORAGE_KEYS.PAYOUTS); },
+  getCachedStores(): Store[] {
+    return getCached<Store>(STORAGE_KEYS.STORES);
+  },
+  getCachedProducts(): Product[] {
+    return getCached<Product>(STORAGE_KEYS.PRODUCTS);
+  },
+  getCachedOrders(): Order[] {
+    return getCached<Order>(STORAGE_KEYS.ORDERS);
+  },
+  getCachedUsers(): UserProfile[] {
+    return getCached<UserProfile>(STORAGE_KEYS.USERS);
+  },
+  getCachedAgents(): DeliveryAgent[] {
+    return getCached<DeliveryAgent>(STORAGE_KEYS.AGENTS);
+  },
+  getCachedZones(): DeliveryZone[] {
+    return getCached<DeliveryZone>(STORAGE_KEYS.ZONES);
+  },
+  getCachedCoupons(): Coupon[] {
+    return getCached<Coupon>(STORAGE_KEYS.COUPONS);
+  },
+  getCachedReviews(): Review[] {
+    return getCached<Review>(STORAGE_KEYS.REVIEWS);
+  },
+  getCachedNotifications(): NotificationItem[] {
+    return getCached<NotificationItem>(STORAGE_KEYS.NOTIFICATIONS);
+  },
+  getCachedPayouts(): Payout[] {
+    return getCached<Payout>(STORAGE_KEYS.PAYOUTS);
+  },
 
-  invalidateCache(key: string) { if (typeof window !== 'undefined') { localStorage.removeItem(key); sessionStorage.removeItem(key); } },
-  clearAllCaches() { if (typeof window !== 'undefined') { Object.values(STORAGE_KEYS).forEach(key => { localStorage.removeItem(key); sessionStorage.removeItem(key); }); } },
+  invalidateCache(key: string) {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(key);
+      sessionStorage.removeItem(key);
+    }
+  },
 
-  // --- REFRESH FROM SUPABASE (ترمي خطأ عند الفشل، لا تبتلع) ---
+  clearAllCaches() {
+    if (typeof window !== 'undefined') {
+      Object.values(STORAGE_KEYS).forEach((key) => {
+        localStorage.removeItem(key);
+        sessionStorage.removeItem(key);
+      });
+    }
+  },
+
+  // --- REFRESH FROM SUPABASE ---
   async refreshStores(): Promise<Store[]> {
     const stores = await fetchSupabaseStores();
     setCached(STORAGE_KEYS.STORES, stores);
@@ -170,7 +232,7 @@ export const StorageRepo = {
   async refreshProducts(storeId?: string): Promise<Product[]> {
     const products = await fetchSupabaseProducts(storeId);
     if (storeId) {
-      const allProds = this.getCachedProducts().filter(p => p.store_id !== storeId);
+      const allProds = this.getCachedProducts().filter((p) => p.store_id !== storeId);
       const merged = [...products, ...allProds];
       setCached(STORAGE_KEYS.PRODUCTS, merged);
     } else {
@@ -228,7 +290,7 @@ export const StorageRepo = {
     const current = this.getCachedReviews();
     const updated = storeId ? mergeManyById(current, list) : list;
     setCached(STORAGE_KEYS.REVIEWS, updated);
-    const result = storeId ? updated.filter(r => r.store_id === storeId) : updated;
+    const result = storeId ? updated.filter((r) => r.store_id === storeId) : updated;
     notifyStorageChange('review', 'refresh', result);
     return result;
   },
@@ -278,7 +340,10 @@ export const StorageRepo = {
     if (typeof window === 'undefined') return;
     const prev = this.getCurrentUser();
     if (prev?.id !== user?.id) {
-      SESSION_STORAGE_KEYS.forEach(key => { sessionStorage.removeItem(key); localStorage.removeItem(key); });
+      SESSION_STORAGE_KEYS.forEach((key) => {
+        sessionStorage.removeItem(key);
+        localStorage.removeItem(key);
+      });
     }
     if (user) localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
     else localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
@@ -291,21 +356,26 @@ export const StorageRepo = {
   },
 
   onAuthChange(callback: (event: string, session: Session | null) => void): () => void {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => { callback(event, session); });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      callback(event, session);
+    });
     return () => subscription.unsubscribe();
   },
 
   logout() {
     if (typeof window === 'undefined') return;
     localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
-    SESSION_STORAGE_KEYS.forEach(key => { sessionStorage.removeItem(key); localStorage.removeItem(key); });
-    supabase.auth.signOut().catch(err => console.error('SignOut error:', err));
+    SESSION_STORAGE_KEYS.forEach((key) => {
+      sessionStorage.removeItem(key);
+      localStorage.removeItem(key);
+    });
+    supabase.auth.signOut().catch((err) => console.error('SignOut error:', err));
     notifyStorageChange('user', 'switch', null);
   },
 
   getUsers(): UserProfile[] {
     const cached = this.getCachedUsers();
-    this.refreshUsers().catch(err => console.warn('refreshUsers background error:', err));
+    this.refreshUsers().catch((err) => console.warn('refreshUsers background error:', err));
     return cached;
   },
 
@@ -314,7 +384,7 @@ export const StorageRepo = {
     const isSelf = options?.isSelf ?? (currentUser?.id === user.id);
     const isAdministrative = options?.isAdministrative ?? (currentUser?.role === 'admin');
     const callerRole = currentUser?.role;
-    
+
     const prevUsers = this.getCachedUsers();
     const updatedUsers = mergeById(prevUsers, user);
     setCached(STORAGE_KEYS.USERS, updatedUsers);
@@ -335,16 +405,16 @@ export const StorageRepo = {
   // --- STORES ---
   getStores(): Store[] {
     const cached = this.getCachedStores();
-    this.refreshStores().catch(err => console.warn('refreshStores background error:', err));
+    this.refreshStores().catch((err) => console.warn('refreshStores background error:', err));
     return cached;
   },
 
   getStoreById(id: string): Store | null {
-    return this.getCachedStores().find(s => s.id === id) || null;
+    return this.getCachedStores().find((s) => s.id === id) || null;
   },
 
   getStoreBySlug(slug: string): Store | null {
-    return this.getCachedStores().find(s => s.slug === slug) || null;
+    return this.getCachedStores().find((s) => s.slug === slug) || null;
   },
 
   async saveStore(store: Store, options?: { isSelf?: boolean }): Promise<Store> {
@@ -372,7 +442,7 @@ export const StorageRepo = {
 
   async deleteStore(id: string): Promise<void> {
     const prev = this.getCachedStores();
-    setCached(STORAGE_KEYS.STORES, prev.filter(s => s.id !== id));
+    setCached(STORAGE_KEYS.STORES, prev.filter((s) => s.id !== id));
     this.clearMyStoreCache();
     notifyStorageChange('store', 'delete', { id });
     try {
@@ -387,13 +457,13 @@ export const StorageRepo = {
   // --- PRODUCTS ---
   getProducts(storeId?: string): Product[] {
     const cached = this.getCachedProducts();
-    this.refreshProducts(storeId).catch(err => console.warn('refreshProducts background error:', err));
-    if (storeId) return cached.filter(p => p.store_id === storeId);
+    this.refreshProducts(storeId).catch((err) => console.warn('refreshProducts background error:', err));
+    if (storeId) return cached.filter((p) => p.store_id === storeId);
     return cached;
   },
 
   getProductById(id: string): Product | null {
-    return this.getCachedProducts().find(p => p.id === id) || null;
+    return this.getCachedProducts().find((p) => p.id === id) || null;
   },
 
   async saveProduct(product: Product): Promise<Product> {
@@ -416,7 +486,7 @@ export const StorageRepo = {
 
   async deleteProduct(id: string): Promise<void> {
     const prev = this.getCachedProducts();
-    setCached(STORAGE_KEYS.PRODUCTS, prev.filter(p => p.id !== id));
+    setCached(STORAGE_KEYS.PRODUCTS, prev.filter((p) => p.id !== id));
     notifyStorageChange('product', 'delete', { id });
     try {
       await deleteSupabaseProduct(id);
@@ -431,8 +501,8 @@ export const StorageRepo = {
     const targetUserId = userId || this.getCurrentUser()?.id;
     if (!targetUserId) return [];
     const cached = getCached<CustomerAddress>(STORAGE_KEYS.ADDRESSES);
-    this.refreshAddresses(targetUserId).catch(err => console.warn('refreshAddresses background error:', err));
-    return cached.filter(a => a.user_id === targetUserId);
+    this.refreshAddresses(targetUserId).catch((err) => console.warn('refreshAddresses background error:', err));
+    return cached.filter((a) => a.user_id === targetUserId);
   },
 
   async saveAddress(address: CustomerAddress): Promise<CustomerAddress> {
@@ -455,7 +525,7 @@ export const StorageRepo = {
 
   async deleteAddress(id: string): Promise<void> {
     const prev = getCached<CustomerAddress>(STORAGE_KEYS.ADDRESSES);
-    setCached(STORAGE_KEYS.ADDRESSES, prev.filter(a => a.id !== id));
+    setCached(STORAGE_KEYS.ADDRESSES, prev.filter((a) => a.id !== id));
     notifyStorageChange('address', 'delete', { id });
     try {
       await deleteAddress(id);
@@ -468,12 +538,12 @@ export const StorageRepo = {
   // --- ORDERS ---
   getOrders(): Order[] {
     const cached = this.getCachedOrders();
-    this.refreshOrders().catch(err => console.warn('refreshOrders background error:', err));
+    this.refreshOrders().catch((err) => console.warn('refreshOrders background error:', err));
     return cached;
   },
 
   getOrderById(id: string): Order | null {
-    return this.getCachedOrders().find(o => o.id === id) || null;
+    return this.getCachedOrders().find((o) => o.id === id) || null;
   },
 
   async saveOrder(order: Order): Promise<Order> {
@@ -487,7 +557,12 @@ export const StorageRepo = {
         store_id: order.store_id,
         address: order.delivery_address,
         payment_method: order.payment_method,
-        items: order.items.map(i => ({ product_id: i.product_id, quantity: i.quantity, options: {}, notes: i.notes })),
+        items: order.items.map((i) => ({
+          product_id: i.product_id,
+          quantity: i.quantity,
+          options: {},
+          notes: i.notes,
+        })),
         coupon_code: order.coupon_code || undefined,
         customer_notes: order.customer_notes || undefined,
         tip_amount: order.tip_amount || 0,
@@ -540,9 +615,6 @@ export const StorageRepo = {
       } else if (['picked_up', 'on_the_way', 'delivered'].includes(status) && userRole === 'delivery_agent') {
         await updateOrderStatusByAgent(orderId, status as any);
         saved = true;
-        if (status === 'delivered') {
-          // لا نضبط payment_status تلقائياً
-        }
       } else if (userRole === 'admin' || userRole === 'orders_manager' || userRole === 'delivery_supervisor') {
         await adminUpdateOrder(orderId, { status });
         saved = true;
@@ -557,7 +629,7 @@ export const StorageRepo = {
           order.updated_at = new Date().toISOString();
           order.status_history.push({ status, timestamp: order.updated_at, note });
           const cachedOrders = this.getCachedOrders();
-          const idx = cachedOrders.findIndex(o => o.id === orderId);
+          const idx = cachedOrders.findIndex((o) => o.id === orderId);
           if (idx >= 0) cachedOrders[idx] = order;
           else cachedOrders.unshift(order);
           setCached(STORAGE_KEYS.ORDERS, cachedOrders);
@@ -582,16 +654,22 @@ export const StorageRepo = {
         order.delivery_agent_name = agentName;
         order.delivery_agent_phone = agentPhone || null;
         order.updated_at = new Date().toISOString();
-        order.status_history.push({ status: 'assigned', timestamp: order.updated_at, note: `تم الإسناد للكابتن ${agentName}` });
+        order.status_history.push({
+          status: 'assigned',
+          timestamp: order.updated_at,
+          note: `تم الإسناد للكابتن ${agentName}`,
+        });
         const cachedOrders = this.getCachedOrders();
-        const idx = cachedOrders.findIndex(o => o.id === orderId);
+        const idx = cachedOrders.findIndex((o) => o.id === orderId);
         if (idx >= 0) cachedOrders[idx] = order;
         else cachedOrders.unshift(order);
         setCached(STORAGE_KEYS.ORDERS, cachedOrders);
         notifyStorageChange('order', 'save', order);
       }
       return order;
-    } catch (err) { throw err; }
+    } catch (err) {
+      throw err;
+    }
   },
 
   async updateDeliveryAgentLocation(orderId: string, lat: number, lng: number) {
@@ -601,14 +679,20 @@ export const StorageRepo = {
     order.delivery_agent_lng = lng;
     order.updated_at = new Date().toISOString();
     const cachedOrders = this.getCachedOrders();
-    const idx = cachedOrders.findIndex(o => o.id === orderId);
-    if (idx >= 0) { cachedOrders[idx] = order; setCached(STORAGE_KEYS.ORDERS, cachedOrders); notifyStorageChange('order', 'save', order); }
+    const idx = cachedOrders.findIndex((o) => o.id === orderId);
+    if (idx >= 0) {
+      cachedOrders[idx] = order;
+      setCached(STORAGE_KEYS.ORDERS, cachedOrders);
+      notifyStorageChange('order', 'save', order);
+    }
 
     const now = Date.now();
     const lastTime = lastLocationUpdateMap.get(orderId) || 0;
     if (now - lastTime >= 5000) {
       lastLocationUpdateMap.set(orderId, now);
-      updateSupabaseOrderLocation(orderId, lat, lng).catch(err => console.warn('Failed to update agent location in Supabase:', err));
+      updateSupabaseOrderLocation(orderId, lat, lng).catch((err) =>
+        console.warn('Failed to update agent location in Supabase:', err)
+      );
     }
     return order;
   },
@@ -616,7 +700,7 @@ export const StorageRepo = {
   // --- PAYOUTS ---
   getPayouts(): Payout[] {
     const cached = this.getCachedPayouts();
-    this.refreshPayouts().catch(err => console.warn('refreshPayouts background error:', err));
+    this.refreshPayouts().catch((err) => console.warn('refreshPayouts background error:', err));
     return cached;
   },
 
@@ -625,6 +709,7 @@ export const StorageRepo = {
     const optimistic = mergeById(prev, payout);
     setCached(STORAGE_KEYS.PAYOUTS, optimistic);
     notifyStorageChange('payout', 'save', payout);
+
     try {
       const created = await createSupabasePayout(payout);
       const final = mergeById(this.getCachedPayouts(), created);
@@ -640,7 +725,7 @@ export const StorageRepo = {
   async updatePayoutStatus(payoutId: string, status: 'completed' | 'failed', notes?: string): Promise<Payout> {
     const updated = await updateSupabasePayoutStatus(payoutId, status, notes);
     const payouts = this.getCachedPayouts();
-    const idx = payouts.findIndex(p => p.id === payoutId);
+    const idx = payouts.findIndex((p) => p.id === payoutId);
     if (idx >= 0) payouts[idx] = { ...payouts[idx], ...updated };
     else payouts.unshift(updated);
     setCached(STORAGE_KEYS.PAYOUTS, payouts);
@@ -651,12 +736,12 @@ export const StorageRepo = {
   // --- DELIVERY AGENTS ---
   getAgents(): DeliveryAgent[] {
     const cached = this.getCachedAgents();
-    this.refreshAgents().catch(err => console.warn('refreshAgents background error:', err));
+    this.refreshAgents().catch((err) => console.warn('refreshAgents background error:', err));
     return cached;
   },
 
   getAgentByUserId(userId: string): DeliveryAgent | null {
-    return this.getCachedAgents().find(a => a.user_id === userId) || null;
+    return this.getCachedAgents().find((a) => a.user_id === userId) || null;
   },
 
   async saveAgent(agent: DeliveryAgent, options?: { isSelf?: boolean; isAdministrative?: boolean; callerRole?: string }): Promise<DeliveryAgent> {
@@ -683,7 +768,7 @@ export const StorageRepo = {
 
   async deleteAgent(id: string): Promise<void> {
     const prev = this.getCachedAgents();
-    setCached(STORAGE_KEYS.AGENTS, prev.filter(a => a.id !== id));
+    setCached(STORAGE_KEYS.AGENTS, prev.filter((a) => a.id !== id));
     notifyStorageChange('agent', 'delete', { id });
     try {
       await deleteSupabaseAgent(id);
@@ -696,7 +781,7 @@ export const StorageRepo = {
   // --- CATEGORIES & ZONES & COUPONS ---
   getCategories(): Category[] {
     const data = getCached<Category>('alababak_categories');
-    this.refreshCategories().catch(err => console.warn('refreshCategories background error:', err));
+    this.refreshCategories().catch((err) => console.warn('refreshCategories background error:', err));
     return data.length > 0 ? data : DEFAULT_CATEGORIES;
   },
 
@@ -706,6 +791,7 @@ export const StorageRepo = {
     const optimistic = mergeById(prev, validCat);
     setCached('alababak_categories', optimistic);
     notifyStorageChange('category', 'save', validCat);
+
     try {
       await supabase.from('categories').upsert(validCat, { onConflict: 'id' });
       await this.refreshCategories();
@@ -718,7 +804,7 @@ export const StorageRepo = {
 
   getZones(): DeliveryZone[] {
     const cached = this.getCachedZones();
-    this.refreshZones().catch(err => console.warn('refreshZones background error:', err));
+    this.refreshZones().catch((err) => console.warn('refreshZones background error:', err));
     return cached.length > 0 ? cached : EGYPT_DEFAULT_ZONES;
   },
 
@@ -750,7 +836,7 @@ export const StorageRepo = {
 
   getCoupons(): Coupon[] {
     const cached = this.getCachedCoupons();
-    this.refreshCoupons().catch(err => console.warn('refreshCoupons background error:', err));
+    this.refreshCoupons().catch((err) => console.warn('refreshCoupons background error:', err));
     return cached;
   },
 
@@ -759,6 +845,7 @@ export const StorageRepo = {
     const optimistic = mergeById(prev, coupon);
     setCached(STORAGE_KEYS.COUPONS, optimistic);
     notifyStorageChange('coupon', 'save', coupon);
+
     try {
       await saveSupabaseCoupon(coupon);
       await this.refreshCoupons();
@@ -771,7 +858,7 @@ export const StorageRepo = {
 
   async deleteCoupon(id: string): Promise<void> {
     const prev = this.getCachedCoupons();
-    setCached(STORAGE_KEYS.COUPONS, prev.filter(c => c.id !== id));
+    setCached(STORAGE_KEYS.COUPONS, prev.filter((c) => c.id !== id));
     notifyStorageChange('coupon', 'delete', { id });
     try {
       await deleteSupabase('coupons', id);
@@ -781,16 +868,18 @@ export const StorageRepo = {
     }
   },
 
-  // --- MY STORE CACHE ---
-  _myStoreCache: MyStoreCache = null,
+  // --- MY STORE CACHE (معدل) ---
+  _myStoreCache: { store: Store | null; timestamp: number } | null = null,
   MY_STORE_CACHE_TTL: number = 30000,
 
-  clearMyStoreCache() { this._myStoreCache = null; },
+  clearMyStoreCache() {
+    this._myStoreCache = null;
+  },
 
   async getMyStore(): Promise<Store | null> {
     const currentUser = this.getCurrentUser();
     if (!currentUser) return null;
-    if (this._myStoreCache && (Date.now() - this._myStoreCache.timestamp) < this.MY_STORE_CACHE_TTL) {
+    if (this._myStoreCache && Date.now() - this._myStoreCache.timestamp < this.MY_STORE_CACHE_TTL) {
       return this._myStoreCache.store;
     }
     try {
@@ -803,7 +892,9 @@ export const StorageRepo = {
     }
   },
 
-  async getCurrentStore(): Promise<Store | null> { return this.getMyStore(); },
+  async getCurrentStore(): Promise<Store | null> {
+    return this.getMyStore();
+  },
 
   getCurrentAgent(): DeliveryAgent | null {
     const user = this.getCurrentUser();
@@ -815,8 +906,8 @@ export const StorageRepo = {
   // --- REVIEWS ---
   getReviews(storeId?: string): Review[] {
     const cached = this.getCachedReviews();
-    this.refreshReviews(storeId).catch(err => console.warn('refreshReviews background error:', err));
-    if (storeId) return cached.filter(r => r.store_id === storeId);
+    this.refreshReviews(storeId).catch((err) => console.warn('refreshReviews background error:', err));
+    if (storeId) return cached.filter((r) => r.store_id === storeId);
     return cached;
   },
 
@@ -825,6 +916,7 @@ export const StorageRepo = {
     const optimistic = mergeById(prev, review);
     setCached(STORAGE_KEYS.REVIEWS, optimistic);
     notifyStorageChange('review', 'save', review);
+
     try {
       const saved = await saveSupabaseReview(review);
       const final = mergeById(this.getCachedReviews(), saved);
@@ -848,8 +940,8 @@ export const StorageRepo = {
   // --- NOTIFICATIONS ---
   getNotifications(userId?: string): NotificationItem[] {
     const cached = this.getCachedNotifications();
-    this.refreshNotifications(userId).catch(err => console.warn('refreshNotifications background error:', err));
-    if (userId) return cached.filter(n => n.user_id === userId || n.user_id === 'all');
+    this.refreshNotifications(userId).catch((err) => console.warn('refreshNotifications background error:', err));
+    if (userId) return cached.filter((n) => n.user_id === userId || n.user_id === 'all');
     return cached;
   },
 
@@ -869,21 +961,31 @@ export const StorageRepo = {
   async markNotificationRead(id: string): Promise<void> {
     await markSupabaseNotificationRead(id);
     const list = this.getCachedNotifications();
-    const target = list.find(n => n.id === id);
-    if (target) { target.is_read = true; target.read_at = new Date().toISOString(); setCached(STORAGE_KEYS.NOTIFICATIONS, list); notifyStorageChange('notification', 'update', target); }
+    const target = list.find((n) => n.id === id);
+    if (target) {
+      target.is_read = true;
+      target.read_at = new Date().toISOString();
+      setCached(STORAGE_KEYS.NOTIFICATIONS, list);
+      notifyStorageChange('notification', 'update', target);
+    }
   },
 
   async markAllNotificationsRead(userId?: string): Promise<void> {
     await markAllSupabaseNotificationsRead(userId);
     const list = this.getCachedNotifications();
-    list.forEach(n => { if (!userId || n.user_id === userId || n.user_id === 'all') { n.is_read = true; n.read_at = new Date().toISOString(); } });
+    list.forEach((n) => {
+      if (!userId || n.user_id === userId || n.user_id === 'all') {
+        n.is_read = true;
+        n.read_at = new Date().toISOString();
+      }
+    });
     setCached(STORAGE_KEYS.NOTIFICATIONS, list);
     notifyStorageChange('notification', 'mark_all_read', { userId });
   },
 
   async deleteNotification(id: string): Promise<void> {
     await deleteSupabaseNotification(id);
-    const list = this.getCachedNotifications().filter(n => n.id !== id);
+    const list = this.getCachedNotifications().filter((n) => n.id !== id);
     setCached(STORAGE_KEYS.NOTIFICATIONS, list);
     notifyStorageChange('notification', 'delete', { id });
   },
@@ -891,7 +993,7 @@ export const StorageRepo = {
   async clearNotifications(userId?: string): Promise<void> {
     await clearSupabaseNotifications(userId);
     if (userId) {
-      const remaining = this.getCachedNotifications().filter(n => n.user_id !== userId && n.user_id !== 'all');
+      const remaining = this.getCachedNotifications().filter((n) => n.user_id !== userId && n.user_id !== 'all');
       setCached(STORAGE_KEYS.NOTIFICATIONS, remaining);
     } else {
       setCached(STORAGE_KEYS.NOTIFICATIONS, []);
@@ -929,7 +1031,13 @@ export const StorageRepo = {
     const list = this.getWishlistStoreIds(targetUserId);
     const index = list.indexOf(storeId);
     let isAdded = false;
-    if (index > -1) { list.splice(index, 1); isAdded = false; } else { list.push(storeId); isAdded = true; }
+    if (index > -1) {
+      list.splice(index, 1);
+      isAdded = false;
+    } else {
+      list.push(storeId);
+      isAdded = true;
+    }
     localStorage.setItem(key, JSON.stringify(list));
     notifyStorageChange('wishlist', 'toggle_store', { storeId, isAdded });
     return isAdded;
@@ -942,7 +1050,13 @@ export const StorageRepo = {
     const list = this.getWishlistProductIds(targetUserId);
     const index = list.indexOf(productId);
     let isAdded = false;
-    if (index > -1) { list.splice(index, 1); isAdded = false; } else { list.push(productId); isAdded = true; }
+    if (index > -1) {
+      list.splice(index, 1);
+      isAdded = false;
+    } else {
+      list.push(productId);
+      isAdded = true;
+    }
     localStorage.setItem(key, JSON.stringify(list));
     notifyStorageChange('wishlist', 'toggle_product', { productId, isAdded });
     return isAdded;
@@ -951,13 +1065,13 @@ export const StorageRepo = {
   getWishlistedStores(userId?: string): Store[] {
     const storeIds = this.getWishlistStoreIds(userId);
     const stores = this.getStores();
-    return stores.filter(s => storeIds.includes(s.id));
+    return stores.filter((s) => storeIds.includes(s.id));
   },
 
   getWishlistedProducts(userId?: string): Product[] {
     const productIds = this.getWishlistProductIds(userId);
     const products = this.getProducts();
-    return products.filter(p => productIds.includes(p.id));
+    return products.filter((p) => productIds.includes(p.id));
   },
 
   // --- SYNC ---
@@ -985,12 +1099,14 @@ export const StorageRepo = {
       if (dbUsers && dbUsers.length > 0) {
         const localUsers = this.getCachedUsers();
         const mergedUsers = [...localUsers];
-        dbUsers.forEach(u => { if (!mergedUsers.some(lu => lu.id === u.id)) mergedUsers.push(u); });
+        dbUsers.forEach((u) => {
+          if (!mergedUsers.some((lu) => lu.id === u.id)) mergedUsers.push(u);
+        });
         setCached(STORAGE_KEYS.USERS, mergedUsers);
       }
       notifyStorageChange('supabase', 'sync');
     } catch (e) {
       console.warn('Supabase background sync notice:', e);
     }
-  }
+  },
 };
