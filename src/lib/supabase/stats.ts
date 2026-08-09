@@ -3,43 +3,13 @@ import { supabase } from './client';
 import { translateSupabaseError } from './helpers';
 
 export interface AgentStats {
-  agent_id: string;
-  user_id: string;
-  full_name: string;
   completed_deliveries: number;
   total_trips: number;
   total_earnings: number;
   total_tips: number;
   avg_rating: number;
-  rating: number;
 }
 
-export interface StoreStats {
-  store_id: string;
-  name: string;
-  owner_id: string;
-  delivered_orders: number;
-  total_orders: number;
-  total_revenue: number;
-  total_commission: number;
-  avg_rating: number;
-  rating: number;
-}
-
-export interface FinanceSummaryItem {
-  day: string;
-  store_id: string | null;
-  delivered_orders: number;
-  gmv: number;
-  net_sales: number;
-  commissions: number;
-  delivery_fees: number;
-  tips: number;
-}
-
-/**
- * Fetch agent statistics from agent_stats view
- */
 export async function fetchAgentStats(agentId: string): Promise<AgentStats | null> {
   try {
     const { data, error } = await supabase
@@ -48,23 +18,16 @@ export async function fetchAgentStats(agentId: string): Promise<AgentStats | nul
       .eq('agent_id', agentId)
       .maybeSingle();
 
-    if (error) {
-      const translated = translateSupabaseError(error);
-      throw new Error(translated.message);
-    }
+    if (error) throw new Error(translateSupabaseError(error).message);
     if (!data) return null;
 
     const a = data as any;
     return {
-      agent_id: a.agent_id,
-      user_id: a.user_id,
-      full_name: a.full_name,
       completed_deliveries: Number(a.completed_deliveries || 0),
       total_trips: Number(a.total_trips || 0),
       total_earnings: Number(a.total_earnings || 0),
       total_tips: Number(a.total_tips || 0),
-      avg_rating: Number(a.avg_rating || 0),
-      rating: Number(a.rating || 0),
+      avg_rating: Number(a.avg_rating || a.rating || 0),
     };
   } catch (err) {
     console.error('Error fetching agent stats:', err);
@@ -72,9 +35,14 @@ export async function fetchAgentStats(agentId: string): Promise<AgentStats | nul
   }
 }
 
-/**
- * Fetch store statistics from store_stats view
- */
+export interface StoreStats {
+  delivered_orders: number;
+  total_orders: number;
+  total_revenue: number;
+  total_commission: number;
+  avg_rating: number;
+}
+
 export async function fetchStoreStats(storeId: string): Promise<StoreStats | null> {
   try {
     const { data, error } = await supabase
@@ -83,23 +51,16 @@ export async function fetchStoreStats(storeId: string): Promise<StoreStats | nul
       .eq('store_id', storeId)
       .maybeSingle();
 
-    if (error) {
-      const translated = translateSupabaseError(error);
-      throw new Error(translated.message);
-    }
+    if (error) throw new Error(translateSupabaseError(error).message);
     if (!data) return null;
 
     const s = data as any;
     return {
-      store_id: s.store_id,
-      name: s.name,
-      owner_id: s.owner_id,
       delivered_orders: Number(s.delivered_orders || 0),
       total_orders: Number(s.total_orders || 0),
       total_revenue: Number(s.total_revenue || 0),
       total_commission: Number(s.total_commission || 0),
-      avg_rating: Number(s.avg_rating || 0),
-      rating: Number(s.rating || 0),
+      avg_rating: Number(s.avg_rating || s.rating || 0),
     };
   } catch (err) {
     console.error('Error fetching store stats:', err);
@@ -107,9 +68,17 @@ export async function fetchStoreStats(storeId: string): Promise<StoreStats | nul
   }
 }
 
-/**
- * Fetch finance summary from finance_summary view
- */
+export interface FinanceSummaryItem {
+  day: string;
+  store_id?: string;
+  delivered_orders: number;
+  gmv: number;
+  net_sales: number;
+  commissions: number;
+  delivery_fees: number;
+  tips: number;
+}
+
 export async function fetchFinanceSummary(): Promise<FinanceSummaryItem[]> {
   try {
     const { data, error } = await supabase
@@ -117,10 +86,7 @@ export async function fetchFinanceSummary(): Promise<FinanceSummaryItem[]> {
       .select('*')
       .order('day', { ascending: false });
 
-    if (error) {
-      const translated = translateSupabaseError(error);
-      throw new Error(translated.message);
-    }
+    if (error) throw new Error(translateSupabaseError(error).message);
     return (data || []).map((row: any) => ({
       day: row.day,
       store_id: row.store_id,
