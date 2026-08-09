@@ -25,7 +25,10 @@ export const Navbar: React.FC<NavbarProps> = ({ currentUser }) => {
   const [selectedZone, setSelectedZone] = useState('المعادي وشارع 9');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
+  
+  // استخدم useCartStore بشكل صحيح
   const cartItemCount = useCartStore((state) => state.getItemCount());
+  const openCart = useCartStore((state) => state.openCart);
   const currentPath = location.pathname;
 
   useEffect(() => {
@@ -206,7 +209,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentUser }) => {
 
             {role === 'customer' && (
               <button
-                onClick={() => useCartStore.getState().openCart()}
+                onClick={openCart}
                 className="relative bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs px-3.5 py-2 rounded-xl shadow-md transition-all flex items-center gap-1.5"
               >
                 <ShoppingBag className="w-4 h-4 text-slate-950" />

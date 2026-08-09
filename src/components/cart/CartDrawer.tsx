@@ -15,8 +15,14 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   onClose,
   onProceedToCheckout,
 }) => {
-  const { items, storeName, updateQuantity, removeItem, clearCart, getSubtotal } = useCartStore();
-  const navigate = useNavigate();
+  // استخدام الـ store بشكل صحيح مع اختيار الدوال المطلوبة
+  const items = useCartStore((state) => state.items);
+  const storeName = useCartStore((state) => state.storeName);
+  const updateQuantity = useCartStore((state) => state.updateQuantity);
+  const removeItem = useCartStore((state) => state.removeItem);
+  const clearCart = useCartStore((state) => state.clearCart);
+  const getSubtotal = useCartStore((state) => state.getSubtotal);
+
   const subtotal = getSubtotal();
   const estimatedDeliveryFee = subtotal > 0 ? 15 : 0;
   const total = subtotal + estimatedDeliveryFee;
