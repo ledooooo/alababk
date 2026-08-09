@@ -2,10 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
 import { subscribeToNotifications } from '../../../lib/supabase';
 import { NotificationItem } from '../../../types/domain';
-import { Bell, CheckCircle2, ShoppingBag, Trash2, ArrowRight, Send, Sparkles, Info, Check, ChevronLeft, ExternalLink, Tag } from 'lucide-react';
+import {
+  Bell,
+  CheckCircle2,
+  ShoppingBag,
+  Trash2,
+  ArrowRight,
+  Send,
+  Sparkles,
+  Info,
+  Check,
+  ChevronLeft,
+  ExternalLink,
+  Tag
+} from 'lucide-react';
 import { useToast } from '../../shared/Toast';
 import { useConfirm } from '../../shared/ConfirmDialog';
-
 
 interface NotificationsViewProps {
   onNavigate?: (tab: string, param?: string) => void;
@@ -15,6 +27,8 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
   const currentUser = StorageRepo.getCurrentUser();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [filter, setFilter] = useState<'all' | 'unread' | 'order_status' | 'promotion'>('all');
+  const { showToast } = useToast();
+  const { showConfirm } = useConfirm();
 
   const loadNotifications = () => {
     const list = StorageRepo.getNotifications(currentUser?.id);
@@ -55,21 +69,17 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
     try {
       await StorageRepo.markAllNotificationsRead(currentUser?.id);
       loadNotifications();
+      showToast({
+        type: 'success',
+        title: 'تم',
+        message: 'تم تحديد جميع الإشعارات كمقروءة',
+      });
     } catch (err: any) {
-      alert(`تعذر تحديث الإشعارات: ${err.message || 'خطأ غير معروف'}`);
-    }
-  };
-
-  const { showToast } = useToast();
-  const { showConfirm } = useConfirm();
-
-  const handleMarkAllRead = async () => {
-    try {
-      await StorageRepo.markAllNotificationsRead(currentUser?.id);
-      loadNotifications();
-      showToast({ type: 'success', title: 'تم', message: 'تم تحديد جميع الإشعارات كمقروءة' });
-    } catch (err: any) {
-      showToast({ type: 'error', title: 'فشل التحديث', message: err.message || 'تعذر تحديث الإشعارات' });
+      showToast({
+        type: 'error',
+        title: 'فشل التحديث',
+        message: err.message || 'تعذر تحديث الإشعارات',
+      });
     }
   };
 
@@ -83,9 +93,17 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
         try {
           await StorageRepo.clearNotifications(currentUser?.id);
           loadNotifications();
-          showToast({ type: 'success', title: 'تم', message: 'تم مسح جميع الإشعارات' });
+          showToast({
+            type: 'success',
+            title: 'تم',
+            message: 'تم مسح جميع الإشعارات',
+          });
         } catch (err: any) {
-          showToast({ type: 'error', title: 'فشل المسح', message: err.message || 'تعذر مسح الإشعارات' });
+          showToast({
+            type: 'error',
+            title: 'فشل المسح',
+            message: err.message || 'تعذر مسح الإشعارات',
+          });
         }
       },
     });
@@ -96,9 +114,17 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
     try {
       await StorageRepo.markNotificationRead(id);
       loadNotifications();
-      showToast({ type: 'success', title: 'تم', message: 'تم تحديث الإشعار' });
+      showToast({
+        type: 'success',
+        title: 'تم',
+        message: 'تم تحديث الإشعار',
+      });
     } catch (err: any) {
-      showToast({ type: 'error', title: 'فشل التحديث', message: err.message || 'تعذر تحديث الإشعار' });
+      showToast({
+        type: 'error',
+        title: 'فشل التحديث',
+        message: err.message || 'تعذر تحديث الإشعار',
+      });
     }
   };
 
@@ -113,13 +139,22 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
         try {
           await StorageRepo.deleteNotification(id);
           loadNotifications();
-          showToast({ type: 'success', title: 'تم الحذف', message: 'تم حذف الإشعار' });
+          showToast({
+            type: 'success',
+            title: 'تم الحذف',
+            message: 'تم حذف الإشعار',
+          });
         } catch (err: any) {
-          showToast({ type: 'error', title: 'فشل الحذف', message: err.message || 'تعذر حذف الإشعار' });
+          showToast({
+            type: 'error',
+            title: 'فشل الحذف',
+            message: err.message || 'تعذر حذف الإشعار',
+          });
         }
       },
     });
   };
+
   const handleSendTestPush = () => {
     const testTitles = [
       'تخفيضات حصريّة! 🏷️',
@@ -147,6 +182,11 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
 
     StorageRepo.saveNotification(testNotif);
     loadNotifications();
+    showToast({
+      type: 'success',
+      title: 'تم الإرسال',
+      message: 'تم إرسال إشعار تجريبي بنجاح',
+    });
   };
 
   const handleNotificationClick = (item: NotificationItem) => {
@@ -397,4 +437,3 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
     </div>
   );
 };
-
