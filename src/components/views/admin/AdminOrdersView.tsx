@@ -55,17 +55,25 @@ export const AdminOrdersView: React.FC = () => {
     };
   }, []);
 
-  const handleStatusOverride = (orderId: string, newStatus: OrderStatus) => {
-    StorageRepo.updateOrderStatus(orderId, newStatus, `تعديل حالة الطلب يدوياً بواسطة الإدارة العامة`);
-  };
   const handleStatusOverride = async (orderId: string, newStatus: OrderStatus) => {
     try {
       await StorageRepo.updateOrderStatus(orderId, newStatus, `تعديل حالة الطلب يدوياً بواسطة الإدارة العامة`);
-      showToast({ type: 'success', title: 'تم التحديث', message: 'تم تغيير حالة الطلب بنجاح' });
+      showToast({
+        type: 'success',
+        title: 'تم التحديث',
+        message: 'تم تغيير حالة الطلب بنجاح',
+      });
+      // تحديث القائمة بعد التغيير
+      await loadOrdersDirectly(false);
     } catch (err: any) {
-      showToast({ type: 'error', title: 'فشل التحديث', message: err.message || 'تعذر تغيير حالة الطلب' });
+      showToast({
+        type: 'error',
+        title: 'فشل التحديث',
+        message: err.message || 'تعذر تغيير حالة الطلب',
+      });
     }
   };
+
   const filteredOrders = orders.filter((o) => {
     const matchesSearch =
       o.order_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -127,123 +135,123 @@ export const AdminOrdersView: React.FC = () => {
       ) : (
         <>
           {/* Filters Row */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-3" />
-          <input
-            type="text"
-            placeholder="ابحث برقم الطلب، اسم المتجر، أو اسم العميل..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pr-10 pl-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none"
-          />
-        </div>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-3" />
+              <input
+                type="text"
+                placeholder="ابحث برقم الطلب، اسم المتجر، أو اسم العميل..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pr-10 pl-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none"
+              />
+            </div>
 
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:ring-2 focus:ring-purple-500 focus:outline-none"
-        >
-          <option value="all">جميع الحالات ({orders.length})</option>
-          <option value="pending">معلقة جديدة</option>
-          <option value="preparing">قيد التحضير بالمحل</option>
-          <option value="ready">جاهزة للتوصيل</option>
-          <option value="on_the_way">في الطريق للعميل</option>
-          <option value="delivered">مكتملة ومسلمة</option>
-          <option value="cancelled">ملغاة</option>
-        </select>
-      </div>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+            >
+              <option value="all">جميع الحالات ({orders.length})</option>
+              <option value="pending">معلقة جديدة</option>
+              <option value="preparing">قيد التحضير بالمحل</option>
+              <option value="ready">جاهزة للتوصيل</option>
+              <option value="on_the_way">في الطريق للعميل</option>
+              <option value="delivered">مكتملة ومسلمة</option>
+              <option value="cancelled">ملغاة</option>
+            </select>
+          </div>
 
-      {/* Orders Table */}
-      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
-        <div className="overflow-x-auto">
-          <table className="w-full text-right text-xs">
-            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
-              <tr>
-                <th className="p-3.5">الطلب والتاريخ</th>
-                <th className="p-3.5">المتجر</th>
-                <th className="p-3.5">العميل والموقع</th>
-                <th className="p-3.5">الكابتن المندوب</th>
-                <th className="p-3.5">المبلغ</th>
-                <th className="p-3.5">حالة الطلب الإدارية</th>
-              </tr>
-            </thead>
+          {/* Orders Table */}
+          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+            <div className="overflow-x-auto">
+              <table className="w-full text-right text-xs">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
+                  <tr>
+                    <th className="p-3.5">الطلب والتاريخ</th>
+                    <th className="p-3.5">المتجر</th>
+                    <th className="p-3.5">العميل والموقع</th>
+                    <th className="p-3.5">الكابتن المندوب</th>
+                    <th className="p-3.5">المبلغ</th>
+                    <th className="p-3.5">حالة الطلب الإدارية</th>
+                  </tr>
+                </thead>
 
-            <tbody className="divide-y divide-slate-100">
-              {filteredOrders.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="p-8 text-center text-slate-400">
-                    لا توجد طلبات متطابقة مع البحث.
-                  </td>
-                </tr>
-              ) : (
-                paginatedOrders.map((o) => {
-                  const statusConfig = getOrderStatusConfig(o.status);
-
-                  return (
-                    <tr key={o.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="p-3.5">
-                        <span className="font-mono font-black text-slate-900 block">#{o.order_number}</span>
-                        <span className="text-[10px] text-slate-400">{formatDateArabic(o.created_at)}</span>
-                      </td>
-
-                      <td className="p-3.5">
-                        <span className="font-bold text-slate-900 block">{o.store_name}</span>
-                        <span className="text-[10px] text-slate-400 font-mono">{formatPhoneNumber(o.store_phone)}</span>
-                      </td>
-
-                      <td className="p-3.5">
-                        <span className="font-bold text-slate-900 block">{o.customer_name}</span>
-                        <span className="text-[10px] text-slate-500 line-clamp-1">{o.delivery_address.address_line}</span>
-                      </td>
-
-                      <td className="p-3.5">
-                        {o.delivery_agent_name ? (
-                          <span className="font-bold text-orange-700 bg-orange-50 px-2 py-0.5 rounded-md">
-                            🛵 {o.delivery_agent_name}
-                          </span>
-                        ) : (
-                          <span className="text-[11px] text-slate-400">غير معين بعد</span>
-                        )}
-                      </td>
-
-                      <td className="p-3.5 font-black text-slate-900">
-                        {formatCurrency(o.total)}
-                      </td>
-
-                      <td className="p-3.5">
-                        <select
-                          value={o.status}
-                          onChange={(e) => handleStatusOverride(o.id, e.target.value as OrderStatus)}
-                          className={`p-1.5 rounded-xl text-[11px] font-bold border ${statusConfig.bg} ${statusConfig.text} focus:outline-none`}
-                        >
-                          <option value="pending">جديد بانتظار القبول</option>
-                          <option value="accepted">تم قبول الطلب</option>
-                          <option value="preparing">جاري التحضير بالمحل</option>
-                          <option value="ready">جاهز واستلام الكابتن</option>
-                          <option value="on_the_way">في الطريق للعميل</option>
-                          <option value="delivered">تم التسليم بنجاح</option>
-                          <option value="cancelled">ملغي</option>
-                          <option value="rejected">مرفوض من المتجر</option>
-                        </select>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredOrders.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="p-8 text-center text-slate-400">
+                        لا توجد طلبات متطابقة مع البحث.
                       </td>
                     </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                  ) : (
+                    paginatedOrders.map((o) => {
+                      const statusConfig = getOrderStatusConfig(o.status);
 
-        <Pagination
-          currentPage={currentPage}
-          totalPages={totalPages}
-          onPageChange={setCurrentPage}
-          totalItems={filteredOrders.length}
-          itemsPerPage={ITEMS_PER_PAGE}
-          className="p-4"
-        />
-      </div>
+                      return (
+                        <tr key={o.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="p-3.5">
+                            <span className="font-mono font-black text-slate-900 block">#{o.order_number}</span>
+                            <span className="text-[10px] text-slate-400">{formatDateArabic(o.created_at)}</span>
+                          </td>
+
+                          <td className="p-3.5">
+                            <span className="font-bold text-slate-900 block">{o.store_name}</span>
+                            <span className="text-[10px] text-slate-400 font-mono">{formatPhoneNumber(o.store_phone)}</span>
+                          </td>
+
+                          <td className="p-3.5">
+                            <span className="font-bold text-slate-900 block">{o.customer_name}</span>
+                            <span className="text-[10px] text-slate-500 line-clamp-1">{o.delivery_address.address_line}</span>
+                          </td>
+
+                          <td className="p-3.5">
+                            {o.delivery_agent_name ? (
+                              <span className="font-bold text-orange-700 bg-orange-50 px-2 py-0.5 rounded-md">
+                                🛵 {o.delivery_agent_name}
+                              </span>
+                            ) : (
+                              <span className="text-[11px] text-slate-400">غير معين بعد</span>
+                            )}
+                          </td>
+
+                          <td className="p-3.5 font-black text-slate-900">
+                            {formatCurrency(o.total)}
+                          </td>
+
+                          <td className="p-3.5">
+                            <select
+                              value={o.status}
+                              onChange={(e) => handleStatusOverride(o.id, e.target.value as OrderStatus)}
+                              className={`p-1.5 rounded-xl text-[11px] font-bold border ${statusConfig.bg} ${statusConfig.text} focus:outline-none`}
+                            >
+                              <option value="pending">جديد بانتظار القبول</option>
+                              <option value="accepted">تم قبول الطلب</option>
+                              <option value="preparing">جاري التحضير بالمحل</option>
+                              <option value="ready">جاهز واستلام الكابتن</option>
+                              <option value="on_the_way">في الطريق للعميل</option>
+                              <option value="delivered">تم التسليم بنجاح</option>
+                              <option value="cancelled">ملغي</option>
+                              <option value="rejected">مرفوض من المتجر</option>
+                            </select>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+              totalItems={filteredOrders.length}
+              itemsPerPage={ITEMS_PER_PAGE}
+              className="p-4"
+            />
+          </div>
         </>
       )}
     </div>

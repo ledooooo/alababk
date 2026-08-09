@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
-import { subscribeSupabase } from '../../../lib/supabase';
+import { subscribeSupabase, subscribeToNotifications } from '../../../lib/supabase';
 import { DeliveryAgent } from '../../../types/domain';
 import { formatCurrency, formatPhoneNumber } from '../../../lib/formatters';
 import { Bike, Power, Star, Phone, MapPin, ShieldCheck } from 'lucide-react';

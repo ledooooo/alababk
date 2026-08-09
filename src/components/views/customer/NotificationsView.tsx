@@ -185,7 +185,7 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
     showToast({
       type: 'success',
       title: 'تم الإرسال',
-      message: 'تم إرسال إشعار تجريبي بنجاح',
+      message: 'تم إرسال إشعار اختباري بنجاح',
     });
   };
 
