@@ -1,109 +1,139 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { useCartStore } from './cart-store';
-import { Product } from '../types/domain';
+import React, { useState, useEffect } from 'react';
+import { Store } from '../../types/domain';
+import { formatCurrency } from '../../lib/formatters';
+import { StorageRepo, subscribeToStorageChange } from '../../lib/storage';
+// المسار الصحيح لـ cart-store
+import { useCartStore } from '../../stores/cart-store';
+import { Star, MapPin, Clock, Truck, ShoppingBag, Heart } from 'lucide-react';
 
-const mockProduct: Product = {
-  id: 'prod-1',
-  store_id: 'store-1',
-  name: 'منتج تجريبي',
-  description: 'وصف تجريبي',
-  price: 100,
-  category_name: 'عام',
-  image_url: 'https://example.com/image.jpg',
-  stock: 10,
-  is_active: true,
-  unit: 'قطعة',
-  created_at: new Date().toISOString(),
-};
+interface StoreCardProps {
+  store: Store;
+  onSelect: (store: Store) => void;
+}
 
-describe('cart-store', () => {
-  beforeEach(() => {
-    useCartStore.setState({
-      userId: null,
-      storeId: null,
-      storeName: null,
-      items: [],
-      isOpen: false,
+export const StoreCard: React.FC<StoreCardProps> = ({ store, onSelect }) => {
+  const [isWishlisted, setIsWishlisted] = useState<boolean>(
+    StorageRepo.isStoreWishlisted(store.id)
+  );
+
+  // استخدام cart-store إذا لزم الأمر
+  const { addItem } = useCartStore();
+
+  useEffect(() => {
+    const unsubscribe = subscribeToStorageChange(() => {
+      setIsWishlisted(StorageRepo.isStoreWishlisted(store.id));
     });
-  });
+    return unsubscribe;
+  }, [store.id]);
 
-  it('should add item to empty cart', () => {
-    const result = useCartStore.getState().addItem(mockProduct, 'متجر تجريبي', 2);
-    expect(result.success).toBe(true);
-    const items = useCartStore.getState().items;
-    expect(items).toHaveLength(1);
-    expect(items[0].quantity).toBe(2);
-    expect(items[0].product.id).toBe('prod-1');
-  });
+  const handleWishlistToggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const updated = StorageRepo.toggleWishlistStore(store.id);
+    setIsWishlisted(updated);
+  };
 
-  it('should add same product and increase quantity', () => {
-    const store = useCartStore.getState();
-    store.addItem(mockProduct, 'متجر تجريبي', 2);
-    store.addItem(mockProduct, 'متجر تجريبي', 3);
+  return (
+    <div
+      onClick={() => onSelect(store)}
+      className="group bg-white rounded-2xl border border-slate-200/80 shadow-xs hover:shadow-xl hover:border-emerald-300 transition-all duration-200 overflow-hidden cursor-pointer flex flex-col h-full relative"
+    >
+      {/* Banner & Cover */}
+      <div className="relative h-32 bg-slate-100 overflow-hidden">
+        {store.banner_url ? (
+          <img
+            src={store.banner_url}
+            alt={store.name}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-r from-slate-800 to-slate-900 flex items-center justify-center text-slate-500">
+            <ShoppingBag className="w-12 h-12 opacity-30" />
+          </div>
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
 
-    const items = useCartStore.getState().items;
-    expect(items).toHaveLength(1);
-    expect(items[0].quantity).toBe(5);
-  });
+        {/* Status Badge */}
+        <div className="absolute top-3 right-3 z-10">
+          {store.is_open ? (
+            <span className="bg-emerald-500/90 backdrop-blur-md text-white text-[11px] font-bold px-2.5 py-1 rounded-full shadow-sm flex items-center gap-1">
+              <span className="w-1.5 h-1.5 bg-white rounded-full animate-ping" />
+              مفتوح للطلبات
+            </span>
+          ) : (
+            <span className="bg-rose-500/90 backdrop-blur-md text-white text-[11px] font-bold px-2.5 py-1 rounded-full shadow-sm">
+              مغلق مؤقتاً
+            </span>
+          )}
+        </div>
 
-  it('should update quantity correctly', () => {
-    const store = useCartStore.getState();
-    store.addItem(mockProduct, 'متجر تجريبي', 2);
-    store.updateQuantity('prod-1', 7);
+        {/* Wishlist Heart Button & Category Badge */}
+        <div className="absolute top-3 left-3 z-10 flex items-center gap-1.5">
+          <button
+            onClick={handleWishlistToggle}
+            className={`p-1.5 rounded-full backdrop-blur-md transition-all border shadow-sm ${
+              isWishlisted
+                ? 'bg-rose-500 text-white border-rose-400 scale-110'
+                : 'bg-black/40 hover:bg-black/60 text-white border-white/20'
+            }`}
+            title={isWishlisted ? 'إزالة من المفضلة' : 'إضافة إلى المفضلة'}
+          >
+            <Heart className={`w-4 h-4 ${isWishlisted ? 'fill-current' : ''}`} />
+          </button>
+          {store.category_name && (
+            <span className="bg-slate-900/80 backdrop-blur-md text-white text-[11px] font-semibold px-2.5 py-1 rounded-lg">
+              {store.category_name}
+            </span>
+          )}
+        </div>
+      </div>
 
-    const items = useCartStore.getState().items;
-    expect(items[0].quantity).toBe(7);
-  });
+      {/* Main Content Body */}
+      <div className="p-4 flex-1 flex flex-col justify-between relative pt-8">
+        {/* Logo Avatar Overlay */}
+        <div className="absolute -top-7 right-4 w-14 h-14 bg-white rounded-xl shadow-md border-2 border-white overflow-hidden p-0.5">
+          <img
+            src={store.logo_url}
+            alt={store.name}
+            className="w-full h-full object-cover rounded-lg"
+          />
+        </div>
 
-  it('should remove item when quantity set to 0', () => {
-    const store = useCartStore.getState();
-    store.addItem(mockProduct, 'متجر تجريبي', 2);
-    store.updateQuantity('prod-1', 0);
+        <div>
+          {/* Title & Rating */}
+          <div className="flex items-start justify-between gap-2">
+            <h3 className="font-bold text-slate-900 text-base group-hover:text-emerald-700 transition-colors line-clamp-1">
+              {store.name}
+            </h3>
+            <div className="flex items-center gap-1 bg-amber-50 border border-amber-200 text-amber-800 text-xs font-bold px-2 py-0.5 rounded-lg shrink-0">
+              <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+              <span>{store.rating ? store.rating.toFixed(1) : 'جديد'}</span>
+              <span className="text-[10px] text-slate-400">({store.reviews_count || 0})</span>
+            </div>
+          </div>
 
-    const items = useCartStore.getState().items;
-    expect(items).toHaveLength(0);
-  });
+          {/* Address & Description */}
+          <p className="text-slate-500 text-xs mt-1.5 line-clamp-1 flex items-center gap-1">
+            <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <span>{store.address || 'غير متاح'}</span>
+          </p>
 
-  it('should calculate subtotal correctly', () => {
-    const store = useCartStore.getState();
-    store.addItem(mockProduct, 'متجر تجريبي', 2);
-    store.addItem({ ...mockProduct, id: 'prod-2', price: 50 }, 'متجر تجريبي', 3);
+          <p className="text-slate-600 text-xs mt-2 line-clamp-2 leading-relaxed">
+            {store.description}
+          </p>
+        </div>
 
-    const subtotal = store.getSubtotal();
-    expect(subtotal).toBe(100 * 2 + 50 * 3);
-  });
-
-  it('should reject items from different stores without confirmation', () => {
-    const store = useCartStore.getState();
-    store.addItem(mockProduct, 'متجر أول', 1);
-
-    const otherProduct = { ...mockProduct, id: 'prod-2', store_id: 'store-2' };
-    const result = store.addItem(otherProduct, 'متجر ثاني', 1);
-
-    expect(result.success).toBe(false);
-    expect(result.requiresConfirm).toBe(true);
-  });
-
-  it('should force add item from different store', () => {
-    const store = useCartStore.getState();
-    store.addItem(mockProduct, 'متجر أول', 1);
-
-    const otherProduct = { ...mockProduct, id: 'prod-2', store_id: 'store-2' };
-    store.forceAddItem(otherProduct, 'متجر ثاني', 1);
-
-    const items = store.items;
-    expect(items).toHaveLength(1);
-    expect(items[0].product.store_id).toBe('store-2');
-    expect(store.storeName).toBe('متجر ثاني');
-  });
-
-  it('should clear cart', () => {
-    const store = useCartStore.getState();
-    store.addItem(mockProduct, 'متجر تجريبي', 2);
-    store.clearCart();
-
-    expect(store.items).toHaveLength(0);
-    expect(store.storeId).toBeNull();
-    expect(store.storeName).toBeNull();
-  });
-});
+        {/* Footer Info */}
+        <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-600 font-medium">
+          <div className="flex items-center gap-1">
+            <Truck className="w-3.5 h-3.5 text-emerald-600" />
+            <span>التوصيل: {formatCurrency(store.delivery_fee)}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Clock className="w-3.5 h-3.5 text-slate-400" />
+            <span>الحد الأدنى: {formatCurrency(store.min_order_amount)}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
