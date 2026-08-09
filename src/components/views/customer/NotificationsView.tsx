@@ -2,20 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
 import { subscribeToNotifications } from '../../../lib/supabase';
 import { NotificationItem } from '../../../types/domain';
-import {
-  Bell,
-  CheckCircle2,
-  ShoppingBag,
-  Trash2,
-  ArrowRight,
-  Send,
-  Sparkles,
-  Info,
-  Check,
-  ChevronLeft,
-  ExternalLink,
-  Tag
-} from 'lucide-react';
+import { Bell, CheckCircle2, ShoppingBag, Trash2, ArrowRight, Send, Sparkles, Info, Check, ChevronLeft, ExternalLink, Tag } from 'lucide-react';
+import { useToast } from '../../shared/Toast';
+import { useConfirm } from '../../shared/ConfirmDialog';
+
 
 interface NotificationsViewProps {
   onNavigate?: (tab: string, param?: string) => void;
@@ -70,15 +60,35 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
     }
   };
 
-  const handleClear = async () => {
-    if (confirm('هل أنت تأكد من مسح جميع الإشعارات؟')) {
-      try {
-        await StorageRepo.clearNotifications(currentUser?.id);
-        loadNotifications();
-      } catch (err: any) {
-        alert(`تعذر مسح الإشعارات: ${err.message || 'خطأ غير معروف'}`);
-      }
+  const { showToast } = useToast();
+  const { showConfirm } = useConfirm();
+
+  const handleMarkAllRead = async () => {
+    try {
+      await StorageRepo.markAllNotificationsRead(currentUser?.id);
+      loadNotifications();
+      showToast({ type: 'success', title: 'تم', message: 'تم تحديد جميع الإشعارات كمقروءة' });
+    } catch (err: any) {
+      showToast({ type: 'error', title: 'فشل التحديث', message: err.message || 'تعذر تحديث الإشعارات' });
     }
+  };
+
+  const handleClear = () => {
+    showConfirm({
+      title: 'تأكيد المسح',
+      message: 'هل أنت متأكد من مسح جميع الإشعارات؟',
+      variant: 'warning',
+      confirmLabel: 'مسح الكل',
+      onConfirm: async () => {
+        try {
+          await StorageRepo.clearNotifications(currentUser?.id);
+          loadNotifications();
+          showToast({ type: 'success', title: 'تم', message: 'تم مسح جميع الإشعارات' });
+        } catch (err: any) {
+          showToast({ type: 'error', title: 'فشل المسح', message: err.message || 'تعذر مسح الإشعارات' });
+        }
+      },
+    });
   };
 
   const handleMarkSingleRead = async (id: string, e: React.MouseEvent) => {
@@ -86,21 +96,30 @@ export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate
     try {
       await StorageRepo.markNotificationRead(id);
       loadNotifications();
+      showToast({ type: 'success', title: 'تم', message: 'تم تحديث الإشعار' });
     } catch (err: any) {
-      alert(`تعذر تحديث الإشعار: ${err.message || 'خطأ غير معروف'}`);
+      showToast({ type: 'error', title: 'فشل التحديث', message: err.message || 'تعذر تحديث الإشعار' });
     }
   };
 
-  const handleDeleteSingle = async (id: string, e: React.MouseEvent) => {
+  const handleDeleteSingle = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    try {
-      await StorageRepo.deleteNotification(id);
-      loadNotifications();
-    } catch (err: any) {
-      alert(`تعذر حذف الإشعار: ${err.message || 'خطأ غير معروف'}`);
-    }
+    showConfirm({
+      title: 'تأكيد الحذف',
+      message: 'هل أنت متأكد من حذف هذا الإشعار؟',
+      variant: 'danger',
+      confirmLabel: 'حذف',
+      onConfirm: async () => {
+        try {
+          await StorageRepo.deleteNotification(id);
+          loadNotifications();
+          showToast({ type: 'success', title: 'تم الحذف', message: 'تم حذف الإشعار' });
+        } catch (err: any) {
+          showToast({ type: 'error', title: 'فشل الحذف', message: err.message || 'تعذر حذف الإشعار' });
+        }
+      },
+    });
   };
-
   const handleSendTestPush = () => {
     const testTitles = [
       'تخفيضات حصريّة! 🏷️',

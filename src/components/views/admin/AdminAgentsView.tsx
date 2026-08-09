@@ -4,9 +4,13 @@ import { subscribeSupabase } from '../../../lib/supabase';
 import { DeliveryAgent } from '../../../types/domain';
 import { formatCurrency, formatPhoneNumber } from '../../../lib/formatters';
 import { Bike, Power, Star, Phone, MapPin, ShieldCheck } from 'lucide-react';
+import { useToast } from '../../shared/Toast';
+import { useConfirm } from '../../shared/ConfirmDialog';
 
 export const AdminAgentsView: React.FC = () => {
   const [agents, setAgents] = useState<DeliveryAgent[]>([]);
+  const { showToast } = useToast();
+  const { showConfirm } = useConfirm();
 
   useEffect(() => {
     const refresh = () => {
@@ -33,8 +37,17 @@ export const AdminAgentsView: React.FC = () => {
   const toggleAgentDuty = async (ag: DeliveryAgent) => {
     try {
       await StorageRepo.saveAgent({ ...ag, is_online: !ag.is_online });
+      showToast({
+        type: 'success',
+        title: 'تم التحديث',
+        message: `تم تغيير حالة الاتصال للكابتن ${ag.name}`,
+      });
     } catch (err: any) {
-      alert(`تعذر تغيير حالة الاتصال للكابتن: ${err.message || 'خطأ غير معروف'}`);
+      showToast({
+        type: 'error',
+        title: 'فشل التحديث',
+        message: err.message || 'تعذر تغيير حالة الاتصال للكابتن',
+      });
     }
   };
 

@@ -23,6 +23,7 @@ import {
   RefreshCw,
   Loader2
 } from 'lucide-react';
+import { useToast } from '../../shared/Toast';
 
 export const DeliverySupervisorDashboardView: React.FC = () => {
   const [agents, setAgents] = useState<DeliveryAgent[]>(StorageRepo.getCachedAgents());
@@ -35,6 +36,7 @@ export const DeliverySupervisorDashboardView: React.FC = () => {
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [broadcastMsg, setBroadcastMsg] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   const loadDataDirectly = async (showBadge = true) => {
     if (showBadge) setIsRefreshing(true);
@@ -48,7 +50,11 @@ export const DeliverySupervisorDashboardView: React.FC = () => {
       setError(null);
     } catch (err: any) {
       console.error('Failed to load supervisor data directly:', err);
-      setError('تعذر تحديث بيانات الكباتن والطلبات من خادم Supabase.');
+      showToast({
+        type: 'error',
+        title: 'فشل التحميل',
+        message: 'تعذر تحديث بيانات الكباتن والطلبات من خادم Supabase.',
+      });
     } finally {
       setLoading(false);
       setIsRefreshing(false);
@@ -78,11 +84,6 @@ export const DeliverySupervisorDashboardView: React.FC = () => {
     };
   }, []);
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(null), 3000);
-  };
-
   const activeOrders = orders.filter((o) => ['assigned', 'picked_up', 'on_the_way'].includes(o.status));
   const onlineAgents = agents.filter((a) => a.is_online);
   const busyAgents = agents.filter((a) => {
@@ -94,9 +95,17 @@ export const DeliverySupervisorDashboardView: React.FC = () => {
     try {
       const updated: DeliveryAgent = { ...agent, is_approved: !agent.is_approved };
       await StorageRepo.saveAgent(updated);
-      showToast(updated.is_approved ? `تم الاعتماد والترخيص لـ ${agent.name}` : `تم إيقاف اعتماد ${agent.name}`);
+      showToast({
+        type: 'success',
+        title: 'تم التحديث',
+        message: updated.is_approved ? `تم الاعتماد والترخيص لـ ${agent.name}` : `تم إيقاف اعتماد ${agent.name}`,
+      });
     } catch (err: any) {
-      alert(`تعذر تغيير حالة اعتماد الكابتن: ${err.message || 'خطأ غير معروف'}`);
+      showToast({
+        type: 'error',
+        title: 'فشل التحديث',
+        message: err.message || 'تعذر تغيير حالة اعتماد الكابتن',
+      });
     }
   };
 
@@ -104,9 +113,17 @@ export const DeliverySupervisorDashboardView: React.FC = () => {
     try {
       const updated: DeliveryAgent = { ...agent, is_online: !agent.is_online };
       await StorageRepo.saveAgent(updated);
-      showToast(updated.is_online ? `تم تحويل ${agent.name} لمتصل الأن` : `تم تحويل ${agent.name} لغير متصل`);
+      showToast({
+        type: 'success',
+        title: 'تم التحديث',
+        message: updated.is_online ? `تم تحويل ${agent.name} لمتصل الأن` : `تم تحويل ${agent.name} لغير متصل`,
+      });
     } catch (err: any) {
-      alert(`تعذر تغيير حالة الاتصال: ${err.message || 'خطأ غير معروف'}`);
+      showToast({
+        type: 'error',
+        title: 'فشل التحديث',
+        message: err.message || 'تعذر تغيير حالة الاتصال',
+      });
     }
   };
 
@@ -126,11 +143,19 @@ export const DeliverySupervisorDashboardView: React.FC = () => {
           })
         )
       );
-      showToast(`تم إرسال التنبيه العاجل لـ (${targetAgents.length}) كابتن بنجاح`);
+      showToast({
+        type: 'success',
+        title: 'تم الإرسال',
+        message: `تم إرسال التنبيه العاجل لـ (${targetAgents.length}) كابتن بنجاح`,
+      });
       setBroadcastMsg('');
     } catch (err: any) {
       console.error('Failed to send broadcast notifications:', err);
-      showToast(`تعذر إرسال التنبيهات: ${err?.message || 'خطأ في قاعدة البيانات'}`);
+      showToast({
+        type: 'error',
+        title: 'فشل الإرسال',
+        message: err?.message || 'تعذر إرسال التنبيهات',
+      });
     }
   };
 

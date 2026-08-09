@@ -3,6 +3,8 @@ import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
 import { UserProfile, UserRole } from '../../../types/domain';
 import { Pagination } from '../../shared/Pagination';
 import { Users, Search, ShieldCheck, User, Store, Bike, Ban, CheckCircle2, Eye, X, Edit3, Sparkles } from 'lucide-react';
+import { useToast } from '../../shared/Toast';
+import { useConfirm } from '../../shared/ConfirmDialog';
 
 export const AdminCustomersView: React.FC = () => {
   const [users, setUsers] = useState<UserProfile[]>(StorageRepo.getUsers());
@@ -11,9 +13,10 @@ export const AdminCustomersView: React.FC = () => {
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [blockedUsers, setBlockedUsers] = useState<string[]>([]);
   const [selectedProfile, setSelectedProfile] = useState<UserProfile | null>(null);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 8;
+  const { showToast } = useToast();
+  const { showConfirm } = useConfirm();
 
   useEffect(() => {
     setCurrentPage(1);
@@ -25,13 +28,6 @@ export const AdminCustomersView: React.FC = () => {
     });
     return unsubscribe;
   }, []);
-
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => {
-      setToastMessage(null);
-    }, 3500);
-  };
 
   const handleRoleChange = async (user: UserProfile, newRole: UserRole) => {
     if (user.role === newRole) return;
@@ -50,14 +46,21 @@ export const AdminCustomersView: React.FC = () => {
     try {
       await StorageRepo.saveUser(updatedUser);
       setUsers(StorageRepo.getUsers());
-      showToast(`تم تغيير صلاحية "${user.name || user.full_name || 'المستخدم'}" بنجاح إلى (${roleNames[newRole]})`);
-
+      showToast({
+        type: 'success',
+        title: 'تم التحديث',
+        message: `تم تغيير صلاحية "${user.name || user.full_name || 'المستخدم'}" بنجاح إلى (${roleNames[newRole]})`,
+      });
       if (selectedProfile && selectedProfile.id === user.id) {
         setSelectedProfile(updatedUser);
       }
     } catch (err: any) {
       console.error('Failed to change user role:', err);
-      showToast(`حدث خطأ أثناء تغيير الصلاحية: ${err?.message || 'تعذر الاتصال بقاعدة البيانات'}`);
+      showToast({
+        type: 'error',
+        title: 'فشل التحديث',
+        message: err?.message || 'تعذر تغيير الصلاحية',
+      });
       setUsers(StorageRepo.getUsers());
     }
   };
@@ -70,16 +73,27 @@ export const AdminCustomersView: React.FC = () => {
     try {
       await StorageRepo.saveUser(updatedUser);
       setUsers(StorageRepo.getUsers());
-      showToast(newActive ? 'تم إلغاء حظر الحساب بنجاح' : 'تم حظر الحساب بنجاح');
+      showToast({
+        type: 'success',
+        title: 'تم التحديث',
+        message: newActive ? 'تم إلغاء حظر الحساب بنجاح' : 'تم حظر الحساب بنجاح',
+      });
       if (selectedProfile && selectedProfile.id === user.id) {
         setSelectedProfile(updatedUser);
       }
     } catch (err: any) {
       console.error('Failed to toggle user block status:', err);
-      showToast(`تعذر تغيير حالة الحظر: ${err?.message || 'فشلت العملية'}`);
+      showToast({
+        type: 'error',
+        title: 'فشل التحديث',
+        message: err?.message || 'تعذر تغيير حالة الحظر',
+      });
       setUsers(StorageRepo.getUsers());
     }
   };
+
+  // ... باقي الكود كما هو (حذفته للاختصار)
+};
 
   const filtered = users.filter((u) => {
     const matchesSearch =

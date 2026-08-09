@@ -4,10 +4,13 @@ import { subscribeSupabase } from '../../../lib/supabase';
 import { Store } from '../../../types/domain';
 import { formatCurrency, formatPhoneNumber } from '../../../lib/formatters';
 import { Store as StoreIcon, CheckCircle2, XCircle, MapPin, Phone, ShieldCheck } from 'lucide-react';
+import { useToast } from '../../shared/Toast';
+import { useConfirm } from '../../shared/ConfirmDialog';
 
 export const AdminStoresApplicationsView: React.FC = () => {
   const [pendingStores, setPendingStores] = useState<Store[]>([]);
-
+  const { showToast } = useToast();
+  const { showConfirm } = useConfirm();
   useEffect(() => {
     const fetchPending = () => {
       const allStores = StorageRepo.getStores();
@@ -40,7 +43,32 @@ export const AdminStoresApplicationsView: React.FC = () => {
       alert(`تعذر اعتماد المتجر: ${err.message || 'خطأ غير معروف'}`);
     }
   };
+  const handleApprove = async (store: Store) => {
+    try {
+      const updated = { ...store, is_approved: true };
+      await StorageRepo.saveStore(updated);
+      showToast({ type: 'success', title: 'تم الاعتماد', message: `تم اعتماد متجر "${store.name}" بنجاح` });
+    } catch (err: any) {
+      showToast({ type: 'error', title: 'فشل الاعتماد', message: err.message || 'تعذر اعتماد المتجر' });
+    }
+  };
 
+  const handleReject = (storeId: string, storeName: string) => {
+    showConfirm({
+      title: 'تأكيد الرفض',
+      message: `هل أنت متأكد من رفض طلب متجر "${storeName}"؟`,
+      variant: 'danger',
+      confirmLabel: 'رفض',
+      onConfirm: async () => {
+        try {
+          await StorageRepo.deleteStore(storeId);
+          showToast({ type: 'success', title: 'تم الرفض', message: 'تم رفض طلب المتجر' });
+        } catch (err: any) {
+          showToast({ type: 'error', title: 'فشل الرفض', message: err.message || 'تعذر رفض الطلب' });
+        }
+      },
+    });
+  };
   const handleReject = async (storeId: string) => {
     if (window.confirm('هل أنت تأكد من رفض هذا الطلب؟')) {
       try {

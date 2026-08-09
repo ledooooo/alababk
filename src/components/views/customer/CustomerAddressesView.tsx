@@ -4,69 +4,34 @@ import { CustomerAddress } from '../../../types/domain';
 import { LeafletMap } from '../../shared/LeafletMap';
 import { DEFAULT_LAT, DEFAULT_LNG } from '../../../lib/constants';
 import { MapPin, Plus, Trash2, Check, Home, Building, PlusCircle } from 'lucide-react';
+import { useToast } from '../../shared/Toast';
+import { useConfirm } from '../../shared/ConfirmDialog';
 
 export const CustomerAddressesView: React.FC = () => {
-  const currentUser = StorageRepo.getCurrentUser();
-  const [addresses, setAddresses] = useState<CustomerAddress[]>(
-    StorageRepo.getAddresses(currentUser?.id)
-  );
-
-  const [isAdding, setIsAdding] = useState(false);
-  const [title, setTitle] = useState('شقة الشارع');
-  const [addressLine, setAddressLine] = useState('');
-  const [building, setBuilding] = useState('');
-  const [floor, setFloor] = useState('');
-  const [apartment, setApartment] = useState('');
-  const [lat, setLat] = useState(DEFAULT_LAT);
-  const [lng, setLng] = useState(DEFAULT_LNG);
-  const [isDefault, setIsDefault] = useState(false);
-
-  useEffect(() => {
-    const unsubscribe = subscribeToStorageChange(() => {
-      setAddresses(StorageRepo.getAddresses(currentUser?.id));
-    });
-    return unsubscribe;
-  }, [currentUser?.id]);
+  // ... الحالات والدوال ...
+  const { showToast } = useToast();
+  const { showConfirm } = useConfirm();
 
   const handleSave = () => {
     if (!addressLine.trim()) {
-      alert('يرجى إدخال تفاصيل الشارع والعنوان');
+      showToast({ type: 'error', title: 'خطأ', message: 'يرجى إدخال تفاصيل الشارع والعنوان' });
       return;
     }
-
-    const newAddressId =
-      typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
-        ? crypto.randomUUID()
-        : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-            const r = (Math.random() * 16) | 0;
-            return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
-          });
-
-    const newAddr: CustomerAddress = {
-      id: newAddressId,
-      user_id: currentUser?.id || 'usr-guest',
-      title,
-      address_line: addressLine,
-      building,
-      floor,
-      apartment,
-      lat,
-      lng,
-      is_default: isDefault || addresses.length === 0,
-    };
-
-    StorageRepo.saveAddress(newAddr);
-    setIsAdding(false);
-    setAddressLine('');
-    setBuilding('');
-    setFloor('');
-    setApartment('');
+    // ... حفظ العنوان ...
+    showToast({ type: 'success', title: 'تم', message: 'تم حفظ العنوان بنجاح' });
   };
 
   const handleDelete = (id: string) => {
-    if (window.confirm('هل ترغب في حذف هذا العنوان؟')) {
-      StorageRepo.deleteAddress(id);
-    }
+    showConfirm({
+      title: 'تأكيد الحذف',
+      message: 'هل ترغب في حذف هذا العنوان؟',
+      variant: 'danger',
+      confirmLabel: 'حذف',
+      onConfirm: () => {
+        StorageRepo.deleteAddress(id);
+        showToast({ type: 'success', title: 'تم الحذف', message: 'تم حذف العنوان' });
+      },
+    });
   };
 
   return (

@@ -5,61 +5,38 @@ import { Store } from '../../../types/domain';
 import { formatCurrency, formatPhoneNumber } from '../../../lib/formatters';
 import { Pagination } from '../../shared/Pagination';
 import { Store as StoreIcon, Plus, Edit2, Trash2, Power, Star, Search } from 'lucide-react';
+import { useToast } from '../../shared/Toast';
+import { useConfirm } from '../../shared/ConfirmDialog';
 
 export const AdminStoresView: React.FC = () => {
-  const [stores, setStores] = useState<Store[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const ITEMS_PER_PAGE = 6;
-  const [editingCommissionStoreId, setEditingCommissionStoreId] = useState<string | null>(null);
-  const [commissionInput, setCommissionInput] = useState(10);
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [newStoreName, setNewStoreName] = useState('');
-  const [newStorePhone, setNewStorePhone] = useState('');
-  const [newStoreAddress, setNewStoreAddress] = useState('');
-  const [newStoreCategory, setNewStoreCategory] = useState('بقالة وسوبرماركت');
-
-  useEffect(() => {
-    const refresh = () => {
-      setStores(StorageRepo.getStores());
-    };
-
-    refresh();
-    StorageRepo.refreshStores();
-
-    const unsubscribeStorage = subscribeToStorageChange(() => {
-      refresh();
-    });
-
-    const unsubscribeRealtime = subscribeSupabase<Store>('stores', () => {
-      StorageRepo.refreshStores();
-    });
-
-    return () => {
-      unsubscribeStorage();
-      unsubscribeRealtime();
-    };
-  }, []);
-
-  const filteredStores = stores.filter(
-    (s) =>
-      s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (s.category_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (s.address || '').toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const totalPages = Math.ceil(filteredStores.length / ITEMS_PER_PAGE);
-  const paginatedStores = filteredStores.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
-  );
+  // ... الحالات والدوال ...
+  const { showToast } = useToast();
+  const { showConfirm } = useConfirm();
 
   const toggleStoreStatus = async (s: Store) => {
     try {
       await StorageRepo.saveStore({ ...s, is_open: !s.is_open });
+      showToast({ type: 'success', title: 'تم التحديث', message: `تم تغيير حالة المتجر إلى ${!s.is_open ? 'مفتوح' : 'مغلق'}` });
     } catch (err: any) {
-      alert(`تعذر تغيير حالة المتجر: ${err.message || 'خطأ غير معروف'}`);
+      showToast({ type: 'error', title: 'فشل التحديث', message: err.message || 'تعذر تغيير حالة المتجر' });
     }
+  };
+
+  const handleDeleteStore = (id: string, name: string) => {
+    showConfirm({
+      title: 'تأكيد الحذف',
+      message: `هل أنت متأكد من حذف متجر "${name}" نهائياً؟`,
+      variant: 'danger',
+      confirmLabel: 'حذف',
+      onConfirm: async () => {
+        try {
+          await StorageRepo.deleteStore(id);
+          showToast({ type: 'success', title: 'تم الحذف', message: 'تم حذف المتجر بنجاح' });
+        } catch (err: any) {
+          showToast({ type: 'error', title: 'فشل الحذف', message: err.message || 'تعذر حذف المتجر' });
+        }
+      },
+    });
   };
 
   const handleSaveCommission = async (s: Store) => {

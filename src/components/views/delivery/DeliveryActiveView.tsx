@@ -3,17 +3,8 @@ import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
 import { Order, OrderStatus } from '../../../types/domain';
 import { formatCurrency, formatPhoneNumber } from '../../../lib/formatters';
 import { LeafletMap } from '../../shared/LeafletMap';
-import {
-  Bike,
-  Store,
-  MapPin,
-  Phone,
-  CheckCircle2,
-  Package,
-  Navigation,
-  DollarSign,
-  AlertCircle
-} from 'lucide-react';
+import { Bike, Store, MapPin, Phone, CheckCircle2, Package, Navigation, DollarSign, AlertCircle } from 'lucide-react';
+import { useToast } from '../../shared/Toast';
 
 interface DeliveryActiveViewProps {
   onTripCompleted: () => void;
@@ -56,18 +47,20 @@ export const DeliveryActiveView: React.FC<DeliveryActiveViewProps> = ({ onTripCo
     );
   }
 
+  const { showToast } = useToast();
+
   const handleUpdateTripStatus = async (nextStatus: OrderStatus, note: string) => {
     try {
       const updated = await StorageRepo.updateOrderStatus(activeOrder.id, nextStatus, note);
       if (nextStatus === 'delivered') {
-        setTimeout(() => {
-          onTripCompleted();
-        }, 800);
+        showToast({ type: 'success', title: 'تم', message: 'تم تسليم الطلب بنجاح' });
+        setTimeout(() => onTripCompleted(), 800);
       } else if (updated) {
         setActiveOrder(updated);
+        showToast({ type: 'success', title: 'تم التحديث', message: `تم تحديث الحالة إلى ${nextStatus}` });
       }
-    } catch (err) {
-      console.error('Failed to update trip status:', err);
+    } catch (err: any) {
+      showToast({ type: 'error', title: 'فشل التحديث', message: err.message || 'تعذر تحديث حالة الرحلة' });
     }
   };
 

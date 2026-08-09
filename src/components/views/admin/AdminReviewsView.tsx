@@ -4,56 +4,31 @@ import { subscribeSupabase } from '../../../lib/supabase';
 import { Review } from '../../../types/domain';
 import { formatDate } from '../../../lib/formatters';
 import { Star, Store, Bike, RefreshCw, Loader2 } from 'lucide-react';
+import { useToast } from '../../shared/Toast';
 
 export const AdminReviewsView: React.FC = () => {
-  const [reviews, setReviews] = useState<Review[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [replyText, setReplyText] = useState<{ [key: string]: string }>({});
-  const [submittingId, setSubmittingId] = useState<string | null>(null);
-
-  const loadReviews = async () => {
-    setLoading(true);
-    await StorageRepo.refreshReviews();
-    setReviews(StorageRepo.getReviews());
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    const sync = () => {
-      setReviews(StorageRepo.getReviews());
-    };
-
-    sync();
-    StorageRepo.refreshReviews().then(() => setLoading(false));
-
-    const unsubStorage = subscribeToStorageChange(() => {
-      sync();
-    });
-
-    const unsubRealtime = subscribeSupabase<Review>('reviews', () => {
-      StorageRepo.refreshReviews();
-    });
-
-    return () => {
-      unsubStorage();
-      unsubRealtime();
-    };
-  }, []);
+  // ... الحالات والدوال ...
+  const { showToast } = useToast();
 
   const handleSaveReply = async (reviewId: string) => {
     const reply = replyText[reviewId]?.trim();
-    if (!reply) return;
+    if (!reply) {
+      showToast({ type: 'error', title: 'خطأ', message: 'يرجى كتابة الرد أولاً' });
+      return;
+    }
 
     try {
       setSubmittingId(reviewId);
       await StorageRepo.replyToReview(reviewId, reply);
       setReplyText((prev) => ({ ...prev, [reviewId]: '' }));
+      showToast({ type: 'success', title: 'تم', message: 'تم إرسال الرد بنجاح' });
     } catch (err: any) {
-      alert(`تعذر إرسال الرد: ${err.message || 'خطأ غير معروف'}`);
+      showToast({ type: 'error', title: 'فشل الإرسال', message: err.message || 'تعذر إرسال الرد' });
     } finally {
       setSubmittingId(null);
     }
   };
+
 
   return (
     <div className="space-y-6 dir-rtl">

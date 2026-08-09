@@ -4,23 +4,10 @@ import { fetchOrderStatusHistory, subscribeSupabase } from '../../../lib/supabas
 import { Order, OrderStatus, OrderStatusHistoryItem } from '../../../types/domain';
 import { formatCurrency, formatDateArabic, formatPhoneNumber } from '../../../lib/formatters';
 import { ORDER_STATUS_LABELS, getOrderStatusConfig } from '../../../lib/constants';
-import {
-  ArrowLeft,
-  MapPin,
-  Phone,
-  Clock,
-  Truck,
-  CheckCircle2,
-  XCircle,
-  AlertCircle,
-  Loader2,
-  Store,
-  Package,
-  CreditCard,
-  Calendar,
-  User,
-  RefreshCw
-} from 'lucide-react';
+import { ArrowLeft, MapPin, Phone, Clock, Truck, CheckCircle2, XCircle, AlertCircle, Loader2, Store, Package, CreditCard, Calendar, User, RefreshCw } from 'lucide-react';
+import { useToast } from '../../shared/Toast';
+import { useConfirm } from '../../shared/ConfirmDialog';
+
 
 interface CustomerOrderDetailViewProps {
   orderId: string;
@@ -103,23 +90,32 @@ export const CustomerOrderDetailView: React.FC<CustomerOrderDetailViewProps> = (
   }, [orderId]);
 
   // ===== دوال الإلغاء =====
+  const { showToast } = useToast();
+  const { showConfirm } = useConfirm();
+
   const handleCancelOrder = async () => {
     if (!order) return;
-    try {
-      setIsCancelling(true);
-      await StorageRepo.updateOrderStatus(
-        order.id,
-        'cancelled',
-        cancelReason || 'ألغى العميل الطلب'
-      );
-      setShowCancelModal(false);
-      await refreshOrder();
-    } catch (err: any) {
-      alert(`تعذر إلغاء الطلب: ${err.message || 'خطأ غير معروف'}`);
-    } finally {
-      setIsCancelling(false);
-    }
+    showConfirm({
+      title: 'تأكيد إلغاء الطلب',
+      message: 'هل أنت متأكد من رغبتك في إلغاء هذا الطلب؟ لا يمكن التراجع عن هذا الإجراء.',
+      variant: 'danger',
+      confirmLabel: 'إلغاء الطلب',
+      onConfirm: async () => {
+        try {
+          setIsCancelling(true);
+          await StorageRepo.updateOrderStatus(order.id, 'cancelled', cancelReason || 'ألغى العميل الطلب');
+          setShowCancelModal(false);
+          await refreshOrder();
+          showToast({ type: 'success', title: 'تم الإلغاء', message: 'تم إلغاء الطلب بنجاح' });
+        } catch (err: any) {
+          showToast({ type: 'error', title: 'فشل الإلغاء', message: err.message || 'تعذر إلغاء الطلب' });
+        } finally {
+          setIsCancelling(false);
+        }
+      },
+    });
   };
+
 
   // ===== حالة التحميل =====
   if (loading) {

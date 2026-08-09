@@ -6,6 +6,7 @@ import { formatCurrency, formatDateArabic, formatPhoneNumber } from '../../../li
 import { ORDER_STATUS_LABELS, getOrderStatusConfig } from '../../../lib/constants';
 import { Pagination } from '../../shared/Pagination';
 import { ShoppingBag, Search, Filter, ShieldCheck, Phone, MapPin, RefreshCw, AlertCircle, Loader2 } from 'lucide-react';
+import { useToast } from '../../shared/Toast';
 
 export const AdminOrdersView: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>(StorageRepo.getCachedOrders());
@@ -16,6 +17,7 @@ export const AdminOrdersView: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 8;
+  const { showToast } = useToast();
 
   useEffect(() => {
     setCurrentPage(1);
@@ -56,7 +58,14 @@ export const AdminOrdersView: React.FC = () => {
   const handleStatusOverride = (orderId: string, newStatus: OrderStatus) => {
     StorageRepo.updateOrderStatus(orderId, newStatus, `تعديل حالة الطلب يدوياً بواسطة الإدارة العامة`);
   };
-
+  const handleStatusOverride = async (orderId: string, newStatus: OrderStatus) => {
+    try {
+      await StorageRepo.updateOrderStatus(orderId, newStatus, `تعديل حالة الطلب يدوياً بواسطة الإدارة العامة`);
+      showToast({ type: 'success', title: 'تم التحديث', message: 'تم تغيير حالة الطلب بنجاح' });
+    } catch (err: any) {
+      showToast({ type: 'error', title: 'فشل التحديث', message: err.message || 'تعذر تغيير حالة الطلب' });
+    }
+  };
   const filteredOrders = orders.filter((o) => {
     const matchesSearch =
       o.order_number.toLowerCase().includes(searchQuery.toLowerCase()) ||

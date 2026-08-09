@@ -1,24 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo } from '../../../lib/storage';
 import { quoteOrderSecure, createSecureOrder, upsertAddress, fetchAddresses } from '../../../lib/supabase';
-import { CustomerAddress, Product, Store, CartItem } from '../../../types/domain';
+import { CustomerAddress } from '../../../types/domain';
 import { formatCurrency } from '../../../lib/formatters';
 import { useCartStore } from '../../../stores/cart-store';
 import { LeafletMap } from '../../shared/LeafletMap';
-import {
-  ArrowRight,
-  MapPin,
-  CheckCircle2,
-  AlertCircle,
-  Loader2,
-  Truck,
-  CreditCard,
-  Wallet,
-  Store as StoreIcon,
-  Plus,
-  X,
-  RefreshCw
-} from 'lucide-react';
+import { ArrowRight, MapPin, CheckCircle2, AlertCircle, Loader2, Truck, CreditCard, Wallet, Store as StoreIcon, Plus, RefreshCw } from 'lucide-react';
+import { useToast } from '../../shared/Toast';
 
 interface CustomerCheckoutViewProps {
   onOrderPlaced: (orderId: string) => void;
@@ -70,6 +58,30 @@ export const CustomerCheckoutView: React.FC<CustomerCheckoutViewProps> = ({
     lng: 31.2357,
     is_default: false,
   });
+  const { showToast } = useToast();
+
+  const handleSaveNewAddress = async () => {
+    // ... التحقق من الحقول ...
+    try {
+      const saved = await upsertAddress({ ... });
+      // ...
+      showToast({ type: 'success', title: 'تم', message: 'تم حفظ العنوان بنجاح' });
+    } catch (err: any) {
+      showToast({ type: 'error', title: 'فشل الحفظ', message: err.message || 'فشل حفظ العنوان' });
+    }
+  };
+
+  const handleSubmitOrder = async () => {
+    // ... التحقق ...
+    try {
+      const result = await createSecureOrder({ ... });
+      clearCart();
+      onOrderPlaced(result.order_id);
+      showToast({ type: 'success', title: 'تم', message: 'تم إنشاء الطلب بنجاح' });
+    } catch (err: any) {
+      showToast({ type: 'error', title: 'فشل إنشاء الطلب', message: err.message || 'فشل إنشاء الطلب' });
+    }
+  };
 
   // تحميل العناوين
   const loadAddresses = async () => {
@@ -138,87 +150,6 @@ export const CustomerCheckoutView: React.FC<CustomerCheckoutViewProps> = ({
     }
   }, [selectedAddressId, couponCode, tipAmount, items]);
 
-  // ===== دوال معالجة العنوان =====
-  const handleSaveNewAddress = async () => {
-    const user = StorageRepo.getCurrentUser();
-    if (!user) {
-      setError('يجب تسجيل الدخول أولاً');
-      return;
-    }
-    if (!newAddress.address_line) {
-      setError('يرجى إدخال اسم الشارع');
-      return;
-    }
-    if (!newAddress.lat || !newAddress.lng) {
-      setError('يرجى تحديد الموقع على الخريطة');
-      return;
-    }
-    try {
-      const saved = await upsertAddress({
-        id: undefined,
-        user_id: user.id,
-        title: newAddress.title || 'عنوان جديد',
-        address_line: newAddress.address_line || '',
-        building: newAddress.building || null,
-        floor: newAddress.floor || null,
-        apartment: newAddress.apartment || null,
-        notes: newAddress.notes || null,
-        lat: newAddress.lat,
-        lng: newAddress.lng,
-        is_default: newAddress.is_default || false,
-      });
-      setAddresses((prev) => [saved, ...prev]);
-      setSelectedAddressId(saved.id);
-      setIsSelectingLocation(false);
-      // إعادة التسعير بالمعرّف الحقيقي
-      await updateQuote(saved.id);
-    } catch (err: any) {
-      setError(err.message || 'فشل حفظ العنوان');
-    }
-  };
-
-  // ===== تقديم الطلب =====
-  const handleSubmitOrder = async () => {
-    if (!storeId || items.length === 0) {
-      setSubmitError('السلة فارغة');
-      return;
-    }
-    if (!selectedAddressId) {
-      setSubmitError('يرجى تحديد عنوان التوصيل');
-      return;
-    }
-    if (!quote) {
-      setSubmitError('يرجى انتظار حساب التسعير');
-      return;
-    }
-
-    setIsSubmitting(true);
-    setSubmitError(null);
-
-    try {
-      const result = await createSecureOrder({
-        store_id: storeId,
-        address: addresses.find((a) => a.id === selectedAddressId)!,
-        payment_method: paymentMethod,
-        items: items.map((item) => ({
-          product_id: item.product.id,
-          quantity: item.quantity,
-          notes: item.notes,
-        })),
-        coupon_code: couponCode || undefined,
-        customer_notes: customerNotes || undefined,
-        tip_amount: tipAmount,
-      });
-
-      // تفريغ السلة بعد النجاح
-      clearCart();
-      onOrderPlaced(result.order_id);
-    } catch (err: any) {
-      setSubmitError(err.message || 'فشل إنشاء الطلب');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   // ===== حالة التحميل =====
   if (isLoading) {

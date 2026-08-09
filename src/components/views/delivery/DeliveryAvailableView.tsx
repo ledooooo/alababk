@@ -4,6 +4,7 @@ import { subscribeSupabase } from '../../../lib/supabase';
 import { Order, DeliveryAgent } from '../../../types/domain';
 import { formatCurrency, formatDateArabic, calculateDistanceKm } from '../../../lib/formatters';
 import { Bike, Store, MapPin, CheckCircle2, ChevronRight, Phone } from 'lucide-react';
+import { useToast } from '../../shared/Toast';
 
 interface DeliveryAvailableViewProps {
   onOrderClaimed: (orderId: string) => void;
@@ -40,9 +41,11 @@ export const DeliveryAvailableView: React.FC<DeliveryAvailableViewProps> = ({ on
     };
   }, []);
 
+  const { showToast } = useToast();
+
   const handleClaimOrder = async (order: Order) => {
     if (!agent) {
-      alert('يرجى تسجيل الدخول كمندوب توصيل معتمد أولاً');
+      showToast({ type: 'error', title: 'خطأ', message: 'يرجى تسجيل الدخول كمندوب توصيل معتمد أولاً' });
       return;
     }
 
@@ -55,12 +58,13 @@ export const DeliveryAvailableView: React.FC<DeliveryAvailableViewProps> = ({ on
         delivery_agent_lat: agent.current_lat || 30.0450,
         delivery_agent_lng: agent.current_lng || 31.2370,
       });
-
+      showToast({ type: 'success', title: 'تم', message: 'تم استلام الطلب بنجاح' });
       onOrderClaimed(order.id);
     } catch (err: any) {
-      alert(`تعذر استلام الطلب: ${err.message || 'خطأ غير معروف'}`);
+      showToast({ type: 'error', title: 'فشل الاستلام', message: err.message || 'تعذر استلام الطلب' });
     }
   };
+
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 dir-rtl pb-20">

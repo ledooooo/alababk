@@ -5,6 +5,8 @@ import { Product, Store } from '../../../types/domain';
 import { formatCurrency } from '../../../lib/formatters';
 import { Pagination } from '../../shared/Pagination';
 import { Package, Plus, Edit2, Trash2, Search, Check, X, Image as ImageIcon, AlertCircle, Loader2, Store as StoreIcon } from 'lucide-react';
+import { useToast } from '../../shared/Toast';
+import { useConfirm } from '../../shared/ConfirmDialog';
 
 interface StoreProductsViewProps {
   onNavigate: (tab: string) => void;
@@ -21,6 +23,8 @@ export const StoreProductsView: React.FC<StoreProductsViewProps> = ({ onNavigate
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+  const { showToast } = useToast();
+  const { showConfirm } = useConfirm();
 
   useEffect(() => {
     setCurrentPage(1);
@@ -119,6 +123,11 @@ export const StoreProductsView: React.FC<StoreProductsViewProps> = ({ onNavigate
       await StorageRepo.saveProduct(fullProd);
       setIsModalOpen(false);
       setEditingProduct(null);
+      showToast({
+        type: 'success',
+        title: 'تم',
+        message: 'تم حفظ المنتج بنجاح',
+      });
     } catch (err: any) {
       console.error('Failed to save product:', err);
       setSaveError(err.message || 'حدث خطأ أثناء حفظ المنتج في قاعدة البيانات.');
@@ -127,21 +136,45 @@ export const StoreProductsView: React.FC<StoreProductsViewProps> = ({ onNavigate
     }
   };
 
-  const handleDeleteProduct = async (id: string) => {
-    if (window.confirm('هل أنت تأكد من حذف هذا المنتج من المحل؟')) {
-      try {
-        await StorageRepo.deleteProduct(id);
-      } catch (err: any) {
-        alert(`تعذر حذف المنتج: ${err.message || 'خطأ غير معروف'}`);
-      }
-    }
+  const handleDeleteProduct = (id: string, name: string) => {
+    showConfirm({
+      title: 'تأكيد حذف المنتج',
+      message: `هل أنت متأكد من حذف المنتج "${name}"؟`,
+      variant: 'danger',
+      confirmLabel: 'حذف',
+      onConfirm: async () => {
+        try {
+          await StorageRepo.deleteProduct(id);
+          showToast({
+            type: 'success',
+            title: 'تم الحذف',
+            message: 'تم حذف المنتج بنجاح',
+          });
+        } catch (err: any) {
+          showToast({
+            type: 'error',
+            title: 'فشل الحذف',
+            message: err.message || 'تعذر حذف المنتج',
+          });
+        }
+      },
+    });
   };
 
   const toggleProductActive = async (p: Product) => {
     try {
       await StorageRepo.saveProduct({ ...p, is_active: !p.is_active });
+      showToast({
+        type: 'success',
+        title: 'تم التحديث',
+        message: `تم تغيير حالة المنتج إلى ${!p.is_active ? 'نشط' : 'مخفي'}`,
+      });
     } catch (err: any) {
-      alert(`تعذر تغيير حالة المنتج: ${err.message || 'خطأ غير معروف'}`);
+      showToast({
+        type: 'error',
+        title: 'فشل التحديث',
+        message: err.message || 'تعذر تغيير حالة المنتج',
+      });
     }
   };
 
@@ -293,7 +326,7 @@ export const StoreProductsView: React.FC<StoreProductsViewProps> = ({ onNavigate
                           <Edit2 className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => handleDeleteProduct(p.id)}
+                          onClick={() => handleDeleteProduct(p.id, p.name)}
                           className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
                           title="حذف المنتج"
                         >

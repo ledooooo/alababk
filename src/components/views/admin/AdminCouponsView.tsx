@@ -3,6 +3,7 @@ import { StorageRepo } from '../../../lib/storage';
 import { Coupon } from '../../../types/domain';
 import { formatCurrency } from '../../../lib/formatters';
 import { ShieldCheck, Plus, Trash2, Tag } from 'lucide-react';
+import { useToast } from '../../shared/Toast';
 
 export const AdminCouponsView: React.FC = () => {
   const [coupons, setCoupons] = useState<Coupon[]>(StorageRepo.getCoupons());
@@ -10,10 +11,11 @@ export const AdminCouponsView: React.FC = () => {
   const [discountType, setDiscountType] = useState<'percent' | 'fixed'>('percent');
   const [discountValue, setDiscountValue] = useState(10);
   const [minOrder, setMinOrder] = useState(50);
+  const { showToast } = useToast();
 
   const handleCreateCoupon = () => {
     if (!code.trim()) {
-      alert('ادخل رمز الكوبون أولاً (مثال: JIHAT15)');
+      showToast({ type: 'error', title: 'خطأ', message: 'ادخل رمز الكوبون أولاً (مثال: JIHAT15)' });
       return;
     }
 
@@ -30,11 +32,13 @@ export const AdminCouponsView: React.FC = () => {
     StorageRepo.saveCoupon(newC);
     setCoupons(StorageRepo.getCoupons());
     setCode('');
+    showToast({ type: 'success', title: 'تم', message: 'تم إنشاء الكوبون بنجاح' });
   };
 
   const handleDeleteCoupon = (id: string) => {
     StorageRepo.deleteCoupon(id);
     setCoupons(StorageRepo.getCoupons());
+    showToast({ type: 'success', title: 'تم', message: 'تم حذف الكوبون' });
   };
 
   return (

@@ -21,6 +21,8 @@ import {
   Loader2,
   Store as StoreIcon
 } from 'lucide-react';
+import { useToast } from '../../shared/Toast';
+import { useConfirm } from '../../shared/ConfirmDialog';
 
 interface StoreOrdersViewProps {
   onNavigate: (tab: string) => void;
@@ -38,6 +40,8 @@ export const StoreOrdersView: React.FC<StoreOrdersViewProps> = ({ onNavigate }) 
   const [rejectReason, setRejectReason] = useState('بعض المنتجات غير متوفرة بالمخزون حالياً');
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 5;
+  const { showToast } = useToast();
+  const { showConfirm } = useConfirm();
 
   useEffect(() => {
     setCurrentPage(1);
@@ -97,15 +101,33 @@ export const StoreOrdersView: React.FC<StoreOrdersViewProps> = ({ onNavigate }) 
       'preparing',
       `تم قبول الطلب وجاري التحضير بالمحل (الوقت المتوقع: ${prepTimeMinutes} دقيقة)`
     );
+    showToast({
+      type: 'success',
+      title: 'تم القبول',
+      message: 'تم قبول الطلب وبدء التحضير',
+    });
   };
 
   const handleRejectOrder = (orderId: string) => {
-    StorageRepo.updateOrderStatus(
-      orderId,
-      'rejected',
-      `اعتذر المتجر عن الطلب: ${rejectReason}`
-    );
-    setRejectingOrderId(null);
+    showConfirm({
+      title: 'تأكيد رفض الطلب',
+      message: `هل أنت متأكد من رفض هذا الطلب؟ السبب: ${rejectReason}`,
+      variant: 'danger',
+      confirmLabel: 'رفض الطلب',
+      onConfirm: () => {
+        StorageRepo.updateOrderStatus(
+          orderId,
+          'rejected',
+          `اعتذر المتجر عن الطلب: ${rejectReason}`
+        );
+        setRejectingOrderId(null);
+        showToast({
+          type: 'success',
+          title: 'تم الرفض',
+          message: 'تم رفض الطلب بنجاح',
+        });
+      },
+    });
   };
 
   const handleMarkReady = (orderId: string) => {
@@ -114,6 +136,11 @@ export const StoreOrdersView: React.FC<StoreOrdersViewProps> = ({ onNavigate }) 
       'ready',
       'تم تجهيز الطلب بالكامل وهو جاهز لاستلام مندوب التوصيل الكابتن'
     );
+    showToast({
+      type: 'success',
+      title: 'تم التجهيز',
+      message: 'تم تجهيز الطلب وجاهز للاستلام',
+    });
   };
 
   const filteredOrders = orders.filter((o) => {

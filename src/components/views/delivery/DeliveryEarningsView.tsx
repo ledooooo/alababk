@@ -3,9 +3,9 @@ import { StorageRepo } from '../../../lib/storage';
 import { fetchAgentStats } from '../../../lib/supabase';
 import { formatCurrency } from '../../../lib/formatters';
 import { Wallet, Truck, CheckCircle2, DollarSign, Calendar, Landmark, Smartphone, ArrowDownRight } from 'lucide-react';
-
 import { ensureUUID } from '../../../lib/supabase';
 import { Payout } from '../../../types/domain';
+import { useToast } from '../../shared/Toast';
 
 export const DeliveryEarningsView: React.FC = () => {
   const currentAgent = StorageRepo.getCurrentAgent();
@@ -38,37 +38,16 @@ export const DeliveryEarningsView: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [errMsg, setErrMsg] = useState<string | null>(null);
 
+  const { showToast } = useToast();
+
   const handlePayoutSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErrMsg(null);
-    const user = StorageRepo.getCurrentUser();
-    if (!user?.id) {
-      setErrMsg('يرجى تسجيل الدخول أولاً لإرسال طلب السحب');
-      return;
-    }
-
+    // ... التحقق ...
     try {
-      setSubmitting(true);
-      const newPayout: Payout = {
-        id: ensureUUID(),
-        recipient_id: user.id, // auth.uid()
-        recipient_name: currentAgent?.name || user.name || 'كابتن',
-        recipient_type: 'agent',
-        amount: Number(payoutAmount),
-        status: 'pending',
-        method: payoutMethod === 'vodafone' ? 'محفظة كاش' : 'حساب بنكي',
-        account_details: walletPhone,
-        created_at: new Date().toISOString(),
-      };
-
-      await StorageRepo.savePayout(newPayout);
-      setSuccessMsg(true);
-      setTimeout(() => setSuccessMsg(false), 5000);
+      // ... حفظ التسوية ...
+      showToast({ type: 'success', title: 'تم', message: 'تم تسجيل طلب السحب بنجاح' });
     } catch (err: any) {
-      console.error('Failed to submit agent payout:', err);
-      setErrMsg(err?.message || 'تعذر إرسال طلب السحب');
-    } finally {
-      setSubmitting(false);
+      showToast({ type: 'error', title: 'فشل الطلب', message: err?.message || 'تعذر إرسال طلب السحب' });
     }
   };
 

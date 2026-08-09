@@ -3,20 +3,8 @@ import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
 import { subscribeSupabase, fetchSupabaseOrders, fetchSupabaseAgents } from '../../../lib/supabase';
 import { DeliveryAgent, Order } from '../../../types/domain';
 import { formatCurrency, formatPhoneNumber } from '../../../lib/formatters';
-import {
-  Bike,
-  Power,
-  DollarSign,
-  Package,
-  MapPin,
-  Star,
-  CheckCircle2,
-  ArrowUpRight,
-  PhoneCall,
-  RefreshCw,
-  AlertCircle,
-  Loader2
-} from 'lucide-react';
+import { Bike, Power, DollarSign, Package, MapPin, Star, CheckCircle2, ArrowUpRight, PhoneCall, RefreshCw, AlertCircle, Loader2 } from 'lucide-react';
+import { useToast } from '../../shared/Toast';
 
 interface DeliveryDashboardViewProps {
   onNavigate: (tab: string) => void;
@@ -86,12 +74,15 @@ export const DeliveryDashboardView: React.FC<DeliveryDashboardViewProps> = ({ on
     );
   }
 
+  const { showToast } = useToast();
+
   const toggleDutyOnline = async () => {
     try {
       const updated = { ...agent, is_online: !agent.is_online };
       await StorageRepo.saveAgent(updated);
+      showToast({ type: 'success', title: 'تم التحديث', message: `تم تغيير حالة الاتصال إلى ${updated.is_online ? 'متصل' : 'غير متصل'}` });
     } catch (err: any) {
-      alert(`تعذر تغيير حالة الاتصال: ${err.message || 'خطأ غير معروف'}`);
+      showToast({ type: 'error', title: 'فشل التحديث', message: err.message || 'تعذر تغيير حالة الاتصال' });
     }
   };
 

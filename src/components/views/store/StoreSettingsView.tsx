@@ -4,6 +4,7 @@ import { subscribeSupabase } from '../../../lib/supabase';
 import { Store } from '../../../types/domain';
 import { formatCurrency } from '../../../lib/formatters';
 import { Store as StoreIcon, Clock, MapPin, Phone, Save, Check, Loader2, AlertCircle } from 'lucide-react';
+import { useToast } from '../../shared/Toast';
 
 interface StoreSettingsViewProps {
   onNavigate: (tab: string) => void;
@@ -44,17 +45,16 @@ export const StoreSettingsView: React.FC<StoreSettingsViewProps> = ({ onNavigate
     };
   }, []);
 
+  const { showToast } = useToast();
+
   const handleSave = async () => {
     if (!store) return;
-    setSaveError('');
     try {
       setIsSaving(true);
       await StorageRepo.saveStore(store);
-      setSavedSuccess(true);
-      setTimeout(() => setSavedSuccess(false), 2000);
+      showToast({ type: 'success', title: 'تم', message: 'تم حفظ إعدادات المتجر بنجاح' });
     } catch (err: any) {
-      console.error('Failed to save store settings:', err);
-      setSaveError(err.message || 'حدث خطأ أثناء حفظ إعدادات المتجر.');
+      showToast({ type: 'error', title: 'فشل الحفظ', message: err.message || 'حدث خطأ أثناء حفظ إعدادات المتجر' });
     } finally {
       setIsSaving(false);
     }

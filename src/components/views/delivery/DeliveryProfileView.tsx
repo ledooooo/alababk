@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { StorageRepo } from '../../../lib/storage';
 import { User, Phone, ShieldCheck, Truck, FileText, CheckCircle2, Camera, MapPin, Power } from 'lucide-react';
-
+import { useToast } from '../../shared/Toast';
 export const DeliveryProfileView: React.FC = () => {
   const currentAgent = StorageRepo.getCurrentAgent();
   const [fullName, setFullName] = useState(currentAgent?.name || 'كابتن محمود علي');
@@ -11,21 +11,15 @@ export const DeliveryProfileView: React.FC = () => {
   const [isOnline, setIsOnline] = useState(currentAgent?.is_online ?? true);
   const [isSaved, setIsSaved] = useState(false);
 
+  const { showToast } = useToast();
+
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     if (currentAgent) {
-      const updated = {
-        ...currentAgent,
-        name: fullName,
-        phone,
-        vehicle_type: vehicleType as any,
-        license_plate: vehiclePlate,
-        is_online: isOnline,
-      };
+      const updated = { ...currentAgent, name: fullName, phone, vehicle_type: vehicleType as any, license_plate: vehiclePlate, is_online: isOnline };
       StorageRepo.saveAgent(updated);
+      showToast({ type: 'success', title: 'تم', message: 'تم حفظ التغييرات بنجاح' });
     }
-    setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 3000);
   };
 
   return (

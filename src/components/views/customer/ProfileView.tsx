@@ -3,21 +3,8 @@ import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
 import { Store, Product } from '../../../types/domain';
 import { StoreCard } from '../../store/StoreCard';
 import { ProductCard } from '../../product/ProductCard';
-import {
-  User,
-  Phone,
-  Mail,
-  Camera,
-  ShieldCheck,
-  MapPin,
-  ShoppingBag,
-  LogOut,
-  CheckCircle2,
-  Heart,
-  Store as StoreIcon,
-  Package,
-  Trash2
-} from 'lucide-react';
+import { User, Phone, Mail, Camera, ShieldCheck, MapPin, ShoppingBag, LogOut, CheckCircle2, Heart, Store as StoreIcon, Package, Trash2 } from 'lucide-react';
+import { useToast } from '../../shared/Toast';
 
 interface ProfileViewProps {
   onNavigate: (tab: string, param?: string) => void;
@@ -53,22 +40,18 @@ export const ProfileView: React.FC<ProfileViewProps> = ({ onNavigate, onLogout }
     return unsubscribe;
   }, []);
 
+  const { showToast } = useToast();
+
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     if (currentUser) {
-      const updated = {
-        ...currentUser,
-        full_name: fullName,
-        phone,
-        email,
-        avatar_url: avatarUrl,
-      };
+      const updated = { ...currentUser, full_name: fullName, phone, email, avatar_url: avatarUrl };
       StorageRepo.saveUser(updated);
       StorageRepo.setCurrentUser(updated);
+      showToast({ type: 'success', title: 'تم', message: 'تم حفظ التغييرات بنجاح' });
     }
-    setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 3000);
   };
+
 
   const handleSelectStore = (store: Store) => {
     onNavigate('store-detail', store.id);

@@ -16,6 +16,7 @@ import {
   Bell,
   Loader2
 } from 'lucide-react';
+import { useToast } from '../../shared/Toast';
 
 interface StoreDashboardViewProps {
   onNavigate: (tab: string) => void;
@@ -26,6 +27,7 @@ export const StoreDashboardView: React.FC<StoreDashboardViewProps> = ({ onNaviga
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<Order[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const { showToast } = useToast();
 
   const loadData = async () => {
     setLoading(true);
@@ -83,8 +85,17 @@ export const StoreDashboardView: React.FC<StoreDashboardViewProps> = ({ onNaviga
     try {
       const updated = { ...store, is_open: !store.is_open };
       await StorageRepo.saveStore(updated);
+      showToast({
+        type: 'success',
+        title: 'تم التحديث',
+        message: `تم تغيير حالة المتجر إلى ${updated.is_open ? 'مفتوح' : 'مغلق'}`,
+      });
     } catch (err: any) {
-      alert(`تعذر تغيير حالة المتجر: ${err.message || 'خطأ غير معروف'}`);
+      showToast({
+        type: 'error',
+        title: 'فشل التحديث',
+        message: err.message || 'تعذر تغيير حالة المتجر',
+      });
     }
   };
 

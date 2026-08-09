@@ -3,6 +3,7 @@ import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
 import { Category } from '../../../types/domain';
 import { fetchSupabaseCategories, supabase } from '../../../lib/supabase';
 import { FolderTree, Plus, Trash2, CheckCircle2, RefreshCw } from 'lucide-react';
+import { useToast } from '../../shared/Toast';
 
 export const AdminCategoriesView: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -11,10 +12,10 @@ export const AdminCategoriesView: React.FC = () => {
   const [newCatSlug, setNewCatSlug] = useState('');
   const [newCatIcon, setNewCatIcon] = useState('🛒');
   const [message, setMessage] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   const loadCategories = async () => {
     setLoading(true);
-    // Fetch directly from Supabase
     const dbCats = await fetchSupabaseCategories();
     if (dbCats.length > 0) {
       setCategories(dbCats);
@@ -34,7 +35,10 @@ export const AdminCategoriesView: React.FC = () => {
 
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newCatName.trim()) return;
+    if (!newCatName.trim()) {
+      showToast({ type: 'error', title: 'خطأ', message: 'يرجى إدخال اسم القسم' });
+      return;
+    }
 
     const slug = newCatSlug.trim() || newCatName.trim().toLowerCase().replace(/\s+/g, '-');
     const newCategory: Category = {
@@ -45,7 +49,6 @@ export const AdminCategoriesView: React.FC = () => {
       sort_order: categories.length + 1,
     };
 
-    // Save to Supabase
     try {
       await (supabase.from('categories') as any).insert([
         {
@@ -61,13 +64,11 @@ export const AdminCategoriesView: React.FC = () => {
       // fallback
     }
 
-    // Save to Local Repo
     StorageRepo.saveCategory(newCategory);
     setNewCatName('');
     setNewCatSlug('');
     setNewCatIcon('🛒');
-    setMessage('تم إضافة التصنيف بنجاح في قاعدة البيانات!');
-    setTimeout(() => setMessage(null), 3000);
+    showToast({ type: 'success', title: 'تم', message: 'تم إضافة التصنيف بنجاح في قاعدة البيانات!' });
     loadCategories();
   };
 

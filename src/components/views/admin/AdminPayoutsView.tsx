@@ -4,53 +4,28 @@ import { subscribeSupabase } from '../../../lib/supabase';
 import { Payout } from '../../../types/domain';
 import { formatCurrency, formatDate } from '../../../lib/formatters';
 import { DollarSign, CheckCircle, Clock, AlertCircle, RefreshCw, Building2, Bike, Loader2 } from 'lucide-react';
+import { useToast } from '../../shared/Toast';
+import { useConfirm } from '../../shared/ConfirmDialog';
 
 export const AdminPayoutsView: React.FC = () => {
-  const [payouts, setPayouts] = useState<Payout[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [filterType, setFilterType] = useState<'all' | 'store' | 'agent'>('all');
-  const [message, setMessage] = useState<string | null>(null);
-  const [submittingId, setSubmittingId] = useState<string | null>(null);
-
-  const loadPayouts = async () => {
-    setLoading(true);
-    await StorageRepo.refreshPayouts();
-    setPayouts(StorageRepo.getPayouts());
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    const sync = () => {
-      setPayouts(StorageRepo.getPayouts());
-    };
-
-    sync();
-    StorageRepo.refreshPayouts().then(() => setLoading(false));
-
-    const unsubStorage = subscribeToStorageChange(() => {
-      sync();
-    });
-
-    const unsubRealtime = subscribeSupabase<Payout>('payouts', () => {
-      StorageRepo.refreshPayouts();
-    });
-
-    return () => {
-      unsubStorage();
-      unsubRealtime();
-    };
-  }, []);
+  // ... الحالات والدوال كما هي ...
+  const { showToast } = useToast();
+  const { showConfirm } = useConfirm();
 
   const handleUpdateStatus = async (payoutId: string, newStatus: 'completed' | 'failed') => {
     try {
-      setSubmittingId(payoutId);
       await StorageRepo.updatePayoutStatus(payoutId, newStatus);
-      setMessage(`تم تحديث حالة التسوية إلى (${newStatus === 'completed' ? 'تمت التسوية بنجاح' : 'تعذرت التسوية'})`);
-      setTimeout(() => setMessage(null), 3000);
+      showToast({
+        type: 'success',
+        title: 'تم التحديث',
+        message: `تم تحديث حالة التسوية إلى (${newStatus === 'completed' ? 'تمت التسوية بنجاح' : 'تعذرت التسوية'})`,
+      });
     } catch (err: any) {
-      alert(`تعذر تحديث التسوية: ${err.message || 'خطأ غير معروف'}`);
-    } finally {
-      setSubmittingId(null);
+      showToast({
+        type: 'error',
+        title: 'فشل التحديث',
+        message: err.message || 'تعذر تحديث التسوية',
+      });
     }
   };
 

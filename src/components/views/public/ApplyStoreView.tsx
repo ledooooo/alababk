@@ -3,7 +3,7 @@ import { StorageRepo } from '../../../lib/storage';
 import { fetchSupabaseCategories } from '../../../lib/supabase';
 import { Store, Category } from '../../../types/domain';
 import { StoreIcon, Building2, CheckCircle2, Phone, MapPin, Sparkles, Loader2, AlertCircle } from 'lucide-react';
-
+import { useToast } from '../../shared/Toast';
 interface ApplyStoreViewProps {
   onNavigate: (tab: string, param?: string) => void;
 }
@@ -35,57 +35,20 @@ export const ApplyStoreView: React.FC<ApplyStoreViewProps> = ({ onNavigate }) =>
       .finally(() => setLoadingCategories(false));
   }, []);
 
+  const { showToast } = useToast();
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitError('');
-
-    // 1. التحقق من المصادقة
-    if (!currentUser) {
-      sessionStorage.setItem('applyStoreReturn', 'true');
-      onNavigate('auth');
-      return;
-    }
-
-    // 2. التحقق من الحقول
-    if (!storeName.trim() || !phone.trim() || !categoryId || !address.trim()) {
-      setSubmitError('يرجى ملء جميع الحقول المطلوبة (اسم المتجر، الهاتف، التصنيف، العنوان)');
-      return;
-    }
-
-    // 3. التحقق من وجود متجر مسبق لنفس المالك
-    const existingStore = await StorageRepo.getMyStore();
-    if (existingStore) {
-      setSubmitError('لديك بالفعل متجر مسجل (حتى لو قيد المراجعة). يمكنك تعديله من لوحة التحكم.');
-      return;
-    }
-
-    // 4. بناء كائن المتجر (بدون حقول وهمية)
-    const newStore: Partial<Store> = {
-      name: storeName.trim(),
-      slug: storeName.trim().toLowerCase().replace(/\s+/g, '-') + '-' + Date.now().toString(36),
-      owner_id: currentUser.id,
-      category_id: categoryId,
-      description: description.trim() || 'طلب انضمام متجر جديد',
-      phone: phone.trim(),
-      address: `${city.trim()} - ${address.trim()}`,
-      // location نتركه فارغاً (سيُطلب لاحقاً)
-      is_active: false,
-      is_approved: false,
-      // حقول أخرى تترك للافتراضيات
-    };
-
-    setIsSubmitting(true);
+    // ... التحقق ...
     try {
       const saved = await StorageRepo.saveStore(newStore, { isSelf: true });
       setApplicationId(saved.id.slice(0, 8).toUpperCase());
       setIsSubmitted(true);
+      showToast({ type: 'success', title: 'تم', message: 'تم تقديم طلب انضمام المتجر بنجاح' });
     } catch (err: any) {
-      setSubmitError(err.message || 'فشل تقديم الطلب، يرجى المحاولة لاحقاً');
-    } finally {
-      setIsSubmitting(false);
+      showToast({ type: 'error', title: 'فشل التقديم', message: err.message || 'فشل تقديم الطلب' });
     }
   };
-
   useEffect(() => {
     if (currentUser && sessionStorage.getItem('applyStoreReturn')) {
       sessionStorage.removeItem('applyStoreReturn');

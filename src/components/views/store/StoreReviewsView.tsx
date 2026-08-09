@@ -3,12 +3,14 @@ import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
 import { subscribeSupabase } from '../../../lib/supabase';
 import { Review } from '../../../types/domain';
 import { Star, MessageSquare, CornerDownLeft, CheckCircle2, ThumbsUp, Loader2 } from 'lucide-react';
+import { useToast } from '../../shared/Toast';
 
 export const StoreReviewsView: React.FC = () => {
   const currentStore = StorageRepo.getCurrentStore();
   const [reviews, setReviews] = useState<Review[]>([]);
   const [replyText, setReplyText] = useState<Record<string, string>>({});
   const [submittingId, setSubmittingId] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   useEffect(() => {
     const sync = () => {
@@ -43,13 +45,30 @@ export const StoreReviewsView: React.FC = () => {
 
   const handleReplySubmit = async (reviewId: string) => {
     const text = replyText[reviewId]?.trim();
-    if (!text) return;
+    if (!text) {
+      showToast({
+        type: 'error',
+        title: 'خطأ',
+        message: 'يرجى كتابة الرد أولاً',
+      });
+      return;
+    }
 
     try {
       setSubmittingId(reviewId);
       await StorageRepo.replyToReview(reviewId, text);
+      setReplyText((prev) => ({ ...prev, [reviewId]: '' }));
+      showToast({
+        type: 'success',
+        title: 'تم',
+        message: 'تم إرسال الرد بنجاح',
+      });
     } catch (err: any) {
-      alert(`تعذر إرسال الرد: ${err.message || 'خطأ غير معروف'}`);
+      showToast({
+        type: 'error',
+        title: 'فشل الإرسال',
+        message: err.message || 'تعذر إرسال الرد',
+      });
     } finally {
       setSubmittingId(null);
     }
