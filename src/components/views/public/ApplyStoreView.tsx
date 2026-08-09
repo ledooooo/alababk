@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StorageRepo, saveSupabaseStore } from '../../../lib/storage';
+import { StorageRepo } from '../../../lib/storage';
 import { fetchSupabaseCategories } from '../../../lib/supabase';
 import { Store, Category } from '../../../types/domain';
 import { StoreIcon, Building2, CheckCircle2, Phone, MapPin, Sparkles, Loader2, AlertCircle } from 'lucide-react';
@@ -39,27 +39,23 @@ export const ApplyStoreView: React.FC<ApplyStoreViewProps> = ({ onNavigate }) =>
     e.preventDefault();
     setSubmitError('');
 
-    // 1. التحقق من المصادقة
     if (!currentUser) {
       sessionStorage.setItem('applyStoreReturn', 'true');
       onNavigate('auth');
       return;
     }
 
-    // 2. التحقق من الحقول
     if (!storeName.trim() || !phone.trim() || !categoryId || !address.trim()) {
       setSubmitError('يرجى ملء جميع الحقول المطلوبة (اسم المتجر، الهاتف، التصنيف، العنوان)');
       return;
     }
 
-    // 3. التحقق من وجود متجر مسبق لنفس المالك
     const existingStore = await StorageRepo.getMyStore();
     if (existingStore) {
       setSubmitError('لديك بالفعل متجر مسجل (حتى لو قيد المراجعة). يمكنك تعديله من لوحة التحكم.');
       return;
     }
 
-    // 4. بناء كائن المتجر (بدون حقول وهمية)
     const newStore: Partial<Store> = {
       name: storeName.trim(),
       slug: storeName.trim().toLowerCase().replace(/\s+/g, '-') + '-' + Date.now().toString(36),
@@ -68,16 +64,13 @@ export const ApplyStoreView: React.FC<ApplyStoreViewProps> = ({ onNavigate }) =>
       description: description.trim() || 'طلب انضمام متجر جديد',
       phone: phone.trim(),
       address: `${city.trim()} - ${address.trim()}`,
-      // location نتركه فارغاً (سيُطلب لاحقاً)
       is_active: false,
       is_approved: false,
-      commission_rate: 15, // سيتم تجاهله من saveStore لأنه غير مسموح
-      // min_order_amount, delivery_fee إلخ تُترك للافتراضيات
     };
 
     setIsSubmitting(true);
     try {
-      const saved = await saveSupabaseStore(newStore, { isSelf: true });
+      const saved = await StorageRepo.saveStore(newStore, { isSelf: true });
       setApplicationId(saved.id.slice(0, 8).toUpperCase());
       setIsSubmitted(true);
     } catch (err: any) {
@@ -99,21 +92,18 @@ export const ApplyStoreView: React.FC<ApplyStoreViewProps> = ({ onNavigate }) =>
         <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
           <CheckCircle2 className="w-10 h-10" />
         </div>
-
         <div className="space-y-2">
           <h2 className="text-2xl font-black text-slate-900">تم استلام طلبك بنجاح!</h2>
           <p className="text-xs text-slate-600 leading-relaxed">
             شكراً لانضمامك لمنصة "على بابك". طلبك حالياً قيد المراجعة والتدقيق من قِبل إدارة المنصة.
           </p>
         </div>
-
         <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 text-xs text-right space-y-2 font-bold text-slate-700">
           <p className="text-purple-700">رقم المرجعية: <span className="font-mono text-slate-900">{applicationId}</span></p>
           <p>اسم المتجر: <span className="text-slate-900">{storeName}</span></p>
           <p>رقم التواصل: <span className="text-slate-900 font-mono">{phone}</span></p>
           <p className="text-[10px] text-amber-600 font-normal">سيتم التواصل معك هاتفياً أو عبر الواتساب فور الموافقة لتفعيل لوحة تحكم متجرك.</p>
         </div>
-
         <button
           onClick={() => onNavigate('landing')}
           className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-xs shadow-xs"
@@ -162,7 +152,6 @@ export const ApplyStoreView: React.FC<ApplyStoreViewProps> = ({ onNavigate }) =>
               className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-purple-500 outline-none"
             />
           </div>
-
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">اسم صاحب المتجر / المدير *</label>
             <input
@@ -188,7 +177,6 @@ export const ApplyStoreView: React.FC<ApplyStoreViewProps> = ({ onNavigate }) =>
               className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-purple-500 outline-none"
             />
           </div>
-
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">القسم الرئيسي للمحل *</label>
             <select
@@ -220,7 +208,6 @@ export const ApplyStoreView: React.FC<ApplyStoreViewProps> = ({ onNavigate }) =>
               className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-purple-500 outline-none"
             />
           </div>
-
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">العنوان التفصيلي *</label>
             <input
