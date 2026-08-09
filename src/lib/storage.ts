@@ -67,9 +67,6 @@ import {
   translateSupabaseError,
 } from './supabase';
 
-// تعريف النوع مباشرة بدون تصدير
-type MyStoreCacheType = { store: Store | null; timestamp: number } | null;
-
 const lastLocationUpdateMap = new Map<string, number>();
 
 const STORAGE_KEYS = {
@@ -868,7 +865,7 @@ export const StorageRepo = {
     }
   },
 
-  // --- MY STORE CACHE (معدل) ---
+  // --- MY STORE CACHE ---
   _myStoreCache: { store: Store | null; timestamp: number } | null = null,
   MY_STORE_CACHE_TTL: number = 30000,
 
