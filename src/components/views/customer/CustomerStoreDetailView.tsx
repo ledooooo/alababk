@@ -1,3 +1,4 @@
+// src/components/views/customer/CustomerStoreDetailView.tsx
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
 import { subscribeSupabase } from '../../../lib/supabase';
@@ -5,7 +6,7 @@ import { Store, Product } from '../../../types/domain';
 import { useCartStore } from '../../../stores/cart-store';
 import { ProductCard } from '../../product/ProductCard';
 import { StoreReviewsSection } from './StoreReviewsSection';
-import { StoreCategoryFilterBar } from './StoreCategoryFilterBar';
+import StoreCategoryFilterBar from './StoreCategoryFilterBar'; // تم التعديل هنا
 import { Pagination } from '../../shared/Pagination';
 import { formatCurrency } from '../../../lib/formatters';
 import {
@@ -21,7 +22,7 @@ import {
   Info,
   Heart,
   MessageSquare
-} from 'lucide-react';
+} from 'lucide-react
 
 interface CustomerStoreDetailViewProps {
   storeId: string;
