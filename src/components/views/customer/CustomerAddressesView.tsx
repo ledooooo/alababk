@@ -7,7 +7,7 @@ import { MapPin, Plus, Trash2, Check, Home, Building, PlusCircle } from 'lucide-
 import { useToast } from '../../shared/Toast';
 import { useConfirm } from '../../shared/ConfirmDialog';
 
-export const CustomerAddressesView: React.FC = () => {
+export default function CustomerAddressesView() {
   // ... الحالات والدوال ...
   const { showToast } = useToast();
   const { showConfirm } = useConfirm();

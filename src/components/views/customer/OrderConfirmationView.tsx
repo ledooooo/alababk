@@ -8,7 +8,7 @@ interface OrderConfirmationViewProps {
   onNavigate: (tab: string, param?: string) => void;
 }
 
-export const OrderConfirmationView: React.FC<OrderConfirmationViewProps> = ({ orderId, onNavigate }) => {
+export default function OrderConfirmationView({ orderId, onNavigate }) {
   const order = StorageRepo.getOrderById(orderId);
 
   if (!order) {

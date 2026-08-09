@@ -16,7 +16,7 @@ interface AboutViewProps {
   onNavigate: (tab: string, param?: string) => void;
 }
 
-export const AboutView: React.FC<AboutViewProps> = ({ onNavigate }) => {
+export default function AboutView({ onNavigate }) {
   const [activeFaq, setActiveFaq] = useState<number | null>(0);
 
   const faqs = [

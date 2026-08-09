@@ -9,7 +9,7 @@ interface CustomerStoresViewProps {
   onSelectStore: (store: Store) => void;
 }
 
-export const CustomerStoresView: React.FC<CustomerStoresViewProps> = ({ onSelectStore }) => {
+export default function CustomerStoresView({ onSelectStore }) {
   // ===== HOOKS ===== (جميعها في الأعلى)
   const [stores, setStores] = useState<Store[]>([]);
   const [loading, setLoading] = useState(true);

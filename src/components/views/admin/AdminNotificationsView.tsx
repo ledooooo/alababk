@@ -5,7 +5,7 @@ import { formatDate } from '../../../lib/formatters';
 import { Bell, Send, CheckCircle2, RefreshCw, Smartphone, Tag, ShoppingBag } from 'lucide-react';
 import { useToast } from '../../shared/Toast';
 
-export const AdminNotificationsView: React.FC = () => {
+export default function AdminNotificationsView() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [title, setTitle] = useState('');

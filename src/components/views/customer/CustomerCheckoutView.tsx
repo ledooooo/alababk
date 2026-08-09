@@ -25,10 +25,10 @@ interface CustomerCheckoutViewProps {
   onBack: () => void;
 }
 
-export const CustomerCheckoutView: React.FC<CustomerCheckoutViewProps> = ({
+export default function CustomerCheckoutView({
   onOrderPlaced,
   onBack,
-}) => {
+}) {
   // ===== HOOKS =====
   const { items, storeId, storeName, getSubtotal, clearCart } = useCartStore();
   const [addresses, setAddresses] = useState<CustomerAddress[]>([]);

@@ -7,7 +7,7 @@ import { DollarSign, CheckCircle, Clock, AlertCircle, RefreshCw, Building2, Bike
 import { useToast } from '../../shared/Toast';
 import { useConfirm } from '../../shared/ConfirmDialog';
 
-export const AdminPayoutsView: React.FC = () => {
+export default function AdminPayoutsView() {
   const [payouts, setPayouts] = useState<Payout[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [filterType, setFilterType] = useState<'all' | 'store' | 'agent'>('all');

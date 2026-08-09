@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { StorageRepo } from '../../../lib/storage';
 import { Bell, CheckCircle2, ShoppingBag, Info, AlertTriangle, Trash2 } from 'lucide-react';
 
-export const StoreNotificationsView: React.FC = () => {
+export default function StoreNotificationsView() {
   const currentStore = StorageRepo.getCurrentStore();
   const allNotifications = StorageRepo.getNotifications();
   const [notifications, setNotifications] = useState(allNotifications);

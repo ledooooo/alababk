@@ -19,7 +19,7 @@ interface StoreAnalyticsViewProps {
   onNavigate: (tab: string) => void;
 }
 
-export const StoreAnalyticsView: React.FC<StoreAnalyticsViewProps> = ({ onNavigate }) => {
+export default function StoreAnalyticsView({ onNavigate }) {
   const [store, setStore] = useState<Store | null>(null);
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<Order[]>([]);

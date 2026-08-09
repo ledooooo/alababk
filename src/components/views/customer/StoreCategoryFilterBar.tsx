@@ -29,7 +29,7 @@ interface StoreCategoryFilterBarProps {
   onToggleOnlyOffers: () => void;
 }
 
-export const StoreCategoryFilterBar: React.FC<StoreCategoryFilterBarProps> = ({
+export default function StoreCategoryFilterBar({
   categories,
   selectedCategory,
   onSelectCategory,
@@ -41,7 +41,7 @@ export const StoreCategoryFilterBar: React.FC<StoreCategoryFilterBarProps> = ({
   filteredProductsCount,
   showOnlyOffers,
   onToggleOnlyOffers,
-}) => {
+}) {
   // Helper to pick dynamic icons/emojis for categories
   const getCategoryBadge = (catName: string) => {
     const lower = catName.toLowerCase();

@@ -6,7 +6,7 @@ import { formatDate } from '../../../lib/formatters';
 import { Star, Store, Bike, RefreshCw, Loader2 } from 'lucide-react';
 import { useToast } from '../../shared/Toast';
 
-export const AdminReviewsView: React.FC = () => {
+export default function AdminReviewsView() {
   // ... الحالات والدوال ...
   const { showToast } = useToast();
 

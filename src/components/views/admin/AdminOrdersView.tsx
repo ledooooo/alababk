@@ -8,7 +8,7 @@ import { Pagination } from '../../shared/Pagination';
 import { ShoppingBag, Search, Filter, ShieldCheck, Phone, MapPin, RefreshCw, AlertCircle, Loader2 } from 'lucide-react';
 import { useToast } from '../../shared/Toast';
 
-export const AdminOrdersView: React.FC = () => {
+export default function AdminOrdersView() {
   const [orders, setOrders] = useState<Order[]>(StorageRepo.getCachedOrders());
   const [loading, setLoading] = useState<boolean>(StorageRepo.getCachedOrders().length === 0);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);

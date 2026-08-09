@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Settings, ShieldCheck, DollarSign, Bell, Power, CheckCircle2, MessageSquare, PhoneCall } from 'lucide-react';
 
-export const AdminPlatformSettingsView: React.FC = () => {
+export default function AdminPlatformSettingsView() {
   const [baseDeliveryFee, setBaseDeliveryFee] = useState(15);
   const [perKmFee, setPerKmFee] = useState(3);
   const [commissionRate, setCommissionRate] = useState(10);

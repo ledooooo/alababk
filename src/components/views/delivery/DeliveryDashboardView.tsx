@@ -10,7 +10,7 @@ interface DeliveryDashboardViewProps {
   onNavigate: (tab: string) => void;
 }
 
-export const DeliveryDashboardView: React.FC<DeliveryDashboardViewProps> = ({ onNavigate }) => {
+export default function DeliveryDashboardView({ onNavigate }) {
   const currentUser = StorageRepo.getCurrentUser();
   const [agent, setAgent] = useState<DeliveryAgent | null>(
     StorageRepo.getAgentByUserId(currentUser?.id || 'usr-agent-1')

@@ -25,7 +25,7 @@ import {
   Loader2
 } from 'lucide-react';
 
-export const OrdersManagerDashboardView: React.FC = () => {
+export default function OrdersManagerDashboardView() {
   const [orders, setOrders] = useState<Order[]>(StorageRepo.getCachedOrders());
   const [agents, setAgents] = useState<DeliveryAgent[]>(StorageRepo.getCachedAgents());
   const [loading, setLoading] = useState<boolean>(StorageRepo.getCachedOrders().length === 0);

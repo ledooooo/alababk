@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { StorageRepo } from '../../../lib/storage';
 import { User, Phone, ShieldCheck, Truck, FileText, CheckCircle2, Camera, MapPin, Power } from 'lucide-react';
 import { useToast } from '../../shared/Toast';
-export const DeliveryProfileView: React.FC = () => {
+export default function DeliveryProfileView() {
   const currentAgent = StorageRepo.getCurrentAgent();
   const [fullName, setFullName] = useState(currentAgent?.name || 'كابتن محمود علي');
   const [phone, setPhone] = useState(currentAgent?.phone || '01098765432');

@@ -5,7 +5,7 @@ import { fetchSupabaseCategories, supabase } from '../../../lib/supabase';
 import { FolderTree, Plus, Trash2, CheckCircle2, RefreshCw } from 'lucide-react';
 import { useToast } from '../../shared/Toast';
 
-export const AdminCategoriesView: React.FC = () => {
+export default function AdminCategoriesView() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [newCatName, setNewCatName] = useState('');

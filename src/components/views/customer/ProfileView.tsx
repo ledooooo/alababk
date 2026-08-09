@@ -11,7 +11,7 @@ interface ProfileViewProps {
   onLogout?: () => void;
 }
 
-export const ProfileView: React.FC<ProfileViewProps> = ({ onNavigate, onLogout }) => {
+export default function ProfileView({ onNavigate, onLogout }) {
   const currentUser = StorageRepo.getCurrentUser();
   const [fullName, setFullName] = useState(currentUser?.full_name || 'عميل على بابك');
   const [phone, setPhone] = useState(currentUser?.phone || '01012345678');

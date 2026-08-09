@@ -8,7 +8,7 @@ interface CategoriesBrowseViewProps {
   onNavigate: (tab: string, param?: string) => void;
 }
 
-export const CategoriesBrowseView: React.FC<CategoriesBrowseViewProps> = ({ onNavigate }) => {
+export default function CategoriesBrowseView({ onNavigate }) {
   const categories = StorageRepo.getCategories();
   const stores = StorageRepo.getStores();
   const [products, setProducts] = useState<Product[]>([]);

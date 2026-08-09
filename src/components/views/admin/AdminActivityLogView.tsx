@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Shield, Clock, FileText, CheckCircle2, User, Store, Truck, Filter, Search } from 'lucide-react';
 
-export const AdminActivityLogView: React.FC = () => {
+export default function AdminActivityLogView() {
   const [filterType, setFilterType] = useState<string>('all');
   const [query, setQuery] = useState('');
 

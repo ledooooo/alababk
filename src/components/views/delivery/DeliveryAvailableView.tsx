@@ -10,7 +10,7 @@ interface DeliveryAvailableViewProps {
   onOrderClaimed: (orderId: string) => void;
 }
 
-export const DeliveryAvailableView: React.FC<DeliveryAvailableViewProps> = ({ onOrderClaimed }) => {
+export default function DeliveryAvailableView({ onOrderClaimed }) {
   const currentUser = StorageRepo.getCurrentUser();
   const agent = StorageRepo.getAgentByUserId(currentUser?.id || 'usr-agent-1') || StorageRepo.getAgents()[0];
   const [availableOrders, setAvailableOrders] = useState<Order[]>([]);

@@ -28,7 +28,7 @@ interface StoreOrdersViewProps {
   onNavigate: (tab: string) => void;
 }
 
-export const StoreOrdersView: React.FC<StoreOrdersViewProps> = ({ onNavigate }) => {
+export default function StoreOrdersView({ onNavigate }) {
   const [store, setStore] = useState<Store | null>(null);
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<Order[]>([]);

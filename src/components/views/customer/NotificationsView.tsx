@@ -23,7 +23,7 @@ interface NotificationsViewProps {
   onNavigate?: (tab: string, param?: string) => void;
 }
 
-export const NotificationsView: React.FC<NotificationsViewProps> = ({ onNavigate }) => {
+export default function NotificationsView({ onNavigate }) {
   const currentUser = StorageRepo.getCurrentUser();
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [filter, setFilter] = useState<'all' | 'unread' | 'order_status' | 'promotion'>('all');

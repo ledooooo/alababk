@@ -22,7 +22,7 @@ interface StoreDashboardViewProps {
   onNavigate: (tab: string) => void;
 }
 
-export const StoreDashboardView: React.FC<StoreDashboardViewProps> = ({ onNavigate }) => {
+export default function StoreDashboardView({ onNavigate }) {
   const [store, setStore] = useState<Store | null>(null);
   const [loading, setLoading] = useState(true);
   const [orders, setOrders] = useState<Order[]>([]);

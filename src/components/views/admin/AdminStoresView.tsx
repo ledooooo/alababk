@@ -8,7 +8,7 @@ import { Store as StoreIcon, Plus, Edit2, Trash2, Power, Star, Search } from 'lu
 import { useToast } from '../../shared/Toast';
 import { useConfirm } from '../../shared/ConfirmDialog';
 
-export const AdminStoresView: React.FC = () => {
+export default function AdminStoresView() {
   const [stores, setStores] = useState<Store[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);

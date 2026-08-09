@@ -25,7 +25,7 @@ interface LandingViewProps {
   onNavigate: (tab: string, param?: string) => void;
 }
 
-export const LandingView: React.FC<LandingViewProps> = ({ onNavigate }) => {
+export default function LandingView({ onNavigate }) {
   const [stores, setStores] = useState<StoreType[]>([]);
   const categories = StorageRepo.getCategories();
 

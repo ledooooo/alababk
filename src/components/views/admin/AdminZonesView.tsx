@@ -8,7 +8,7 @@ import { MapPin, Plus, Clock, Edit2, ShieldCheck, Check, AlertCircle } from 'luc
 import { useToast } from '../../shared/Toast';
 import { useConfirm } from '../../shared/ConfirmDialog';
 
-export const AdminZonesView: React.FC = () => {
+export default function AdminZonesView() {
   const [zones, setZones] = useState<DeliveryZone[]>(StorageRepo.getZones());
   const [editingZone, setEditingZone] = useState<Partial<DeliveryZone> | null>(null);
   const [polygonStr, setPolygonStr] = useState<string>('');

@@ -7,7 +7,7 @@ import { ensureUUID } from '../../../lib/supabase';
 import { Payout } from '../../../types/domain';
 import { useToast } from '../../shared/Toast';
 
-export const DeliveryEarningsView: React.FC = () => {
+export default function DeliveryEarningsView() {
   const currentAgent = StorageRepo.getCurrentAgent();
   const orders = StorageRepo.getOrders().filter(
     (o) => !currentAgent || o.delivery_agent_id === currentAgent.id

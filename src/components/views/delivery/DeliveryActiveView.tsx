@@ -10,7 +10,7 @@ interface DeliveryActiveViewProps {
   onTripCompleted: () => void;
 }
 
-export const DeliveryActiveView: React.FC<DeliveryActiveViewProps> = ({ onTripCompleted }) => {
+export default function DeliveryActiveView({ onTripCompleted }) {
   const currentUser = StorageRepo.getCurrentUser();
   const agent = StorageRepo.getAgentByUserId(currentUser?.id || 'usr-agent-1') || StorageRepo.getAgents()[0];
   const [activeOrder, setActiveOrder] = useState<Order | null>(null);

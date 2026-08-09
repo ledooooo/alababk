@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase, checkSupabaseConnection, isSupabaseConfigured, getSupabaseUrl } from '../../../lib/supabase';
 import { Database, CheckCircle2, AlertTriangle, RefreshCw, Server, ShieldCheck, ExternalLink } from 'lucide-react';
 
-export const AdminSupabaseSync: React.FC = () => {
+export default function AdminSupabaseSync() {
   const [status, setStatus] = useState<{ connected: boolean; message: string } | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [tableCounts, setTableCounts] = useState<{ [table: string]: number }>({});

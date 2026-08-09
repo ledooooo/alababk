@@ -20,10 +20,10 @@ interface CustomerOrdersViewProps {
   onBrowseStores: () => void;
 }
 
-export const CustomerOrdersView: React.FC<CustomerOrdersViewProps> = ({
+export default function CustomerOrdersView({
   onSelectOrder,
   onBrowseStores,
-}) => {
+}) {
   const currentUser = StorageRepo.getCurrentUser();
   const [orders, setOrders] = useState<Order[]>([]);
   const [activeTab, setActiveTab] = useState<'all' | 'active' | 'completed'>('all');

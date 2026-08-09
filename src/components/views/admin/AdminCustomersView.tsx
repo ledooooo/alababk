@@ -5,7 +5,7 @@ import { Pagination } from '../../shared/Pagination';
 import { Users, Search, ShieldCheck, User, Store, Bike, Ban, CheckCircle2, Eye, X, Edit3, Sparkles } from 'lucide-react';
 import { useToast } from '../../shared/Toast';
 
-export const AdminCustomersView: React.FC = () => {
+export default function AdminCustomersView() {
   const [users, setUsers] = useState<UserProfile[]>(StorageRepo.getUsers());
   const orders = StorageRepo.getOrders();
   const [query, setQuery] = useState('');

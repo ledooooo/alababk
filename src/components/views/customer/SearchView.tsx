@@ -9,7 +9,7 @@ interface SearchViewProps {
   onSelectProduct: (product: Product) => void;
 }
 
-export const SearchView: React.FC<SearchViewProps> = ({ onSelectStore, onSelectProduct }) => {
+export default function SearchView({ onSelectStore, onSelectProduct }) {
   // ===== HOOKS =====
   const [query, setQuery] = useState('');
   const [stores, setStores] = useState<Store[]>([]);

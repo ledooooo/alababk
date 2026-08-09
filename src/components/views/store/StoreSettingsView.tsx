@@ -10,7 +10,7 @@ interface StoreSettingsViewProps {
   onNavigate: (tab: string) => void;
 }
 
-export const StoreSettingsView: React.FC<StoreSettingsViewProps> = ({ onNavigate }) => {
+export default function StoreSettingsView({ onNavigate }) {
   const [store, setStore] = useState<Store | null>(null);
   const [loading, setLoading] = useState(true);
   const [savedSuccess, setSavedSuccess] = useState(false);

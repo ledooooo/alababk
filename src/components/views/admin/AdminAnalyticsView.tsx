@@ -3,7 +3,7 @@ import { StorageRepo } from '../../../lib/storage';
 import { formatCurrency } from '../../../lib/formatters';
 import { BarChart3, TrendingUp, Store, ShoppingBag, Users, Truck, ArrowUpRight, Award, DollarSign } from 'lucide-react';
 
-export const AdminAnalyticsView: React.FC = () => {
+export default function AdminAnalyticsView() {
   const stores = StorageRepo.getStores();
   const orders = StorageRepo.getOrders();
   const products = StorageRepo.getProducts();

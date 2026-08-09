@@ -14,7 +14,7 @@ interface CustomerOrderDetailViewProps {
   onBack: () => void;
 }
 
-export const CustomerOrderDetailView: React.FC<CustomerOrderDetailViewProps> = ({ orderId, onBack }) => {
+export default function CustomerOrderDetailView({ orderId, onBack }) {
   // ===== HOOKS ===== (جميع الـ hooks في الأعلى، قبل أي return شرطي)
   const [order, setOrder] = useState<Order | null>(null);
   const [statusHistory, setStatusHistory] = useState<OrderStatusHistoryItem[]>([]);

@@ -19,7 +19,7 @@ interface AdminDashboardViewProps {
   onNavigate: (tab: string) => void;
 }
 
-export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onNavigate }) => {
+export default function AdminDashboardView({ onNavigate }) {
   const [stores, setStores] = useState<Store[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [agents, setAgents] = useState<DeliveryAgent[]>([]);

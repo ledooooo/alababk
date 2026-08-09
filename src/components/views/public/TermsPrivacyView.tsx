@@ -1,7 +1,7 @@
 import React from 'react';
 import { ShieldCheck, FileText, Lock, ArrowUp } from 'lucide-react';
 
-export const TermsPrivacyView: React.FC = () => {
+export default function TermsPrivacyView() {
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };

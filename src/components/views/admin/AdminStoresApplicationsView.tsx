@@ -7,7 +7,7 @@ import { Store as StoreIcon, CheckCircle2, XCircle, MapPin, Phone, ShieldCheck }
 import { useToast } from '../../shared/Toast';
 import { useConfirm } from '../../shared/ConfirmDialog';
 
-export const AdminStoresApplicationsView: React.FC = () => {
+export default function AdminStoresApplicationsView() {
   const [pendingStores, setPendingStores] = useState<Store[]>([]);
   const { showToast } = useToast();
   const { showConfirm } = useConfirm();

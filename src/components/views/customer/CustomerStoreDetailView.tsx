@@ -29,11 +29,11 @@ interface CustomerStoreDetailViewProps {
   onOpenCart: () => void;
 }
 
-export const CustomerStoreDetailView: React.FC<CustomerStoreDetailViewProps> = ({
+export default function CustomerStoreDetailView({
   storeId,
   onBack,
   onOpenCart,
-}) => {
+}) {
   const store = StorageRepo.getStoreById(storeId);
   const [products, setProducts] = useState<Product[]>([]);
   const [activeTab, setActiveTab] = useState<'products' | 'reviews'>('products');

@@ -25,11 +25,11 @@ interface AuthViewProps {
   onNavigate: (tab: string) => void;
 }
 
-export const AuthView: React.FC<AuthViewProps> = ({
+export default function AuthView({
   initialMode = 'login',
   onSuccess,
   onNavigate
-}) => {
+}) {
   const [mode, setMode] = useState<'login' | 'register'>(initialMode);
 
   const [name, setName] = useState('');

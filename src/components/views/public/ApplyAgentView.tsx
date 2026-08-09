@@ -8,7 +8,7 @@ interface ApplyAgentViewProps {
   onNavigate: (tab: string, param?: string) => void;
 }
 
-export const ApplyAgentView: React.FC<ApplyAgentViewProps> = ({ onNavigate }) => {
+export default function ApplyAgentView({ onNavigate }) {
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   const [vehicleType, setVehicleType] = useState<'motorcycle' | 'bicycle' | 'car' | 'walking'>('motorcycle');

@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '../../shared/Toast';
 
-export const DeliverySupervisorDashboardView: React.FC = () => {
+export default function DeliverySupervisorDashboardView() {
   const [agents, setAgents] = useState<DeliveryAgent[]>(StorageRepo.getCachedAgents());
   const [orders, setOrders] = useState<Order[]>(StorageRepo.getCachedOrders());
   const [loading, setLoading] = useState<boolean>(StorageRepo.getCachedAgents().length === 0);

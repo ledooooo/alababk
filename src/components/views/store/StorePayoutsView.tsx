@@ -5,7 +5,7 @@ import { Payout } from '../../../types/domain';
 import { formatCurrency, formatDateArabic } from '../../../lib/formatters';
 import { Wallet, ArrowDownRight, Building2, CheckCircle2, Clock, Landmark, Smartphone, AlertCircle, Loader2 } from 'lucide-react';
 
-export const StorePayoutsView: React.FC = () => {
+export default function StorePayoutsView() {
   const currentStore = StorageRepo.getCurrentStore();
   const orders = StorageRepo.getOrders().filter(
     (o) => !currentStore || o.store_id === currentStore.id

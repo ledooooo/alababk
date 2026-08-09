@@ -7,7 +7,7 @@ interface ContactViewProps {
   onNavigate: (tab: string, param?: string) => void;
 }
 
-export const ContactView: React.FC<ContactViewProps> = ({ onNavigate }) => {
+export default function ContactView({ onNavigate }) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [subject, setSubject] = useState('استفسار عام');

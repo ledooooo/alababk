@@ -6,7 +6,7 @@ import { formatCurrency, formatPhoneNumber } from '../../../lib/formatters';
 import { Bike, Power, Star, Phone, MapPin, ShieldCheck } from 'lucide-react';
 import { useToast } from '../../shared/Toast';
 
-export const AdminAgentsView: React.FC = () => {
+export default function AdminAgentsView() {
   const [agents, setAgents] = useState<DeliveryAgent[]>([]);
   const { showToast } = useToast();
 

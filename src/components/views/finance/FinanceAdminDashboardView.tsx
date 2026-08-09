@@ -34,7 +34,7 @@ import {
 import { useToast } from '../../shared/Toast';
 import { useConfirm } from '../../shared/ConfirmDialog';
 
-export const FinanceAdminDashboardView: React.FC = () => {
+export default function FinanceAdminDashboardView() {
   const [orders, setOrders] = useState<Order[]>(StorageRepo.getCachedOrders());
   const [stores, setStores] = useState<Store[]>(StorageRepo.getCachedStores());
   const [payouts, setPayouts] = useState<PayoutRequest[]>(StorageRepo.getCachedPayouts());

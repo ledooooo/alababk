@@ -5,7 +5,7 @@ import { formatCurrency } from '../../../lib/formatters';
 import { ShieldCheck, Plus, Trash2, Tag } from 'lucide-react';
 import { useToast } from '../../shared/Toast';
 
-export const AdminCouponsView: React.FC = () => {
+export default function AdminCouponsView() {
   const [coupons, setCoupons] = useState<Coupon[]>(StorageRepo.getCoupons());
   const [code, setCode] = useState('');
   const [discountType, setDiscountType] = useState<'percent' | 'fixed'>('percent');

@@ -4,7 +4,7 @@ import { Order } from '../../../types/domain';
 import { formatCurrency, formatDateArabic } from '../../../lib/formatters';
 import { Bike, DollarSign, CheckCircle2, Store, Calendar } from 'lucide-react';
 
-export const DeliveryHistoryView: React.FC = () => {
+export default function DeliveryHistoryView() {
   const currentUser = StorageRepo.getCurrentUser();
   const agent = StorageRepo.getAgentByUserId(currentUser?.id || 'usr-agent-1') || StorageRepo.getAgents()[0];
   const [historyOrders, setHistoryOrders] = useState<Order[]>([]);

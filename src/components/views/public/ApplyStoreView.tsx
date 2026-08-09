@@ -9,7 +9,7 @@ interface ApplyStoreViewProps {
   onNavigate: (tab: string, param?: string) => void;
 }
 
-export const ApplyStoreView: React.FC<ApplyStoreViewProps> = ({ onNavigate }) => {
+export default function ApplyStoreView({ onNavigate }) {
   const [storeName, setStoreName] = useState('');
   const [ownerName, setOwnerName] = useState('');
   const [phone, setPhone] = useState('');

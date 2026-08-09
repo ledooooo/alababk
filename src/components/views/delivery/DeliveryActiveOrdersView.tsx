@@ -9,7 +9,7 @@ interface DeliveryActiveOrdersViewProps {
   onNavigate: (tab: string) => void;
 }
 
-export const DeliveryActiveOrdersView: React.FC<DeliveryActiveOrdersViewProps> = ({ onNavigate }) => {
+export default function DeliveryActiveOrdersView({ onNavigate }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

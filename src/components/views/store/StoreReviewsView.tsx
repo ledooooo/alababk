@@ -5,7 +5,7 @@ import { Review } from '../../../types/domain';
 import { Star, MessageSquare, CornerDownLeft, CheckCircle2, ThumbsUp, Loader2 } from 'lucide-react';
 import { useToast } from '../../shared/Toast';
 
-export const StoreReviewsView: React.FC = () => {
+export default function StoreReviewsView() {
   const currentStore = StorageRepo.getCurrentStore();
   const [reviews, setReviews] = useState<Review[]>([]);
   const [replyText, setReplyText] = useState<Record<string, string>>({});

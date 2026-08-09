@@ -8,7 +8,7 @@ interface StoreReviewsSectionProps {
   store: Store;
 }
 
-export const StoreReviewsSection: React.FC<StoreReviewsSectionProps> = ({ store }) => {
+export default function StoreReviewsSection({ store }) {
   const currentUser = StorageRepo.getCurrentUser();
   const [reviews, setReviews] = useState<Review[]>([]);
   const [filterRating, setFilterRating] = useState<number | 'all'>('all');

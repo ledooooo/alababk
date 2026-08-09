@@ -12,7 +12,7 @@ interface StoreProductsViewProps {
   onNavigate: (tab: string) => void;
 }
 
-export const StoreProductsView: React.FC<StoreProductsViewProps> = ({ onNavigate }) => {
+export default function StoreProductsView({ onNavigate }) {
   const [store, setStore] = useState<Store | null>(null);
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);

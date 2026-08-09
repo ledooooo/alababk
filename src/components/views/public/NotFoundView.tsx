@@ -5,7 +5,7 @@ interface NotFoundViewProps {
   onNavigate: (tab: string) => void;
 }
 
-export const NotFoundView: React.FC<NotFoundViewProps> = ({ onNavigate }) => {
+export default function NotFoundView({ onNavigate }) {
   return (
     <div className="max-w-md mx-auto my-12 dir-rtl bg-white rounded-3xl p-8 border border-slate-200/80 shadow-xl text-center space-y-6">
       <div className="w-20 h-20 bg-rose-100 text-rose-600 rounded-3xl flex items-center justify-center mx-auto">
