@@ -24,19 +24,6 @@ function getSupabaseClient(): SupabaseClient<Database> {
   return _supabase;
 }
 
-export function isSupabaseConfigured(): boolean {
-  try {
-    getSupabaseClient();
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-export function getSupabaseUrl(): string | null {
-  return import.meta.env.VITE_SUPABASE_URL || null;
-}
-
 export const supabase = new Proxy({} as SupabaseClient<Database>, {
   get(_target, prop: string | symbol) {
     if (_configError) {
@@ -65,3 +52,17 @@ export const supabase = new Proxy({} as SupabaseClient<Database>, {
     }
   },
 });
+
+// دوال مساعدة للبيئة (تستخدم في AdminSupabaseSync)
+export function isSupabaseConfigured(): boolean {
+  try {
+    getSupabaseClient();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function getSupabaseUrl(): string {
+  return import.meta.env.VITE_SUPABASE_URL || '';
+}

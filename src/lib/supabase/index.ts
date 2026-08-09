@@ -17,4 +17,5 @@ export * from './reviews';
 export * from './notifications';
 export * from './payouts';
 export * from './realtime';
-export * from './admin';  // يُصدّر checkSupabaseConnection
+export * from './admin';     // يحتوي على checkSupabaseConnection
+export * from './summary';   // يحتوي على fetchFinanceSummary و FinanceSummaryItem
