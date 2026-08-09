@@ -63,7 +63,6 @@ export const AdminOrdersView: React.FC = () => {
         title: 'تم التحديث',
         message: 'تم تغيير حالة الطلب بنجاح',
       });
-      // تحديث القائمة بعد التغيير
       await loadOrdersDirectly(false);
     } catch (err: any) {
       showToast({
@@ -134,7 +133,6 @@ export const AdminOrdersView: React.FC = () => {
         </div>
       ) : (
         <>
-          {/* Filters Row */}
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
               <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-3" />
@@ -162,7 +160,6 @@ export const AdminOrdersView: React.FC = () => {
             </select>
           </div>
 
-          {/* Orders Table */}
           <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
               <table className="w-full text-right text-xs">

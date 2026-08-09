@@ -1,16 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
-import { subscribeSupabase, subscribeToNotifications } from '../../../lib/supabase';
+import { subscribeSupabase } from '../../../lib/supabase';
 import { DeliveryAgent } from '../../../types/domain';
 import { formatCurrency, formatPhoneNumber } from '../../../lib/formatters';
 import { Bike, Power, Star, Phone, MapPin, ShieldCheck } from 'lucide-react';
 import { useToast } from '../../shared/Toast';
-import { useConfirm } from '../../shared/ConfirmDialog';
 
 export const AdminAgentsView: React.FC = () => {
   const [agents, setAgents] = useState<DeliveryAgent[]>([]);
   const { showToast } = useToast();
-  const { showConfirm } = useConfirm();
 
   useEffect(() => {
     const refresh = () => {
