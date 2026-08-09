@@ -67,6 +67,10 @@ import {
   translateSupabaseError,
 } from './supabase';
 
+// تعريف المتغيرات المستقلة للـ My Store Cache
+let _myStoreCache: { store: Store | null; timestamp: number } | null = null;
+const MY_STORE_CACHE_TTL: number = 30000;
+
 const lastLocationUpdateMap = new Map<string, number>();
 
 const STORAGE_KEYS = {
@@ -111,7 +115,9 @@ export function notifyStorageChange(entityType: string, action = 'update', data?
   }
 }
 
-export function subscribeToStorageChange(callback: (detail: { entityType: string; action: string; data?: unknown }) => void) {
+export function subscribeToStorageChange(
+  callback: (detail: { entityType: string; action: string; data?: unknown }) => void
+): () => void {
   if (typeof window === 'undefined') return () => {};
   const handleCustomEvent = (e: Event) => {
     const ce = e as CustomEvent;
@@ -376,7 +382,10 @@ export const StorageRepo = {
     return cached;
   },
 
-  async saveUser(user: UserProfile, options?: { isSelf?: boolean; isAdministrative?: boolean }): Promise<UserProfile> {
+  async saveUser(
+    user: UserProfile,
+    options?: { isSelf?: boolean; isAdministrative?: boolean }
+  ): Promise<UserProfile> {
     const currentUser = this.getCurrentUser();
     const isSelf = options?.isSelf ?? (currentUser?.id === user.id);
     const isAdministrative = options?.isAdministrative ?? (currentUser?.role === 'admin');
@@ -741,7 +750,10 @@ export const StorageRepo = {
     return this.getCachedAgents().find((a) => a.user_id === userId) || null;
   },
 
-  async saveAgent(agent: DeliveryAgent, options?: { isSelf?: boolean; isAdministrative?: boolean; callerRole?: string }): Promise<DeliveryAgent> {
+  async saveAgent(
+    agent: DeliveryAgent,
+    options?: { isSelf?: boolean; isAdministrative?: boolean; callerRole?: string }
+  ): Promise<DeliveryAgent> {
     const currentUser = this.getCurrentUser();
     const isSelf = options?.isSelf ?? (currentUser?.id === agent.user_id);
     const isAdministrative = options?.isAdministrative ?? (currentUser?.role === 'admin' || currentUser?.role === 'delivery_supervisor');
@@ -865,23 +877,20 @@ export const StorageRepo = {
     }
   },
 
-  // --- MY STORE CACHE ---
-  _myStoreCache: { store: Store | null; timestamp: number } | null = null,
-  MY_STORE_CACHE_TTL: number = 30000,
-
+  // --- MY STORE CACHE (معدل للاستخدام المتغيرات المستقلة) ---
   clearMyStoreCache() {
-    this._myStoreCache = null;
+    _myStoreCache = null;
   },
 
   async getMyStore(): Promise<Store | null> {
     const currentUser = this.getCurrentUser();
     if (!currentUser) return null;
-    if (this._myStoreCache && Date.now() - this._myStoreCache.timestamp < this.MY_STORE_CACHE_TTL) {
-      return this._myStoreCache.store;
+    if (_myStoreCache && Date.now() - _myStoreCache.timestamp < MY_STORE_CACHE_TTL) {
+      return _myStoreCache.store;
     }
     try {
       const store = await fetchMyStore();
-      this._myStoreCache = { store, timestamp: Date.now() };
+      _myStoreCache = { store, timestamp: Date.now() };
       return store;
     } catch (err) {
       console.error('Error fetching my store:', err);
