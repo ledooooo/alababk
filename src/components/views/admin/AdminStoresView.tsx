@@ -9,16 +9,87 @@ import { useToast } from '../../shared/Toast';
 import { useConfirm } from '../../shared/ConfirmDialog';
 
 export const AdminStoresView: React.FC = () => {
-  // ... الحالات والدوال ...
+  const [stores, setStores] = useState<Store[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 6;
+  const [editingCommissionStoreId, setEditingCommissionStoreId] = useState<string | null>(null);
+  const [commissionInput, setCommissionInput] = useState(10);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [newStoreName, setNewStoreName] = useState('');
+  const [newStorePhone, setNewStorePhone] = useState('');
+  const [newStoreAddress, setNewStoreAddress] = useState('');
+  const [newStoreCategory, setNewStoreCategory] = useState('بقالة وسوبرماركت');
   const { showToast } = useToast();
   const { showConfirm } = useConfirm();
+
+  useEffect(() => {
+    const refresh = () => {
+      setStores(StorageRepo.getStores());
+    };
+
+    refresh();
+    StorageRepo.refreshStores();
+
+    const unsubscribeStorage = subscribeToStorageChange(() => {
+      refresh();
+    });
+
+    const unsubscribeRealtime = subscribeSupabase<Store>('stores', () => {
+      StorageRepo.refreshStores();
+    });
+
+    return () => {
+      unsubscribeStorage();
+      unsubscribeRealtime();
+    };
+  }, []);
+
+  const filteredStores = stores.filter(
+    (s) =>
+      s.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (s.category_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (s.address || '').toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const totalPages = Math.ceil(filteredStores.length / ITEMS_PER_PAGE);
+  const paginatedStores = filteredStores.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   const toggleStoreStatus = async (s: Store) => {
     try {
       await StorageRepo.saveStore({ ...s, is_open: !s.is_open });
-      showToast({ type: 'success', title: 'تم التحديث', message: `تم تغيير حالة المتجر إلى ${!s.is_open ? 'مفتوح' : 'مغلق'}` });
+      showToast({
+        type: 'success',
+        title: 'تم التحديث',
+        message: `تم تغيير حالة المتجر إلى ${!s.is_open ? 'مفتوح' : 'مغلق'}`,
+      });
     } catch (err: any) {
-      showToast({ type: 'error', title: 'فشل التحديث', message: err.message || 'تعذر تغيير حالة المتجر' });
+      showToast({
+        type: 'error',
+        title: 'فشل التحديث',
+        message: err.message || 'تعذر تغيير حالة المتجر',
+      });
+    }
+  };
+
+  const handleSaveCommission = async (s: Store) => {
+    try {
+      await StorageRepo.saveStore({ ...s, commission_rate: Number(commissionInput) });
+      setEditingCommissionStoreId(null);
+      showToast({
+        type: 'success',
+        title: 'تم التحديث',
+        message: `تم تحديث نسبة العمولة إلى ${commissionInput}%`,
+      });
+    } catch (err: any) {
+      showToast({
+        type: 'error',
+        title: 'فشل التحديث',
+        message: err.message || 'تعذر تحديث نسبة العمولة',
+      });
     }
   };
 
@@ -31,36 +102,32 @@ export const AdminStoresView: React.FC = () => {
       onConfirm: async () => {
         try {
           await StorageRepo.deleteStore(id);
-          showToast({ type: 'success', title: 'تم الحذف', message: 'تم حذف المتجر بنجاح' });
+          showToast({
+            type: 'success',
+            title: 'تم الحذف',
+            message: 'تم حذف المتجر بنجاح',
+          });
         } catch (err: any) {
-          showToast({ type: 'error', title: 'فشل الحذف', message: err.message || 'تعذر حذف المتجر' });
+          showToast({
+            type: 'error',
+            title: 'فشل الحذف',
+            message: err.message || 'تعذر حذف المتجر',
+          });
         }
       },
     });
   };
 
-  const handleSaveCommission = async (s: Store) => {
-    try {
-      await StorageRepo.saveStore({ ...s, commission_rate: Number(commissionInput) });
-      setEditingCommissionStoreId(null);
-    } catch (err: any) {
-      alert(`تعذر تحديث نسبة العمولة: ${err.message || 'خطأ غير معروف'}`);
-    }
-  };
-
-  const handleDeleteStore = async (id: string) => {
-    if (window.confirm('هل أنت تأكد من حذف هذا المتجر نهائياً؟')) {
-      try {
-        await StorageRepo.deleteStore(id);
-      } catch (err: any) {
-        alert(`تعذر حذف المتجر: ${err.message || 'خطأ غير معروف'}`);
-      }
-    }
-  };
-
   const handleCreateStore = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newStoreName.trim()) return;
+    if (!newStoreName.trim()) {
+      showToast({
+        type: 'error',
+        title: 'بيانات ناقصة',
+        message: 'يرجى إدخال اسم المتجر',
+      });
+      return;
+    }
 
     const newStore: Store = {
       id: `store-${Date.now()}`,
@@ -92,8 +159,17 @@ export const AdminStoresView: React.FC = () => {
       setNewStoreName('');
       setNewStorePhone('');
       setNewStoreAddress('');
+      showToast({
+        type: 'success',
+        title: 'تم الإنشاء',
+        message: 'تم إنشاء المتجر بنجاح في قاعدة البيانات',
+      });
     } catch (err: any) {
-      alert(`تعذر إنشاء المتجر: ${err.message || 'خطأ غير معروف'}`);
+      showToast({
+        type: 'error',
+        title: 'فشل الإنشاء',
+        message: err.message || 'تعذر إنشاء المتجر',
+      });
     }
   };
 
@@ -119,7 +195,6 @@ export const AdminStoresView: React.FC = () => {
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs p-4 space-y-4">
-        {/* Search bar */}
         <div className="relative max-w-md">
           <Search className="w-4 h-4 text-slate-400 absolute right-3 top-3" />
           <input
@@ -228,7 +303,7 @@ export const AdminStoresView: React.FC = () => {
 
                     <td className="p-3.5 text-center">
                       <button
-                        onClick={() => handleDeleteStore(s.id)}
+                        onClick={() => handleDeleteStore(s.id, s.name)}
                         className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
                         title="حذف المتجر"
                       >
@@ -252,7 +327,6 @@ export const AdminStoresView: React.FC = () => {
         />
       </div>
 
-      {/* Modal Add Store */}
       {isAddModalOpen && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4 dir-rtl">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 border border-slate-200 shadow-xl">

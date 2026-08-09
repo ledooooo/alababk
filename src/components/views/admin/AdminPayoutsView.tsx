@@ -8,25 +8,74 @@ import { useToast } from '../../shared/Toast';
 import { useConfirm } from '../../shared/ConfirmDialog';
 
 export const AdminPayoutsView: React.FC = () => {
-  // ... الحالات والدوال كما هي ...
+  const [payouts, setPayouts] = useState<Payout[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [filterType, setFilterType] = useState<'all' | 'store' | 'agent'>('all');
+  const [message, setMessage] = useState<string | null>(null);
+  const [submittingId, setSubmittingId] = useState<string | null>(null);
   const { showToast } = useToast();
   const { showConfirm } = useConfirm();
 
-  const handleUpdateStatus = async (payoutId: string, newStatus: 'completed' | 'failed') => {
-    try {
-      await StorageRepo.updatePayoutStatus(payoutId, newStatus);
-      showToast({
-        type: 'success',
-        title: 'تم التحديث',
-        message: `تم تحديث حالة التسوية إلى (${newStatus === 'completed' ? 'تمت التسوية بنجاح' : 'تعذرت التسوية'})`,
-      });
-    } catch (err: any) {
-      showToast({
-        type: 'error',
-        title: 'فشل التحديث',
-        message: err.message || 'تعذر تحديث التسوية',
-      });
-    }
+  const loadPayouts = async () => {
+    setLoading(true);
+    await StorageRepo.refreshPayouts();
+    setPayouts(StorageRepo.getPayouts());
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    const sync = () => {
+      setPayouts(StorageRepo.getPayouts());
+    };
+
+    sync();
+    StorageRepo.refreshPayouts().then(() => setLoading(false));
+
+    const unsubStorage = subscribeToStorageChange(() => {
+      sync();
+    });
+
+    const unsubRealtime = subscribeSupabase<Payout>('payouts', () => {
+      StorageRepo.refreshPayouts();
+    });
+
+    return () => {
+      unsubStorage();
+      unsubRealtime();
+    };
+  }, []);
+
+  const handleUpdateStatus = (payoutId: string, newStatus: 'completed' | 'failed', amount: number, recipientName: string) => {
+    const statusLabel = newStatus === 'completed' ? 'تأكيد التسوية' : 'رفض التسوية';
+    const confirmMessage = newStatus === 'completed'
+      ? `هل أنت متأكد من تأكيد تحويل مبلغ ${formatCurrency(amount)} للمستفيد "${recipientName}"؟`
+      : `هل أنت متأكد من رفض تحويل مبلغ ${formatCurrency(amount)} للمستفيد "${recipientName}"؟`;
+
+    showConfirm({
+      title: statusLabel,
+      message: confirmMessage,
+      variant: newStatus === 'completed' ? 'info' : 'danger',
+      confirmLabel: statusLabel,
+      onConfirm: async () => {
+        try {
+          setSubmittingId(payoutId);
+          await StorageRepo.updatePayoutStatus(payoutId, newStatus);
+          showToast({
+            type: 'success',
+            title: 'تم التحديث',
+            message: `تم تحديث حالة التسوية إلى (${newStatus === 'completed' ? 'تمت التسوية بنجاح' : 'تعذرت التسوية'})`,
+          });
+        } catch (err: any) {
+          showToast({
+            type: 'error',
+            title: 'فشل التحديث',
+            message: err.message || 'تعذر تحديث التسوية',
+          });
+        } finally {
+          setSubmittingId(null);
+        }
+      },
+    });
   };
 
   const filtered = payouts.filter((p) => {
@@ -177,14 +226,16 @@ export const AdminPayoutsView: React.FC = () => {
                     {p.status === 'pending' && (
                       <div className="flex items-center justify-center gap-1.5">
                         <button
-                          onClick={() => handleUpdateStatus(p.id, 'completed')}
-                          className="px-2.5 py-1 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-[11px] font-bold transition-colors"
+                          onClick={() => handleUpdateStatus(p.id, 'completed', p.amount, p.recipient_name || '')}
+                          disabled={submittingId === p.id}
+                          className="px-2.5 py-1 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-[11px] font-bold transition-colors disabled:opacity-50"
                         >
                           تأكيد التحويل
                         </button>
                         <button
-                          onClick={() => handleUpdateStatus(p.id, 'failed')}
-                          className="px-2.5 py-1 bg-rose-100 text-rose-700 hover:bg-rose-200 rounded-lg text-[11px] font-bold transition-colors"
+                          onClick={() => handleUpdateStatus(p.id, 'failed', p.amount, p.recipient_name || '')}
+                          disabled={submittingId === p.id}
+                          className="px-2.5 py-1 bg-rose-100 text-rose-700 hover:bg-rose-200 rounded-lg text-[11px] font-bold transition-colors disabled:opacity-50"
                         >
                           إلغاء
                         </button>

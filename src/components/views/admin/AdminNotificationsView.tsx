@@ -3,6 +3,7 @@ import { fetchSupabaseNotifications, createSupabaseNotification } from '../../..
 import { NotificationItem } from '../../../types/domain';
 import { formatDate } from '../../../lib/formatters';
 import { Bell, Send, CheckCircle2, RefreshCw, Smartphone, Tag, ShoppingBag } from 'lucide-react';
+import { useToast } from '../../shared/Toast';
 
 export const AdminNotificationsView: React.FC = () => {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -10,37 +11,45 @@ export const AdminNotificationsView: React.FC = () => {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [type, setType] = useState<'system' | 'promotion' | 'order_status'>('promotion');
-  const [message, setMessage] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   const loadNotifications = async () => {
     setLoading(true);
-    // Fetch notifications for all or demo user
-    const data = await fetchSupabaseNotifications('usr-customer-1');
-    if (data.length > 0) {
-      setNotifications(data);
-    } else {
-      setNotifications([
-        {
-          id: 'notif-1',
-          user_id: 'usr-customer-1',
-          title: 'عرض خاص بمناسبة إطلاق منصة علي بابك! 🎉',
-          message: 'احصل على خصم 20% على أول طلب لك باستخدام الكوبون ALABABAK10.',
-          type: 'promotion',
-          is_read: false,
-          created_at: new Date().toISOString(),
-        },
-        {
-          id: 'notif-2',
-          user_id: 'usr-customer-1',
-          title: 'تم توصيل طلبك بنجاح 🛵',
-          message: 'تم تسليم الطلب #ORD-20260129-0001 بنجاح بواسطة الكابتن محمود طارق.',
-          type: 'order_status',
-          is_read: true,
-          created_at: new Date(Date.now() - 3600 * 1000).toISOString(),
-        },
-      ]);
+    try {
+      const data = await fetchSupabaseNotifications('usr-customer-1');
+      if (data.length > 0) {
+        setNotifications(data);
+      } else {
+        setNotifications([
+          {
+            id: 'notif-1',
+            user_id: 'usr-customer-1',
+            title: 'عرض خاص بمناسبة إطلاق منصة علي بابك! 🎉',
+            message: 'احصل على خصم 20% على أول طلب لك باستخدام الكوبون ALABABAK10.',
+            type: 'promotion',
+            is_read: false,
+            created_at: new Date().toISOString(),
+          },
+          {
+            id: 'notif-2',
+            user_id: 'usr-customer-1',
+            title: 'تم توصيل طلبك بنجاح 🛵',
+            message: 'تم تسليم الطلب #ORD-20260129-0001 بنجاح بواسطة الكابتن محمود طارق.',
+            type: 'order_status',
+            is_read: true,
+            created_at: new Date(Date.now() - 3600 * 1000).toISOString(),
+          },
+        ]);
+      }
+    } catch (err: any) {
+      showToast({
+        type: 'error',
+        title: 'فشل التحميل',
+        message: err.message || 'تعذر تحميل الإشعارات',
+      });
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -49,7 +58,14 @@ export const AdminNotificationsView: React.FC = () => {
 
   const handleSendBroadcast = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !body.trim()) return;
+    if (!title.trim() || !body.trim()) {
+      showToast({
+        type: 'error',
+        title: 'بيانات ناقصة',
+        message: 'يرجى إدخال عنوان ونص الإشعار',
+      });
+      return;
+    }
 
     try {
       await createSupabaseNotification({
@@ -60,6 +76,12 @@ export const AdminNotificationsView: React.FC = () => {
       });
     } catch (err: any) {
       console.error('Error sending notification via RPC:', err);
+      showToast({
+        type: 'error',
+        title: 'فشل الإرسال',
+        message: err.message || 'تعذر إرسال الإشعار',
+      });
+      return;
     }
 
     const newNotif: NotificationItem = {
@@ -76,8 +98,11 @@ export const AdminNotificationsView: React.FC = () => {
     setNotifications([newNotif, ...notifications]);
     setTitle('');
     setBody('');
-    setMessage('تم بث الإشعار بنجاح لجميع مستخدمي المنصة وتخزينه في جدول Supabase Notifications!');
-    setTimeout(() => setMessage(null), 3000);
+    showToast({
+      type: 'success',
+      title: 'تم الإرسال',
+      message: 'تم بث الإشعار بنجاح لجميع مستخدمي المنصة وتخزينه في جدول Supabase Notifications!',
+    });
   };
 
   return (
@@ -103,13 +128,6 @@ export const AdminNotificationsView: React.FC = () => {
           <span>تحديث الإشعارات</span>
         </button>
       </div>
-
-      {message && (
-        <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl text-xs font-bold flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-          <span>{message}</span>
-        </div>
-      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Broadcast Form */}
