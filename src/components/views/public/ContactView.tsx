@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { PhoneCall, Mail, MapPin, Send, MessageSquare, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
+import { useToast } from '../../shared/Toast';
 
 interface ContactViewProps {
   onNavigate: (tab: string, param?: string) => void;
@@ -14,13 +15,16 @@ export const ContactView: React.FC<ContactViewProps> = ({ onNavigate }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [isSent, setIsSent] = useState(false);
+  const { showToast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitError('');
 
     if (!name.trim() || !message.trim()) {
-      setSubmitError('يرجى ملء الاسم والرسالة');
+      const msg = 'يرجى ملء الاسم والرسالة';
+      setSubmitError(msg);
+      showToast({ type: 'error', title: 'بيانات ناقصة', message: msg });
       return;
     }
 
@@ -31,13 +35,15 @@ export const ContactView: React.FC<ContactViewProps> = ({ onNavigate }) => {
         phone: phone.trim() || null,
         subject: subject || null,
         message: message.trim(),
-        // user_id سيُضبط تلقائياً حسب RLS إن كان المستخدم مسجلاً
       });
 
       if (error) throw error;
       setIsSent(true);
+      showToast({ type: 'success', title: 'تم الإرسال', message: 'تم إرسال رسالتك بنجاح' });
     } catch (err: any) {
-      setSubmitError(err.message || 'فشل إرسال الرسالة، يرجى المحاولة لاحقاً');
+      const msg = err.message || 'فشل إرسال الرسالة، يرجى المحاولة لاحقاً';
+      setSubmitError(msg);
+      showToast({ type: 'error', title: 'فشل الإرسال', message: msg });
     } finally {
       setIsSubmitting(false);
     }
@@ -139,7 +145,6 @@ export const ContactView: React.FC<ContactViewProps> = ({ onNavigate }) => {
                     className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-purple-500 outline-none disabled:opacity-50"
                   />
                 </div>
-
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">رقم الهاتف</label>
                   <input

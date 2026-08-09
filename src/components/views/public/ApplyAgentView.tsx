@@ -1,9 +1,8 @@
-importimport React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StorageRepo } from '../../../lib/storage';
 import { Bike, ShieldCheck, CheckCircle2, Sparkles, User, FileText, Phone, AlertCircle, Loader2 } from 'lucide-react';
 import { DeliveryAgent } from '../../../types/domain';
 import { useToast } from '../../shared/Toast';
-
 
 interface ApplyAgentViewProps {
   onNavigate: (tab: string, param?: string) => void;
@@ -20,20 +19,67 @@ export const ApplyAgentView: React.FC<ApplyAgentViewProps> = ({ onNavigate }) =>
   const [submitError, setSubmitError] = useState('');
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [applicationId, setApplicationId] = useState('');
+  const { showToast } = useToast();
 
   const currentUser = StorageRepo.getCurrentUser();
-  const { showToast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // ... التحقق ...
+    setSubmitError('');
+
+    if (!currentUser) {
+      sessionStorage.setItem('applyAgentReturn', 'true');
+      onNavigate('auth');
+      return;
+    }
+
+    if (!fullName.trim() || !phone.trim() || !nationalId.trim()) {
+      const msg = 'جميع الحقول المطلوبة يجب أن تُملأ (الاسم، الهاتف، الرقم القومي)';
+      setSubmitError(msg);
+      showToast({ type: 'error', title: 'بيانات ناقصة', message: msg });
+      return;
+    }
+
+    const cleanPhone = phone.replace(/\D/g, '');
+    if (cleanPhone.length !== 11) {
+      const msg = 'رقم الهاتف يجب أن يتكون من 11 رقماً';
+      setSubmitError(msg);
+      showToast({ type: 'error', title: 'رقم هاتف غير صحيح', message: msg });
+      return;
+    }
+
+    if (nationalId.replace(/\D/g, '').length !== 14) {
+      const msg = 'الرقم القومي يجب أن يتكون من 14 رقماً';
+      setSubmitError(msg);
+      showToast({ type: 'error', title: 'رقم قومي غير صحيح', message: msg });
+      return;
+    }
+
+    const newAgent: Partial<DeliveryAgent> = {
+      user_id: currentUser.id,
+      name: fullName.trim(),
+      phone: cleanPhone,
+      vehicle_type: vehicleType,
+      national_id: nationalId.trim(),
+      license_plate: licenseNumber.trim() || undefined,
+      active_zone: city.trim(),
+      is_approved: false,
+      is_active: false,
+      is_online: false,
+    };
+
+    setIsSubmitting(true);
     try {
       const saved = await StorageRepo.saveAgent(newAgent, { isSelf: true });
       setApplicationId(saved.id.slice(0, 8).toUpperCase());
       setIsSubmitted(true);
-      showToast({ type: 'success', title: 'تم', message: 'تم تقديم طلب الانضمام بنجاح' });
+      showToast({ type: 'success', title: 'تم التقديم', message: 'تم تقديم طلب الانضمام بنجاح' });
     } catch (err: any) {
-      showToast({ type: 'error', title: 'فشل التقديم', message: err.message || 'فشل تقديم الطلب' });
+      const msg = err.message || 'فشل تقديم الطلب، يرجى المحاولة لاحقاً';
+      setSubmitError(msg);
+      showToast({ type: 'error', title: 'فشل التقديم', message: msg });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -49,21 +95,18 @@ export const ApplyAgentView: React.FC<ApplyAgentViewProps> = ({ onNavigate }) =>
         <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
           <CheckCircle2 className="w-10 h-10" />
         </div>
-
         <div className="space-y-2">
           <h2 className="text-2xl font-black text-slate-900">أهلاً بك في فريق كباتن على بابك!</h2>
           <p className="text-xs text-slate-600 leading-relaxed">
             تم استلام طلبك ومستنداتك بنجاح. يتم الآن مراجعة صحة البيانات من قِبل إدارة عمليات التوصيل.
           </p>
         </div>
-
         <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 text-xs text-right space-y-2 font-bold text-slate-700">
           <p>رقم الطلب المرجعي: <span className="font-mono text-slate-900">{applicationId}</span></p>
           <p>اسم الكابتن: <span className="text-slate-900">{fullName}</span></p>
           <p>نوع المركبة: <span className="text-emerald-700">{vehicleType === 'motorcycle' ? 'موتوسيكل' : vehicleType === 'bicycle' ? 'دراجة هوائية' : vehicleType === 'car' ? 'سيارة' : 'مشياً'}</span></p>
           <p className="text-[10px] text-amber-600 font-normal">سيتم التواصل معك لإجراء المقابلة وتفعيل تطبيق الكابتن فور اكتمال الفحص.</p>
         </div>
-
         <button
           onClick={() => onNavigate('landing')}
           className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs shadow-xs"
@@ -112,7 +155,6 @@ export const ApplyAgentView: React.FC<ApplyAgentViewProps> = ({ onNavigate }) =>
               className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-emerald-500 outline-none"
             />
           </div>
-
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">رقم الهاتف (واتساب نشط) *</label>
             <input
@@ -140,7 +182,6 @@ export const ApplyAgentView: React.FC<ApplyAgentViewProps> = ({ onNavigate }) =>
               <option value="walking">مشياً على الأقدام 🚶‍♂️</option>
             </select>
           </div>
-
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">المنطقة والمحافظة الرئيسية *</label>
             <input
@@ -167,7 +208,6 @@ export const ApplyAgentView: React.FC<ApplyAgentViewProps> = ({ onNavigate }) =>
               className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono focus:ring-2 focus:ring-emerald-500 outline-none"
             />
           </div>
-
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">رقم رخصة القيادة / اللوحة</label>
             <input

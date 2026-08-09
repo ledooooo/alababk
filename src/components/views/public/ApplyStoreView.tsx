@@ -4,6 +4,7 @@ import { fetchSupabaseCategories } from '../../../lib/supabase';
 import { Store, Category } from '../../../types/domain';
 import { StoreIcon, Building2, CheckCircle2, Phone, MapPin, Sparkles, Loader2, AlertCircle } from 'lucide-react';
 import { useToast } from '../../shared/Toast';
+
 interface ApplyStoreViewProps {
   onNavigate: (tab: string, param?: string) => void;
 }
@@ -22,6 +23,7 @@ export const ApplyStoreView: React.FC<ApplyStoreViewProps> = ({ onNavigate }) =>
   const [submitError, setSubmitError] = useState('');
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [applicationId, setApplicationId] = useState('');
+  const { showToast } = useToast();
 
   const currentUser = StorageRepo.getCurrentUser();
 
@@ -35,20 +37,58 @@ export const ApplyStoreView: React.FC<ApplyStoreViewProps> = ({ onNavigate }) =>
       .finally(() => setLoadingCategories(false));
   }, []);
 
-  const { showToast } = useToast();
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // ... التحقق ...
+    setSubmitError('');
+
+    if (!currentUser) {
+      sessionStorage.setItem('applyStoreReturn', 'true');
+      onNavigate('auth');
+      return;
+    }
+
+    if (!storeName.trim() || !phone.trim() || !categoryId || !address.trim()) {
+      const msg = 'يرجى ملء جميع الحقول المطلوبة (اسم المتجر، الهاتف، التصنيف، العنوان)';
+      setSubmitError(msg);
+      showToast({ type: 'error', title: 'بيانات ناقصة', message: msg });
+      return;
+    }
+
+    const existingStore = await StorageRepo.getMyStore();
+    if (existingStore) {
+      const msg = 'لديك بالفعل متجر مسجل (حتى لو قيد المراجعة). يمكنك تعديله من لوحة التحكم.';
+      setSubmitError(msg);
+      showToast({ type: 'error', title: 'متجر موجود مسبقاً', message: msg });
+      return;
+    }
+
+    const newStore: Partial<Store> = {
+      name: storeName.trim(),
+      slug: storeName.trim().toLowerCase().replace(/\s+/g, '-') + '-' + Date.now().toString(36),
+      owner_id: currentUser.id,
+      category_id: categoryId,
+      description: description.trim() || 'طلب انضمام متجر جديد',
+      phone: phone.trim(),
+      address: `${city.trim()} - ${address.trim()}`,
+      is_active: false,
+      is_approved: false,
+    };
+
+    setIsSubmitting(true);
     try {
       const saved = await StorageRepo.saveStore(newStore, { isSelf: true });
       setApplicationId(saved.id.slice(0, 8).toUpperCase());
       setIsSubmitted(true);
-      showToast({ type: 'success', title: 'تم', message: 'تم تقديم طلب انضمام المتجر بنجاح' });
+      showToast({ type: 'success', title: 'تم التقديم', message: 'تم تقديم طلب انضمام المتجر بنجاح' });
     } catch (err: any) {
-      showToast({ type: 'error', title: 'فشل التقديم', message: err.message || 'فشل تقديم الطلب' });
+      const msg = err.message || 'فشل تقديم الطلب، يرجى المحاولة لاحقاً';
+      setSubmitError(msg);
+      showToast({ type: 'error', title: 'فشل التقديم', message: msg });
+    } finally {
+      setIsSubmitting(false);
     }
   };
+
   useEffect(() => {
     if (currentUser && sessionStorage.getItem('applyStoreReturn')) {
       sessionStorage.removeItem('applyStoreReturn');
@@ -61,21 +101,18 @@ export const ApplyStoreView: React.FC<ApplyStoreViewProps> = ({ onNavigate }) =>
         <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
           <CheckCircle2 className="w-10 h-10" />
         </div>
-
         <div className="space-y-2">
           <h2 className="text-2xl font-black text-slate-900">تم استلام طلبك بنجاح!</h2>
           <p className="text-xs text-slate-600 leading-relaxed">
             شكراً لانضمامك لمنصة "على بابك". طلبك حالياً قيد المراجعة والتدقيق من قِبل إدارة المنصة.
           </p>
         </div>
-
         <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 text-xs text-right space-y-2 font-bold text-slate-700">
           <p className="text-purple-700">رقم المرجعية: <span className="font-mono text-slate-900">{applicationId}</span></p>
           <p>اسم المتجر: <span className="text-slate-900">{storeName}</span></p>
           <p>رقم التواصل: <span className="text-slate-900 font-mono">{phone}</span></p>
           <p className="text-[10px] text-amber-600 font-normal">سيتم التواصل معك هاتفياً أو عبر الواتساب فور الموافقة لتفعيل لوحة تحكم متجرك.</p>
         </div>
-
         <button
           onClick={() => onNavigate('landing')}
           className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-bold text-xs shadow-xs"
@@ -124,7 +161,6 @@ export const ApplyStoreView: React.FC<ApplyStoreViewProps> = ({ onNavigate }) =>
               className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-purple-500 outline-none"
             />
           </div>
-
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">اسم صاحب المتجر / المدير *</label>
             <input
@@ -150,7 +186,6 @@ export const ApplyStoreView: React.FC<ApplyStoreViewProps> = ({ onNavigate }) =>
               className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-purple-500 outline-none"
             />
           </div>
-
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">القسم الرئيسي للمحل *</label>
             <select
@@ -182,7 +217,6 @@ export const ApplyStoreView: React.FC<ApplyStoreViewProps> = ({ onNavigate }) =>
               className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-purple-500 outline-none"
             />
           </div>
-
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">العنوان التفصيلي *</label>
             <input

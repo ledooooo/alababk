@@ -16,6 +16,7 @@ import {
   LogIn,
   Loader2
 } from 'lucide-react';
+import { useToast } from '../../shared/Toast';
 
 interface AuthViewProps {
   initialMode?: 'login' | 'register';
@@ -40,6 +41,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
+  const { showToast } = useToast();
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
@@ -82,11 +84,15 @@ export const AuthView: React.FC<AuthViewProps> = ({
 
     const rawInput = phone.trim();
     if (!rawInput) {
-      setError('يرجى إدخال رقم الهاتف الجوال أو البريد الإلكتروني.');
+      const msg = 'يرجى إدخال رقم الهاتف الجوال أو البريد الإلكتروني.';
+      setError(msg);
+      showToast({ type: 'error', title: 'بيانات ناقصة', message: msg });
       return;
     }
     if (!password) {
-      setError('يرجى إدخال كلمة المرور.');
+      const msg = 'يرجى إدخال كلمة المرور.';
+      setError(msg);
+      showToast({ type: 'error', title: 'بيانات ناقصة', message: msg });
       return;
     }
 
@@ -98,32 +104,32 @@ export const AuthView: React.FC<AuthViewProps> = ({
 
       if (isEmailInput) {
         if (!isValidEmailFormat(rawInput)) {
-          setError('صيغة البريد الإلكتروني غير صحيحة (مثال: name@example.com)');
+          const msg = 'صيغة البريد الإلكتروني غير صحيحة (مثال: name@example.com)';
+          setError(msg);
+          showToast({ type: 'error', title: 'بريد غير صحيح', message: msg });
           setLoading(false);
           return;
         }
         emailForLogin = rawInput.toLowerCase();
       } else {
-        // رقم هاتف: نستخدم الدالة الآمنة التي لا تعيد البريد للمتصفح
         const cleanPhone = normalizeDigits(rawInput).replace(/\D/g, '');
         if (cleanPhone.length !== 11) {
-          setError('رقم الهاتف يجب أن يتكون من 11 رقماً (مثال: 01012345678)');
+          const msg = 'رقم الهاتف يجب أن يتكون من 11 رقماً (مثال: 01012345678)';
+          setError(msg);
+          showToast({ type: 'error', title: 'رقم غير صحيح', message: msg });
           setLoading(false);
           return;
         }
 
-        // التحقق من صحة كلمة المرور مع الرقم عبر RPC آمن
         const { userId, error: verifyError } = await verifyPhonePassword(cleanPhone, password);
         if (verifyError || !userId) {
-          // رسالة موحدة لا تميّز بين رقم غير مسجل أو كلمة مرور خاطئة
-          setError('بيانات الدخول غير صحيحة، يرجى التأكد من رقم الهاتف وكلمة المرور.');
+          const msg = 'بيانات الدخول غير صحيحة، يرجى التأكد من رقم الهاتف وكلمة المرور.';
+          setError(msg);
+          showToast({ type: 'error', title: 'فشل تسجيل الدخول', message: msg });
           setLoading(false);
           return;
         }
 
-        // بعد التحقق الناجح، نحتاج إلى تسجيل الدخول باستخدام البريد الإلكتروني المرتبط بالحساب
-        // لكننا لا نعرفه هنا، لذا نستخدم طريقة مختلفة: نطلب من supabase تسجيل الدخول باستخدام البريد الإلكتروني المسترجع من قاعدة البيانات
-        // للأسف، لا يمكننا تسجيل الدخول بدون البريد، ولكن لدينا userId، لذا يمكننا الحصول على البريد من جدول profiles
         const { data: profile } = await supabase
           .from('profiles')
           .select('email')
@@ -131,7 +137,9 @@ export const AuthView: React.FC<AuthViewProps> = ({
           .single();
 
         if (!profile?.email) {
-          setError('تعذر العثور على البريد الإلكتروني للحساب، يرجى التواصل مع الدعم.');
+          const msg = 'تعذر العثور على البريد الإلكتروني للحساب، يرجى التواصل مع الدعم.';
+          setError(msg);
+          showToast({ type: 'error', title: 'خطأ', message: msg });
           setLoading(false);
           return;
         }
@@ -139,19 +147,19 @@ export const AuthView: React.FC<AuthViewProps> = ({
         emailForLogin = profile.email;
       }
 
-      // الآن نقوم بتسجيل الدخول باستخدام البريد وكلمة المرور
       const { data, error: authError } = await supabase.auth.signInWithPassword({
         email: emailForLogin,
         password,
       });
 
       if (authError || !data.user) {
-        setError(translateAuthError(authError?.message || 'فشل تسجيل الدخول'));
+        const msg = translateAuthError(authError?.message || 'فشل تسجيل الدخول');
+        setError(msg);
+        showToast({ type: 'error', title: 'فشل تسجيل الدخول', message: msg });
         setLoading(false);
         return;
       }
 
-      // باقي الكود كما هو لجلب الملف الشخصي
       const { data: profile } = await supabase
         .from('profiles')
         .select('*')
@@ -160,7 +168,9 @@ export const AuthView: React.FC<AuthViewProps> = ({
 
       const rawRole = profile?.role;
       if (rawRole && !(USER_ROLES as readonly string[]).includes(rawRole)) {
-        setError('صلاحية غير معروفة، تواصل مع الدعم');
+        const msg = 'صلاحية غير معروفة، تواصل مع الدعم';
+        setError(msg);
+        showToast({ type: 'error', title: 'خطأ', message: msg });
         setLoading(false);
         return;
       }
@@ -179,13 +189,17 @@ export const AuthView: React.FC<AuthViewProps> = ({
       };
 
       StorageRepo.setCurrentUser(userProfile);
-      setSuccessMsg(`أهلاً بك مجدداً يا ${userProfile.name}! جاري تحويلك...`);
+      const msg = `أهلاً بك مجدداً يا ${userProfile.name}! جاري تحويلك...`;
+      setSuccessMsg(msg);
+      showToast({ type: 'success', title: 'مرحباً', message: msg });
 
       setTimeout(() => {
         onSuccess(userProfile);
       }, 600);
     } catch (err: any) {
-      setError(`حدث خطأ غير متوقع: ${err?.message || String(err)}`);
+      const msg = `حدث خطأ غير متوقع: ${err?.message || String(err)}`;
+      setError(msg);
+      showToast({ type: 'error', title: 'خطأ', message: msg });
     } finally {
       setLoading(false);
     }
@@ -200,23 +214,33 @@ export const AuthView: React.FC<AuthViewProps> = ({
     const cleanPhone = normalizeDigits(phone).replace(/\D/g, '');
 
     if (!name.trim()) {
-      setError('يرجى كتابة الاسم بالكامل');
+      const msg = 'يرجى كتابة الاسم بالكامل';
+      setError(msg);
+      showToast({ type: 'error', title: 'بيانات ناقصة', message: msg });
       return;
     }
     if (!cleanPhone || cleanPhone.length !== 11) {
-      setError('رقم الهاتف يجب أن يتكون من 11 رقماً بالضبط (مثال: 01012345678)');
+      const msg = 'رقم الهاتف يجب أن يتكون من 11 رقماً بالضبط (مثال: 01012345678)';
+      setError(msg);
+      showToast({ type: 'error', title: 'رقم غير صحيح', message: msg });
       return;
     }
     if (!email.trim() || !isValidEmailFormat(email)) {
-      setError('يرجى كتابة البريد الإلكتروني بالشكل الصحيح (مثال: name@example.com)');
+      const msg = 'يرجى كتابة البريد الإلكتروني بالشكل الصحيح (مثال: name@example.com)';
+      setError(msg);
+      showToast({ type: 'error', title: 'بريد غير صحيح', message: msg });
       return;
     }
     if (password.length < 6) {
-      setError('كلمة المرور يجب أن لا تقل عن 6 أحرف أو أرقام');
+      const msg = 'كلمة المرور يجب أن لا تقل عن 6 أحرف أو أرقام';
+      setError(msg);
+      showToast({ type: 'error', title: 'كلمة مرور ضعيفة', message: msg });
       return;
     }
     if (password !== confirmPassword) {
-      setError('كلمتا المرور غير متطابقتين');
+      const msg = 'كلمتا المرور غير متطابقتين';
+      setError(msg);
+      showToast({ type: 'error', title: 'خطأ', message: msg });
       return;
     }
 
@@ -235,13 +259,17 @@ export const AuthView: React.FC<AuthViewProps> = ({
       });
 
       if (signUpError) {
-        setError(translateAuthError(signUpError.message));
+        const msg = translateAuthError(signUpError.message);
+        setError(msg);
+        showToast({ type: 'error', title: 'فشل إنشاء الحساب', message: msg });
         setLoading(false);
         return;
       }
 
       if (!data.user) {
-        setError('تعذر إنشاء الحساب، يرجى المحاولة مرة أخرى.');
+        const msg = 'تعذر إنشاء الحساب، يرجى المحاولة مرة أخرى.';
+        setError(msg);
+        showToast({ type: 'error', title: 'خطأ', message: msg });
         setLoading(false);
         return;
       }
@@ -256,23 +284,25 @@ export const AuthView: React.FC<AuthViewProps> = ({
       };
 
       StorageRepo.setCurrentUser(newUser);
-      setSuccessMsg('تم إنشاء حسابك بنجاح! جاري تحويلك إلى واجهة التطبيق...');
+      const msg = 'تم إنشاء حسابك بنجاح! جاري تحويلك إلى واجهة التطبيق...';
+      setSuccessMsg(msg);
+      showToast({ type: 'success', title: 'مرحباً', message: msg });
 
       setTimeout(() => {
         onSuccess(newUser);
       }, 800);
     } catch (err: any) {
-      setError(`حدث خطأ أثناء إنشاء الحساب: ${err?.message || String(err)}`);
+      const msg = `حدث خطأ أثناء إنشاء الحساب: ${err?.message || String(err)}`;
+      setError(msg);
+      showToast({ type: 'error', title: 'خطأ', message: msg });
     } finally {
       setLoading(false);
     }
   };
 
-  // باقي JSX كما هو مع تغيير رسالة نسيت كلمة المرور لفتح المودال
   return (
     <div className="max-w-md mx-auto my-6 p-4 sm:p-6 dir-rtl">
       <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xl overflow-hidden p-6 sm:p-8 space-y-6">
-        {/* Header Branding */}
         <div className="text-center space-y-2">
           <div className="w-16 h-16 rounded-2xl bg-emerald-600 text-white font-black text-2xl flex items-center justify-center mx-auto shadow-md shadow-emerald-600/20">
             على بابك
@@ -287,7 +317,6 @@ export const AuthView: React.FC<AuthViewProps> = ({
           </p>
         </div>
 
-        {/* Tab Selector */}
         <div className="flex bg-slate-100 p-1 rounded-2xl">
           <button
             type="button"
@@ -314,7 +343,6 @@ export const AuthView: React.FC<AuthViewProps> = ({
           </button>
         </div>
 
-        {/* Alerts */}
         {error && (
           <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-2 text-rose-700 text-xs font-bold animate-in fade-in">
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
@@ -330,7 +358,6 @@ export const AuthView: React.FC<AuthViewProps> = ({
         )}
 
         {mode === 'register' ? (
-          // نموذج التسجيل (بدون تغيير)
           <form onSubmit={handleRegister} className="space-y-4">
             <div className="p-3.5 bg-emerald-50/60 border border-emerald-100 rounded-2xl text-[11px] text-emerald-950 leading-relaxed font-medium">
               💡 <span className="font-bold text-emerald-900">تنويه هام:</span> يتم تسجيل جميع الحسابات الجديدة كحسابات عملاء تلقائياً. إذا كنت ترغب بالانضمام كصاحب متجر أو كابتن توصيل، يمكنك تقديم طلب بعد التسجيل عبر خيار "انضم كمتجر" أو "انضم ككابتن".
@@ -452,7 +479,6 @@ export const AuthView: React.FC<AuthViewProps> = ({
             </button>
           </form>
         ) : (
-          // نموذج تسجيل الدخول
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <div className="flex items-center justify-between mb-1">
