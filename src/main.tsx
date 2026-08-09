@@ -47,6 +47,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 }
 
+// Prefetch auth session
 supabase.auth.getSession().catch((err) => {
   console.warn('Initial auth getSession notice:', err);
 });

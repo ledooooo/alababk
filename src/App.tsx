@@ -10,6 +10,7 @@ import { CartDrawer } from './components/cart/CartDrawer';
 import { PushNotificationToast } from './components/shared/PushNotificationToast';
 import { PwaInstallPrompt } from './components/pwa/PwaInstallPrompt';
 import { useCartStore } from './stores/cart-store';
+import { useToast } from './components/shared/Toast';
 
 // ===== Lazy Imports for All Views =====
 // Customer Views
@@ -194,6 +195,7 @@ export default function App() {
   const [showResetModal, setShowResetModal] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
   const { isOpen, setIsOpen } = useCartStore();
+  const { showToast } = useToast();
 
   // Session sync
   useEffect(() => {
@@ -369,6 +371,11 @@ export default function App() {
               email={resetEmail}
               onClose={() => setShowResetModal(false)}
               onSuccess={() => {
+                showToast({
+                  type: 'success',
+                  title: 'تم التحديث',
+                  message: 'تم تحديث كلمة المرور بنجاح!',
+                });
                 setShowResetModal(false);
               }}
             />
