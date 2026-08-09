@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { StorageRepo } from '../../../lib/storage';
-import { Store as StoreIcon, Building2, CheckCircle2, Phone, MapPin, Sparkles, Loader2, AlertCircle } from 'lucide-react';
-import { Store } from '../../../types/domain';
+import React, { useState, useEffect } from 'react';
+import { StorageRepo, saveSupabaseStore } from '../../../lib/storage';
+import { fetchSupabaseCategories } from '../../../lib/supabase';
+import { Store, Category } from '../../../types/domain';
+import { StoreIcon, Building2, CheckCircle2, Phone, MapPin, Sparkles, Loader2, AlertCircle } from 'lucide-react';
 
 interface ApplyStoreViewProps {
   onNavigate: (tab: string, param?: string) => void;
@@ -11,59 +12,86 @@ export const ApplyStoreView: React.FC<ApplyStoreViewProps> = ({ onNavigate }) =>
   const [storeName, setStoreName] = useState('');
   const [ownerName, setOwnerName] = useState('');
   const [phone, setPhone] = useState('');
-  const [categoryName, setCategoryName] = useState('بقالة وسوبرماركت');
+  const [categoryId, setCategoryId] = useState('');
   const [city, setCity] = useState('القاهرة - التجمع الخامس');
   const [address, setAddress] = useState('');
   const [description, setDescription] = useState('');
-  const [isSubmitted, setIsSubmitted] = useState(false);
-  const [applicationId, setApplicationId] = useState('');
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [applicationId, setApplicationId] = useState('');
 
-  const categories = StorageRepo.getCategories();
+  const currentUser = StorageRepo.getCurrentUser();
+
+  useEffect(() => {
+    fetchSupabaseCategories()
+      .then((cats) => {
+        setCategories(cats);
+        if (cats.length > 0) setCategoryId(cats[0].id);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingCategories(false));
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!storeName.trim() || !phone.trim()) return;
-
     setSubmitError('');
-    const newStoreId = `store-app-${Date.now()}`;
-    const newStore: Store = {
-      id: newStoreId,
-      name: storeName,
-      slug: storeName.toLowerCase().replace(/\s+/g, '-'),
-      owner_id: `owner-${Date.now()}`,
-      category_id: 'cat-1',
-      category_name: categoryName,
-      description: description || 'طلب انضمام متجر جديد لمراجعة الإدارة',
-      logo_url: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=300',
-      address: `${city} - ${address}`,
-      lat: 30.0444,
-      lng: 31.2357,
-      phone: phone,
-      is_approved: false, // Under admin review
-      is_open: true,
-      rating: 5.0,
-      reviews_count: 0,
-      commission_rate: 15,
-      min_order_amount: 0,
-      delivery_fee: 15,
-      opening_hours: { everyday: { open: '08:00', close: '23:00' } },
-      created_at: new Date().toISOString(),
+
+    // 1. التحقق من المصادقة
+    if (!currentUser) {
+      sessionStorage.setItem('applyStoreReturn', 'true');
+      onNavigate('auth');
+      return;
+    }
+
+    // 2. التحقق من الحقول
+    if (!storeName.trim() || !phone.trim() || !categoryId || !address.trim()) {
+      setSubmitError('يرجى ملء جميع الحقول المطلوبة (اسم المتجر، الهاتف، التصنيف، العنوان)');
+      return;
+    }
+
+    // 3. التحقق من وجود متجر مسبق لنفس المالك
+    const existingStore = await StorageRepo.getMyStore();
+    if (existingStore) {
+      setSubmitError('لديك بالفعل متجر مسجل (حتى لو قيد المراجعة). يمكنك تعديله من لوحة التحكم.');
+      return;
+    }
+
+    // 4. بناء كائن المتجر (بدون حقول وهمية)
+    const newStore: Partial<Store> = {
+      name: storeName.trim(),
+      slug: storeName.trim().toLowerCase().replace(/\s+/g, '-') + '-' + Date.now().toString(36),
+      owner_id: currentUser.id,
+      category_id: categoryId,
+      description: description.trim() || 'طلب انضمام متجر جديد',
+      phone: phone.trim(),
+      address: `${city.trim()} - ${address.trim()}`,
+      // location نتركه فارغاً (سيُطلب لاحقاً)
+      is_active: false,
+      is_approved: false,
+      commission_rate: 15, // سيتم تجاهله من saveStore لأنه غير مسموح
+      // min_order_amount, delivery_fee إلخ تُترك للافتراضيات
     };
 
+    setIsSubmitting(true);
     try {
-      setIsSubmitting(true);
-      await StorageRepo.saveStore(newStore);
-      setApplicationId(newStoreId.slice(-8).toUpperCase());
+      const saved = await saveSupabaseStore(newStore, { isSelf: true });
+      setApplicationId(saved.id.slice(0, 8).toUpperCase());
       setIsSubmitted(true);
     } catch (err: any) {
-      console.error('Failed to submit store application:', err);
-      setSubmitError(err.message || 'تعذر تقديم الطلب، يرجى المحاولة مرة أخرى.');
+      setSubmitError(err.message || 'فشل تقديم الطلب، يرجى المحاولة لاحقاً');
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  useEffect(() => {
+    if (currentUser && sessionStorage.getItem('applyStoreReturn')) {
+      sessionStorage.removeItem('applyStoreReturn');
+    }
+  }, [currentUser]);
 
   if (isSubmitted) {
     return (
@@ -108,6 +136,20 @@ export const ApplyStoreView: React.FC<ApplyStoreViewProps> = ({ onNavigate }) =>
       </div>
 
       <form onSubmit={handleSubmit} className="bg-white rounded-3xl p-8 border border-slate-200/80 shadow-xs space-y-4">
+        {!currentUser && (
+          <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2 text-amber-800 text-xs font-bold">
+            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>يرجى <button type="button" onClick={() => onNavigate('auth')} className="underline font-extrabold">تسجيل الدخول</button> أولاً لتقديم طلب انضمام المتجر.</span>
+          </div>
+        )}
+
+        {submitError && (
+          <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-rose-800 text-xs font-bold">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>{submitError}</span>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">اسم المتجر / المحل *</label>
@@ -138,11 +180,11 @@ export const ApplyStoreView: React.FC<ApplyStoreViewProps> = ({ onNavigate }) =>
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">رقم الهاتف والتواصل *</label>
             <input
-              type="text"
+              type="tel"
               required
               placeholder="010XXXXXXXX"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 11))}
               className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-purple-500 outline-none"
             />
           </div>
@@ -150,13 +192,18 @@ export const ApplyStoreView: React.FC<ApplyStoreViewProps> = ({ onNavigate }) =>
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">القسم الرئيسي للمحل *</label>
             <select
-              value={categoryName}
-              onChange={(e) => setCategoryName(e.target.value)}
+              value={categoryId}
+              onChange={(e) => setCategoryId(e.target.value)}
+              disabled={loadingCategories}
               className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-purple-500 outline-none"
             >
-              {categories.map((c) => (
-                <option key={c.id} value={c.name}>{c.name}</option>
-              ))}
+              {loadingCategories ? (
+                <option value="">جاري تحميل التصنيفات...</option>
+              ) : (
+                categories.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))
+              )}
             </select>
           </div>
         </div>
@@ -198,27 +245,14 @@ export const ApplyStoreView: React.FC<ApplyStoreViewProps> = ({ onNavigate }) =>
           />
         </div>
 
-        {submitError && (
-          <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-rose-800 text-xs font-bold">
-            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-            <span>{submitError}</span>
-          </div>
-        )}
-
         <div className="pt-2">
           <button
             type="submit"
-            disabled={isSubmitting}
+            disabled={isSubmitting || !currentUser}
             className="w-full py-3.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-black text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
           >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>جاري إرسال الطلب...</span>
-              </>
-            ) : (
-              <span>إرسال طلب الانضمام للمراجعة</span>
-            )}
+            {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+            <span>{isSubmitting ? 'جاري إرسال الطلب...' : 'إرسال طلب الانضمام للمراجعة'}</span>
           </button>
         </div>
       </form>

@@ -286,9 +286,51 @@ export default function App() {
     if (param) {
       if (tab === 'customer-store-detail') setSelectedStoreId(param);
       if (tab === 'customer-order-detail' || tab === 'order-confirmation') setSelectedOrderId(param);
+        if (tab === 'forgot-password') {
+    setShowForgotModal(true);
     }
     setActiveTab(tab);
   }, []);
+
+// داخل App component
+const [showForgotModal, setShowForgotModal] = useState(false);
+const [showResetModal, setShowResetModal] = useState(false);
+const [resetEmail, setResetEmail] = useState('');
+
+// استماع لحدث استعادة كلمة المرور
+useEffect(() => {
+  const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    if (event === 'PASSWORD_RECOVERY') {
+      // فتح مودال إعادة التعيين
+      setResetEmail(session?.user?.email || '');
+      setShowResetModal(true);
+    }
+  });
+  return () => subscription.unsubscribe();
+}, []);
+
+// في JSX، بعد </main> وقبل <CartDrawer> أو قبله:
+{showForgotModal && (
+  <ForgotPasswordModal
+    onClose={() => setShowForgotModal(false)}
+    onOpenReset={(email) => {
+      setResetEmail(email);
+      setShowForgotModal(false);
+      setShowResetModal(true);
+    }}
+  />
+)}
+{showResetModal && (
+  <ResetPasswordModal
+    email={resetEmail}
+    onClose={() => setShowResetModal(false)}
+    onSuccess={() => {
+      alert('تم تحديث كلمة المرور بنجاح!');
+      setShowResetModal(false);
+    }}
+  />
+)}
+
 
   const currentRole = activeUserProfile?.role || 'customer';
 

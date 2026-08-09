@@ -1,21 +1,46 @@
 import React, { useState } from 'react';
-import { PhoneCall, Mail, MapPin, Send, MessageSquare, CheckCircle2, Sparkles } from 'lucide-react';
+import { supabase } from '../../../lib/supabase';
+import { PhoneCall, Mail, MapPin, Send, MessageSquare, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
 
 interface ContactViewProps {
   onNavigate: (tab: string, param?: string) => void;
 }
 
-export const ContactView: React.FC<ContactViewProps> = () => {
+export const ContactView: React.FC<ContactViewProps> = ({ onNavigate }) => {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [subject, setSubject] = useState('استفسار عام');
   const [message, setMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
   const [isSent, setIsSent] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !message.trim()) return;
-    setIsSent(true);
+    setSubmitError('');
+
+    if (!name.trim() || !message.trim()) {
+      setSubmitError('يرجى ملء الاسم والرسالة');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const { error } = await supabase.from('contact_messages').insert({
+        name: name.trim(),
+        phone: phone.trim() || null,
+        subject: subject || null,
+        message: message.trim(),
+        // user_id سيُضبط تلقائياً حسب RLS إن كان المستخدم مسجلاً
+      });
+
+      if (error) throw error;
+      setIsSent(true);
+    } catch (err: any) {
+      setSubmitError(err.message || 'فشل إرسال الرسالة، يرجى المحاولة لاحقاً');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -86,7 +111,7 @@ export const ContactView: React.FC<ContactViewProps> = () => {
                 شكراً لتواصلك معنا. سيعاود فريق الدعم الفني الاتصال بك في أقرب وقت.
               </p>
               <button
-                onClick={() => setIsSent(false)}
+                onClick={() => { setIsSent(false); setMessage(''); setName(''); }}
                 className="mt-2 text-xs font-bold text-emerald-700 underline"
               >
                 إرسال رسالة أخرى
@@ -94,28 +119,36 @@ export const ContactView: React.FC<ContactViewProps> = () => {
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
+              {submitError && (
+                <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-rose-800 text-xs font-bold">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>{submitError}</span>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">الاسم الكريم *</label>
                   <input
                     type="text"
                     required
+                    disabled={isSubmitting}
                     placeholder="اسمك"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-purple-500 outline-none"
+                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-purple-500 outline-none disabled:opacity-50"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">رقم الهاتف *</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">رقم الهاتف</label>
                   <input
-                    type="text"
-                    required
+                    type="tel"
+                    disabled={isSubmitting}
                     placeholder="010XXXXXXXX"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-purple-500 outline-none"
+                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 11))}
+                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-purple-500 outline-none disabled:opacity-50"
                   />
                 </div>
               </div>
@@ -125,7 +158,8 @@ export const ContactView: React.FC<ContactViewProps> = () => {
                 <select
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
-                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-purple-500 outline-none"
+                  disabled={isSubmitting}
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-purple-500 outline-none disabled:opacity-50"
                 >
                   <option value="استفسار عام">استفسار عام</option>
                   <option value="شكوى طلب">شكوى بشأن طلب معين</option>
@@ -140,19 +174,21 @@ export const ContactView: React.FC<ContactViewProps> = () => {
                 <textarea
                   rows={4}
                   required
+                  disabled={isSubmitting}
                   placeholder="اكتب تفاصيل استفسارك أو مشكلتك بالتفصيل هنا..."
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
-                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-purple-500 outline-none resize-none"
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-purple-500 outline-none resize-none disabled:opacity-50"
                 />
               </div>
 
               <button
                 type="submit"
-                className="w-full py-3.5 bg-purple-600 hover:bg-purple-700 text-white font-black text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
+                disabled={isSubmitting}
+                className="w-full py-3.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-black text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
               >
-                <Send className="w-4 h-4" />
-                <span>إرسال الرسالة للدعم</span>
+                {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                <span>{isSubmitting ? 'جاري الإرسال...' : 'إرسال الرسالة للدعم'}</span>
               </button>
             </form>
           )}

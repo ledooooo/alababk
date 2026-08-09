@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
-import { Bike, ShieldCheck, CheckCircle2, Sparkles, User, FileText, Phone } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { StorageRepo, saveSupabaseAgent } from '../../../lib/storage';
+import { Bike, ShieldCheck, CheckCircle2, Sparkles, User, FileText, Phone, AlertCircle, Loader2 } from 'lucide-react';
+import { DeliveryAgent } from '../../../types/domain';
 
 interface ApplyAgentViewProps {
   onNavigate: (tab: string, param?: string) => void;
@@ -8,18 +10,79 @@ interface ApplyAgentViewProps {
 export const ApplyAgentView: React.FC<ApplyAgentViewProps> = ({ onNavigate }) => {
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
-  const [vehicleType, setVehicleType] = useState('motorcycle');
+  const [vehicleType, setVehicleType] = useState<'motorcycle' | 'bicycle' | 'car' | 'walking'>('motorcycle');
   const [nationalId, setNationalId] = useState('');
   const [licenseNumber, setLicenseNumber] = useState('');
   const [city, setCity] = useState('القاهرة');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [applicationId, setApplicationId] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // التحقق من تسجيل الدخول
+  const currentUser = StorageRepo.getCurrentUser();
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!fullName.trim() || !phone.trim() || !nationalId.trim()) return;
+    setSubmitError('');
 
-    setIsSubmitted(true);
+    // 1. التحقق من المصادقة
+    if (!currentUser) {
+      // تخزين نية العودة للنموذج بعد الدخول
+      sessionStorage.setItem('applyAgentReturn', 'true');
+      onNavigate('auth');
+      return;
+    }
+
+    // 2. التحقق من صحة الحقول
+    if (!fullName.trim() || !phone.trim() || !nationalId.trim()) {
+      setSubmitError('جميع الحقول المطلوبة يجب أن تُملأ (الاسم، الهاتف، الرقم القومي)');
+      return;
+    }
+
+    const cleanPhone = phone.replace(/\D/g, '');
+    if (cleanPhone.length !== 11) {
+      setSubmitError('رقم الهاتف يجب أن يتكون من 11 رقماً');
+      return;
+    }
+
+    if (nationalId.replace(/\D/g, '').length !== 14) {
+      setSubmitError('الرقم القومي يجب أن يتكون من 14 رقماً');
+      return;
+    }
+
+    // 3. بناء كائن الكابتن
+    const newAgent: Partial<DeliveryAgent> = {
+      user_id: currentUser.id,
+      name: fullName.trim(),
+      phone: cleanPhone,
+      vehicle_type: vehicleType,
+      national_id: nationalId.trim(),
+      license_plate: licenseNumber.trim() || undefined,
+      active_zone: city.trim(),
+      is_approved: false,
+      is_active: false,
+      is_online: false,
+    };
+
+    setIsSubmitting(true);
+    try {
+      const saved = await saveSupabaseAgent(newAgent, { isSelf: true });
+      setApplicationId(saved.id.slice(0, 8).toUpperCase());
+      setIsSubmitted(true);
+    } catch (err: any) {
+      setSubmitError(err.message || 'فشل تقديم الطلب، يرجى المحاولة لاحقاً');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
+
+  // إذا كان المستخدم مسجلاً وعاد إلى النموذج، نزيل العلم
+  useEffect(() => {
+    if (currentUser && sessionStorage.getItem('applyAgentReturn')) {
+      sessionStorage.removeItem('applyAgentReturn');
+    }
+  }, [currentUser]);
 
   if (isSubmitted) {
     return (
@@ -36,9 +99,9 @@ export const ApplyAgentView: React.FC<ApplyAgentViewProps> = ({ onNavigate }) =>
         </div>
 
         <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 text-xs text-right space-y-2 font-bold text-slate-700">
+          <p>رقم الطلب المرجعي: <span className="font-mono text-slate-900">{applicationId}</span></p>
           <p>اسم الكابتن: <span className="text-slate-900">{fullName}</span></p>
-          <p>نوع المركبة: <span className="text-emerald-700">{vehicleType === 'motorcycle' ? 'موتوسيكل' : vehicleType === 'bicycle' ? 'دراجة هوائية' : 'سيارة'}</span></p>
-          <p>رقم التواصل: <span className="text-slate-900 font-mono">{phone}</span></p>
+          <p>نوع المركبة: <span className="text-emerald-700">{vehicleType === 'motorcycle' ? 'موتوسيكل' : vehicleType === 'bicycle' ? 'دراجة هوائية' : vehicleType === 'car' ? 'سيارة' : 'مشياً'}</span></p>
           <p className="text-[10px] text-amber-600 font-normal">سيتم التواصل معك لإجراء المقابلة وتفعيل تطبيق الكابتن فور اكتمال الفحص.</p>
         </div>
 
@@ -64,6 +127,20 @@ export const ApplyAgentView: React.FC<ApplyAgentViewProps> = ({ onNavigate }) =>
       </div>
 
       <form onSubmit={handleSubmit} className="bg-white rounded-3xl p-8 border border-slate-200/80 shadow-xs space-y-4">
+        {!currentUser && (
+          <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-2 text-amber-800 text-xs font-bold">
+            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>يرجى <button type="button" onClick={() => onNavigate('auth')} className="underline font-extrabold">تسجيل الدخول</button> أولاً لتقديم طلب الانضمام.</span>
+          </div>
+        )}
+
+        {submitError && (
+          <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-rose-800 text-xs font-bold">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>{submitError}</span>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">الاسم بالكامل (كما بالهوية) *</label>
@@ -80,11 +157,11 @@ export const ApplyAgentView: React.FC<ApplyAgentViewProps> = ({ onNavigate }) =>
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">رقم الهاتف (واتساب نشط) *</label>
             <input
-              type="text"
+              type="tel"
               required
               placeholder="010XXXXXXXX"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 11))}
               className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-emerald-500 outline-none"
             />
           </div>
@@ -95,7 +172,7 @@ export const ApplyAgentView: React.FC<ApplyAgentViewProps> = ({ onNavigate }) =>
             <label className="block text-xs font-bold text-slate-700 mb-1">نوع المركبة *</label>
             <select
               value={vehicleType}
-              onChange={(e) => setVehicleType(e.target.value)}
+              onChange={(e) => setVehicleType(e.target.value as any)}
               className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-emerald-500 outline-none"
             >
               <option value="motorcycle">موتوسيكل / دراجة نارية 🛵</option>
@@ -127,7 +204,7 @@ export const ApplyAgentView: React.FC<ApplyAgentViewProps> = ({ onNavigate }) =>
               maxLength={14}
               placeholder="XXXXXXXXXXXXXX"
               value={nationalId}
-              onChange={(e) => setNationalId(e.target.value)}
+              onChange={(e) => setNationalId(e.target.value.replace(/\D/g, '').slice(0, 14))}
               className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono focus:ring-2 focus:ring-emerald-500 outline-none"
             />
           </div>
@@ -151,9 +228,11 @@ export const ApplyAgentView: React.FC<ApplyAgentViewProps> = ({ onNavigate }) =>
         <div className="pt-2">
           <button
             type="submit"
-            className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md transition-all"
+            disabled={isSubmitting || !currentUser}
+            className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
           >
-            إرسال طلب الكابتن للفحص
+            {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+            <span>{isSubmitting ? 'جاري إرسال الطلب...' : 'إرسال طلب الكابتن للفحص'}</span>
           </button>
         </div>
       </form>

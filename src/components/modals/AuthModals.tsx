@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Mail, KeyRound, CheckCircle2, X, Lock, ArrowRight } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
+import { Mail, KeyRound, CheckCircle2, X, Lock, Loader2, AlertCircle } from 'lucide-react';
 
 interface ForgotPasswordModalProps {
   onClose: () => void;
@@ -8,24 +9,41 @@ interface ForgotPasswordModalProps {
 
 export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({ onClose, onOpenReset }) => {
   const [email, setEmail] = useState('');
-  const [isSent, setIsSent] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
 
-  const isValidEmailFormat = (emailStr: string) => {
-    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-    return emailRegex.test(emailStr.trim());
-  };
+  const isValidEmailFormat = (emailStr: string) => /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(emailStr.trim());
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccess(false);
 
-    if (!email.trim() || !isValidEmailFormat(email)) {
-      setError('صيغة البريد الإلكتروني غير صحيحة، يرجى كتابته بالشكل الصحيح (مثال: name@example.com)');
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !isValidEmailFormat(trimmedEmail)) {
+      setError('صيغة البريد الإلكتروني غير صحيحة (مثال: name@example.com)');
       return;
     }
 
-    setIsSent(true);
+    setIsLoading(true);
+    try {
+      // إرسال رابط إعادة التعيين مع redirectTo يشير إلى التطبيق
+      const { error } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
+        redirectTo: window.location.origin + '/?reset=true',
+      });
+
+      // نعرض نجاح حتى لو كان البريد غير مسجل (أمان)
+      setSuccess(true);
+      // لا نكشف ما إذا كان البريد موجودًا أم لا
+      // لكن نمرر البريد لفتح مودال إعادة التعيين يدويًا (اختياري)
+      // يمكن فتح المودال تلقائيًا لكننا سنعتمد على حدث recovery من Supabase
+      // لذلك نكتفي بعرض رسالة نجاح
+    } catch (err: any) {
+      setError(err.message || 'حدث خطأ، يرجى المحاولة لاحقاً');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -43,31 +61,32 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({ onClos
             <KeyRound className="w-6 h-6" />
           </div>
           <h3 className="text-xl font-black text-slate-900">نسيت كلمة المرور؟</h3>
-          <p className="text-xs text-slate-500">أدخل بريدك الإلكتروني ليصلك رابط وإيعاز استعادة كلمة السر</p>
+          <p className="text-xs text-slate-500">أدخل بريدك الإلكتروني ليصلك رابط إعادة التعيين</p>
         </div>
 
-        {isSent ? (
+        {success ? (
           <div className="p-4 bg-emerald-50 rounded-2xl border border-emerald-200 space-y-3 text-center">
             <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto" />
             <p className="text-xs font-extrabold text-emerald-950">
-              تم إرسال تعليمات إعادة التعيين إلى {email}
+              تم إرسال تعليمات إعادة التعيين إلى بريدك الإلكتروني
             </p>
             <p className="text-[11px] text-emerald-800">
-              يرجى فحص صندوق الوارد بريدك الإلكتروني والضغط على الرابط أو تعيين كلمة مرور جديدة.
+              يرجى فحص صندوق الوارد والنقر على الرابط لتعيين كلمة مرور جديدة.
             </p>
             <button
-              onClick={() => onOpenReset(email)}
+              onClick={onClose}
               className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-xs font-black shadow-xs"
             >
-              إدخال كلمة المرور الجديدة الآن
+              حسناً، سأتحقق من بريدي
             </button>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
-              <p className="text-xs text-rose-600 font-bold bg-rose-50 p-2.5 rounded-xl border border-rose-200">
-                {error}
-              </p>
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-rose-800 text-xs font-bold">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{error}</span>
+              </div>
             )}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">البريد الإلكتروني المسجل</label>
@@ -75,10 +94,11 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({ onClos
                 <input
                   type="email"
                   required
+                  disabled={isLoading}
                   placeholder="name@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full p-3 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 outline-none"
+                  className="w-full p-3 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 outline-none disabled:opacity-50"
                 />
                 <Mail className="w-4 h-4 text-slate-400 absolute right-3 top-3.5" />
               </div>
@@ -86,9 +106,11 @@ export const ForgotPasswordModal: React.FC<ForgotPasswordModalProps> = ({ onClos
 
             <button
               type="submit"
-              className="w-full py-3.5 bg-purple-600 hover:bg-purple-700 text-white font-black text-xs rounded-xl shadow-md transition-all"
+              disabled={isLoading}
+              className="w-full py-3.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-black text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
             >
-              إرسال رابط إعادة التعيين
+              {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+              <span>{isLoading ? 'جاري الإرسال...' : 'إرسال رابط إعادة التعيين'}</span>
             </button>
           </form>
         )}
@@ -107,9 +129,12 @@ export const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({ email, o
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError('');
+
     if (newPassword.length < 6) {
       setError('كلمة المرور يجب أن تكون 6 أحرف على الأقل');
       return;
@@ -119,8 +144,18 @@ export const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({ email, o
       return;
     }
 
-    onSuccess();
-    onClose();
+    setIsLoading(true);
+    try {
+      // تحديث كلمة المرور باستخدام token المستلم من recovery flow
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) throw error;
+      onSuccess();
+      onClose();
+    } catch (err: any) {
+      setError(err.message || 'فشل تحديث كلمة المرور، يرجى المحاولة لاحقاً');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -138,19 +173,24 @@ export const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({ email, o
           <p className="text-xs text-slate-500">حساب: {email || 'المستخدم'}</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {error && <p className="text-xs text-rose-600 font-bold bg-rose-50 p-2.5 rounded-xl">{error}</p>}
+        {error && (
+          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-rose-800 text-xs font-bold">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
 
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">كلمة المرور الجديدة</label>
-
             <input
               type="password"
               required
+              disabled={isLoading}
               placeholder="••••••••"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 outline-none"
+              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 outline-none disabled:opacity-50"
             />
           </div>
 
@@ -159,18 +199,21 @@ export const ResetPasswordModal: React.FC<ResetPasswordModalProps> = ({ email, o
             <input
               type="password"
               required
+              disabled={isLoading}
               placeholder="••••••••"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 outline-none"
+              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 outline-none disabled:opacity-50"
             />
           </div>
 
           <button
             type="submit"
-            className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-md transition-all"
+            disabled={isLoading}
+            className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2"
           >
-            حفظ كلمة المرور الجديدة
+            {isLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+            <span>{isLoading ? 'جاري الحفظ...' : 'حفظ كلمة المرور الجديدة'}</span>
           </button>
         </form>
       </div>

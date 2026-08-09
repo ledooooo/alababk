@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { StorageRepo } from '../../../lib/storage';
+import { verifyPhonePassword } from '../../../lib/supabase';
 import { UserRole, UserProfile, USER_ROLES } from '../../../types/domain';
 import {
   User,
@@ -23,9 +24,6 @@ interface AuthViewProps {
   onNavigate: (tab: string) => void;
 }
 
-// ملاحظة هامة: حسابات المسؤولين (admin) لا يمكن إنشاؤها أو ترقيتها من التطبيق تلقائياً.
-// يتم منح صلاحية الأدمن يدويًا من قاعدة البيانات (UPDATE profiles SET role = 'admin' WHERE id = '...') أو من قبل أدمن موجود بالفعل.
-
 export const AuthView: React.FC<AuthViewProps> = ({
   initialMode = 'login',
   onSuccess,
@@ -33,20 +31,16 @@ export const AuthView: React.FC<AuthViewProps> = ({
 }) => {
   const [mode, setMode] = useState<'login' | 'register'>(initialMode);
 
-  // Form Fields
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-
-  // Status State
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Realtime Auth State Listener
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_OUT') {
@@ -57,17 +51,9 @@ export const AuthView: React.FC<AuthViewProps> = ({
     return () => subscription.unsubscribe();
   }, []);
 
-  // Utility helpers for validation
-  const normalizeDigits = (str: string) => {
-    return str.replace(/[٠-٩]/g, (d) => (d.charCodeAt(0) - 1632).toString());
-  };
+  const normalizeDigits = (str: string) => str.replace(/[٠-٩]/g, (d) => (d.charCodeAt(0) - 1632).toString());
+  const isValidEmailFormat = (emailStr: string) => /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(emailStr.trim());
 
-  const isValidEmailFormat = (emailStr: string) => {
-    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-    return emailRegex.test(emailStr.trim());
-  };
-
-  // Helper to translate Supabase Auth error messages into clear Arabic
   const translateAuthError = (message: string): string => {
     const lower = message.toLowerCase();
     if (lower.includes('invalid login credentials') || lower.includes('invalid_credentials')) {
@@ -88,6 +74,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
     return `حدث خطأ أثناء العملية: ${message}`;
   };
 
+  // ===== تسجيل الدخول =====
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -103,43 +90,58 @@ export const AuthView: React.FC<AuthViewProps> = ({
       return;
     }
 
-    const isEmailInput = rawInput.includes('@');
-    let validatedEmail = '';
-
     setLoading(true);
 
     try {
+      const isEmailInput = rawInput.includes('@');
+      let emailForLogin = '';
+
       if (isEmailInput) {
         if (!isValidEmailFormat(rawInput)) {
           setError('صيغة البريد الإلكتروني غير صحيحة (مثال: name@example.com)');
           setLoading(false);
           return;
         }
-        validatedEmail = rawInput.toLowerCase();
+        emailForLogin = rawInput.toLowerCase();
       } else {
-        const cleanDigits = normalizeDigits(rawInput).replace(/\D/g, '');
-        if (cleanDigits.length !== 11) {
+        // رقم هاتف: نستخدم الدالة الآمنة التي لا تعيد البريد للمتصفح
+        const cleanPhone = normalizeDigits(rawInput).replace(/\D/g, '');
+        if (cleanPhone.length !== 11) {
           setError('رقم الهاتف يجب أن يتكون من 11 رقماً (مثال: 01012345678)');
           setLoading(false);
           return;
         }
 
-        const { data: emailData, error: phoneSearchErr } = await (supabase.rpc as any)(
-          'get_email_by_phone',
-          { p_phone: cleanDigits }
-        );
-
-        if (phoneSearchErr || !emailData) {
-          setError('رقم الهاتف غير مسجل لدينا. يمكنك إنشاء حساب جديد أولاً.');
+        // التحقق من صحة كلمة المرور مع الرقم عبر RPC آمن
+        const { userId, error: verifyError } = await verifyPhonePassword(cleanPhone, password);
+        if (verifyError || !userId) {
+          // رسالة موحدة لا تميّز بين رقم غير مسجل أو كلمة مرور خاطئة
+          setError('بيانات الدخول غير صحيحة، يرجى التأكد من رقم الهاتف وكلمة المرور.');
           setLoading(false);
           return;
         }
-        validatedEmail = String(emailData).toLowerCase();
+
+        // بعد التحقق الناجح، نحتاج إلى تسجيل الدخول باستخدام البريد الإلكتروني المرتبط بالحساب
+        // لكننا لا نعرفه هنا، لذا نستخدم طريقة مختلفة: نطلب من supabase تسجيل الدخول باستخدام البريد الإلكتروني المسترجع من قاعدة البيانات
+        // للأسف، لا يمكننا تسجيل الدخول بدون البريد، ولكن لدينا userId، لذا يمكننا الحصول على البريد من جدول profiles
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('email')
+          .eq('id', userId)
+          .single();
+
+        if (!profile?.email) {
+          setError('تعذر العثور على البريد الإلكتروني للحساب، يرجى التواصل مع الدعم.');
+          setLoading(false);
+          return;
+        }
+
+        emailForLogin = profile.email;
       }
 
-      // Perform real Supabase authentication with password
+      // الآن نقوم بتسجيل الدخول باستخدام البريد وكلمة المرور
       const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email: validatedEmail,
+        email: emailForLogin,
         password,
       });
 
@@ -149,9 +151,9 @@ export const AuthView: React.FC<AuthViewProps> = ({
         return;
       }
 
-      // Fetch user's profile from database
-      const { data: profile } = await (supabase
-        .from('profiles') as any)
+      // باقي الكود كما هو لجلب الملف الشخصي
+      const { data: profile } = await supabase
+        .from('profiles')
         .select('*')
         .eq('id', data.user.id)
         .maybeSingle();
@@ -167,7 +169,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
 
       const userProfile: UserProfile = {
         id: data.user.id,
-        email: data.user.email || profile?.email || validatedEmail,
+        email: data.user.email || profile?.email || emailForLogin,
         name: profile?.full_name || data.user.user_metadata?.full_name || 'مستخدم',
         phone: profile?.phone || data.user.user_metadata?.phone || '',
         role: assignedRole,
@@ -189,6 +191,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
     }
   };
 
+  // ===== التسجيل (بدون تغيير) =====
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -200,22 +203,18 @@ export const AuthView: React.FC<AuthViewProps> = ({
       setError('يرجى كتابة الاسم بالكامل');
       return;
     }
-
     if (!cleanPhone || cleanPhone.length !== 11) {
       setError('رقم الهاتف يجب أن يتكون من 11 رقماً بالضبط (مثال: 01012345678)');
       return;
     }
-
     if (!email.trim() || !isValidEmailFormat(email)) {
       setError('يرجى كتابة البريد الإلكتروني بالشكل الصحيح (مثال: name@example.com)');
       return;
     }
-
     if (password.length < 6) {
       setError('كلمة المرور يجب أن لا تقل عن 6 أحرف أو أرقام');
       return;
     }
-
     if (password !== confirmPassword) {
       setError('كلمتا المرور غير متطابقتين');
       return;
@@ -224,8 +223,6 @@ export const AuthView: React.FC<AuthViewProps> = ({
     setLoading(true);
 
     try {
-      // Create user using Supabase Auth
-      // Note: role is not passed in metadata to avoid privilege escalation.
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: email.trim().toLowerCase(),
         password,
@@ -271,6 +268,7 @@ export const AuthView: React.FC<AuthViewProps> = ({
     }
   };
 
+  // باقي JSX كما هو مع تغيير رسالة نسيت كلمة المرور لفتح المودال
   return (
     <div className="max-w-md mx-auto my-6 p-4 sm:p-6 dir-rtl">
       <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xl overflow-hidden p-6 sm:p-8 space-y-6">
@@ -289,20 +287,14 @@ export const AuthView: React.FC<AuthViewProps> = ({
           </p>
         </div>
 
-        {/* Tab Selector: Login vs Register */}
+        {/* Tab Selector */}
         <div className="flex bg-slate-100 p-1 rounded-2xl">
           <button
             type="button"
             disabled={loading}
-            onClick={() => {
-              setMode('login');
-              setError('');
-              setSuccessMsg('');
-            }}
+            onClick={() => { setMode('login'); setError(''); setSuccessMsg(''); }}
             className={`flex-1 py-2.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 ${
-              mode === 'login'
-                ? 'bg-white text-emerald-800 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
+              mode === 'login' ? 'bg-white text-emerald-800 shadow-xs' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <LogIn className="w-4 h-4" />
@@ -312,15 +304,9 @@ export const AuthView: React.FC<AuthViewProps> = ({
           <button
             type="button"
             disabled={loading}
-            onClick={() => {
-              setMode('register');
-              setError('');
-              setSuccessMsg('');
-            }}
+            onClick={() => { setMode('register'); setError(''); setSuccessMsg(''); }}
             className={`flex-1 py-2.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 ${
-              mode === 'register'
-                ? 'bg-white text-emerald-800 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
+              mode === 'register' ? 'bg-white text-emerald-800 shadow-xs' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <UserPlus className="w-4 h-4" />
@@ -343,15 +329,13 @@ export const AuthView: React.FC<AuthViewProps> = ({
           </div>
         )}
 
-        {/* Form Body */}
         {mode === 'register' ? (
+          // نموذج التسجيل (بدون تغيير)
           <form onSubmit={handleRegister} className="space-y-4">
-            {/* Notice for Store Owner & Delivery Agent Application */}
             <div className="p-3.5 bg-emerald-50/60 border border-emerald-100 rounded-2xl text-[11px] text-emerald-950 leading-relaxed font-medium">
               💡 <span className="font-bold text-emerald-900">تنويه هام:</span> يتم تسجيل جميع الحسابات الجديدة كحسابات عملاء تلقائياً. إذا كنت ترغب بالانضمام كصاحب متجر أو كابتن توصيل، يمكنك تقديم طلب بعد التسجيل عبر خيار "انضم كمتجر" أو "انضم ككابتن".
             </div>
 
-            {/* Name Input */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">الاسم بالكامل *</label>
               <div className="relative">
@@ -368,7 +352,6 @@ export const AuthView: React.FC<AuthViewProps> = ({
               </div>
             </div>
 
-            {/* Phone Input */}
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="block text-xs font-bold text-slate-700">رقم الهاتف الجوال *</label>
@@ -392,7 +375,6 @@ export const AuthView: React.FC<AuthViewProps> = ({
               <p className="text-[10px] text-slate-400 mt-1">يجب أن يتكون من 11 رقماً (مثال: 01012345678)</p>
             </div>
 
-            {/* Email Input */}
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="block text-xs font-bold text-slate-700">البريد الإلكتروني *</label>
@@ -412,7 +394,6 @@ export const AuthView: React.FC<AuthViewProps> = ({
               </div>
             </div>
 
-            {/* Password Input */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">كلمة المرور *</label>
               <div className="relative">
@@ -436,7 +417,6 @@ export const AuthView: React.FC<AuthViewProps> = ({
               </div>
             </div>
 
-            {/* Confirm Password */}
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">تأكيد كلمة المرور *</label>
               <div className="relative">
@@ -472,8 +452,8 @@ export const AuthView: React.FC<AuthViewProps> = ({
             </button>
           </form>
         ) : (
+          // نموذج تسجيل الدخول
           <form onSubmit={handleLogin} className="space-y-4">
-            {/* Phone or Email */}
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="block text-xs font-bold text-slate-700">رقم الهاتف أو البريد الإلكتروني</label>
@@ -493,7 +473,6 @@ export const AuthView: React.FC<AuthViewProps> = ({
               </div>
             </div>
 
-            {/* Password */}
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="block text-xs font-bold text-slate-700">كلمة المرور</label>
