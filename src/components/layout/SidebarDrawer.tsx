@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { StorageRepo } from '../../lib/storage';
 import { UserProfile, UserRole } from '../../types/domain';
 import {
@@ -32,32 +33,25 @@ import {
 interface SidebarDrawerProps {
   isOpen: boolean;
   onClose: () => void;
-  currentTab: string;
-  onNavigate: (tab: string, param?: string) => void;
+  currentPath: string;
+  onNavigate: (path: string) => void;
+  onLogout: () => void;
   currentUser: UserProfile | null;
 }
 
 export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
   isOpen,
   onClose,
-  currentTab,
+  currentPath,
   onNavigate,
+  onLogout,
   currentUser,
 }) => {
   if (!isOpen) return null;
 
   const role: UserRole = currentUser?.role || 'customer';
 
-  const handleItemClick = (tab: string, param?: string) => {
-    onNavigate(tab, param);
-    onClose();
-  };
-
-  const handleLogout = () => {
-    StorageRepo.logout();
-    onNavigate('landing');
-    onClose();
-  };
+  const isActive = (path: string) => currentPath === path || currentPath.startsWith(path + '/');
 
   const getRoleTheme = () => {
     switch (role) {
@@ -110,17 +104,14 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden dir-rtl">
-      {/* Backdrop */}
       <div
         className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
         onClick={onClose}
       />
 
-      {/* Slide-out Drawer Panel */}
       <div className="fixed inset-y-0 right-0 max-w-full flex h-full h-screen z-50">
         <div className="w-screen max-w-xs sm:max-w-sm h-full h-screen bg-white shadow-2xl flex flex-col justify-between animate-in slide-in-from-right duration-250 ease-out border-l border-slate-200">
           
-          {/* Top Drawer Header */}
           <div className="shrink-0 p-4 sm:p-5 border-b border-slate-100 bg-slate-900 text-white">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -143,13 +134,11 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
               <button
                 onClick={onClose}
                 className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
-                title="إغلاق القائمة"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* User Profile Card Header */}
             {currentUser ? (
               <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
@@ -167,9 +156,8 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 </div>
 
                 <button
-                  onClick={handleLogout}
+                  onClick={onLogout}
                   className="p-2 text-rose-400 hover:text-rose-300 hover:bg-rose-950/40 rounded-lg transition-colors text-xs font-bold flex items-center gap-1"
-                  title="تسجيل الخروج"
                 >
                   <LogOut className="w-4 h-4" />
                 </button>
@@ -177,7 +165,7 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
             ) : (
               <div className="mt-4 pt-3 border-t border-slate-800">
                 <button
-                  onClick={() => handleItemClick('auth')}
+                  onClick={() => onNavigate('/auth')}
                   className="w-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs py-2.5 px-4 rounded-xl transition-all flex items-center justify-center gap-2 shadow-md shadow-emerald-500/20"
                 >
                   <LogIn className="w-4 h-4" />
@@ -187,9 +175,7 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
             )}
           </div>
 
-          {/* Navigation Links List */}
           <div className="flex-1 overflow-y-auto p-4 space-y-6">
-            
             {/* Customer Navigation */}
             {role === 'customer' && (
               <div className="space-y-1">
@@ -198,9 +184,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 </p>
 
                 <button
-                  onClick={() => handleItemClick('landing')}
+                  onClick={() => onNavigate('/')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'landing' ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                    isActive('/') && !isActive('/stores') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
@@ -211,9 +197,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 </button>
 
                 <button
-                  onClick={() => handleItemClick('customer-stores')}
+                  onClick={() => onNavigate('/stores')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'customer-stores' || currentTab === 'customer-store-detail' ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                    isActive('/stores') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
@@ -224,9 +210,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 </button>
 
                 <button
-                  onClick={() => handleItemClick('search')}
+                  onClick={() => onNavigate('/search')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'search' ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                    isActive('/search') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
@@ -237,9 +223,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 </button>
 
                 <button
-                  onClick={() => handleItemClick('categories-browse')}
+                  onClick={() => onNavigate('/categories')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'categories-browse' ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                    isActive('/categories') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
@@ -250,9 +236,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 </button>
 
                 <button
-                  onClick={() => handleItemClick('customer-orders')}
+                  onClick={() => onNavigate('/orders')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab.startsWith('customer-order') || currentTab === 'order-confirmation' ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                    isActive('/orders') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
@@ -263,9 +249,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 </button>
 
                 <button
-                  onClick={() => handleItemClick('customer-addresses')}
+                  onClick={() => onNavigate('/addresses')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'customer-addresses' ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                    isActive('/addresses') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
@@ -276,9 +262,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 </button>
 
                 <button
-                  onClick={() => handleItemClick('profile')}
+                  onClick={() => onNavigate('/profile')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'profile' ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                    isActive('/profile') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
@@ -289,9 +275,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 </button>
 
                 <button
-                  onClick={() => handleItemClick('notifications')}
+                  onClick={() => onNavigate('/notifications')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'notifications' ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                    isActive('/notifications') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
@@ -311,9 +297,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 </p>
 
                 <button
-                  onClick={() => handleItemClick('store-dashboard')}
+                  onClick={() => onNavigate('/store/dashboard')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'store-dashboard' ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                    isActive('/store/dashboard') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
@@ -324,9 +310,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 </button>
 
                 <button
-                  onClick={() => handleItemClick('store-orders')}
+                  onClick={() => onNavigate('/store/orders')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'store-orders' ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                    isActive('/store/orders') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
@@ -337,9 +323,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 </button>
 
                 <button
-                  onClick={() => handleItemClick('store-products')}
+                  onClick={() => onNavigate('/store/products')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'store-products' ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                    isActive('/store/products') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
@@ -350,9 +336,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 </button>
 
                 <button
-                  onClick={() => handleItemClick('store-reviews')}
+                  onClick={() => onNavigate('/store/reviews')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'store-reviews' ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                    isActive('/store/reviews') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
@@ -363,9 +349,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 </button>
 
                 <button
-                  onClick={() => handleItemClick('store-payouts')}
+                  onClick={() => onNavigate('/store/payouts')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'store-payouts' ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                    isActive('/store/payouts') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
@@ -376,9 +362,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 </button>
 
                 <button
-                  onClick={() => handleItemClick('store-analytics')}
+                  onClick={() => onNavigate('/store/analytics')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'store-analytics' ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                    isActive('/store/analytics') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
@@ -389,9 +375,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 </button>
 
                 <button
-                  onClick={() => handleItemClick('store-notifications')}
+                  onClick={() => onNavigate('/store/notifications')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'store-notifications' ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                    isActive('/store/notifications') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
@@ -402,9 +388,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 </button>
 
                 <button
-                  onClick={() => handleItemClick('store-settings')}
+                  onClick={() => onNavigate('/store/settings')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'store-settings' ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                    isActive('/store/settings') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
@@ -424,9 +410,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 </p>
 
                 <button
-                  onClick={() => handleItemClick('delivery-dashboard')}
+                  onClick={() => onNavigate('/delivery/dashboard')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'delivery-dashboard' ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                    isActive('/delivery/dashboard') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
@@ -437,9 +423,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 </button>
 
                 <button
-                  onClick={() => handleItemClick('delivery-available')}
+                  onClick={() => onNavigate('/delivery/available')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'delivery-available' ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                    isActive('/delivery/available') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
@@ -450,9 +436,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 </button>
 
                 <button
-                  onClick={() => handleItemClick('delivery-active')}
+                  onClick={() => onNavigate('/delivery/active')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'delivery-active' ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                    isActive('/delivery/active') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
@@ -463,9 +449,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 </button>
 
                 <button
-                  onClick={() => handleItemClick('delivery-history')}
+                  onClick={() => onNavigate('/delivery/history')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'delivery-history' ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                    isActive('/delivery/history') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
@@ -476,9 +462,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 </button>
 
                 <button
-                  onClick={() => handleItemClick('delivery-earnings')}
+                  onClick={() => onNavigate('/delivery/earnings')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'delivery-earnings' ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                    isActive('/delivery/earnings') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
@@ -489,9 +475,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 </button>
 
                 <button
-                  onClick={() => handleItemClick('delivery-profile')}
+                  onClick={() => onNavigate('/delivery/profile')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'delivery-profile' ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                    isActive('/delivery/profile') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
@@ -502,9 +488,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 </button>
 
                 <button
-                  onClick={() => handleItemClick('delivery-notifications')}
+                  onClick={() => onNavigate('/delivery/notifications')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'delivery-notifications' ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                    isActive('/delivery/notifications') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
@@ -523,9 +509,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                   الإشراف والمتابعة
                 </p>
                 <button
-                  onClick={() => handleItemClick('delivery-supervisor-dashboard')}
+                  onClick={() => onNavigate('/supervisor')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'delivery-supervisor-dashboard' ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                    isActive('/supervisor') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
@@ -544,9 +530,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                   الإدارة المالية
                 </p>
                 <button
-                  onClick={() => handleItemClick('finance-admin-dashboard')}
+                  onClick={() => onNavigate('/finance')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'finance-admin-dashboard' ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                    isActive('/finance') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
@@ -565,9 +551,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                   غرفة التحكم
                 </p>
                 <button
-                  onClick={() => handleItemClick('orders-manager-dashboard')}
+                  onClick={() => onNavigate('/orders-manager')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'orders-manager-dashboard' ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                    isActive('/orders-manager') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
@@ -587,9 +573,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 </p>
 
                 <button
-                  onClick={() => handleItemClick('admin-dashboard')}
+                  onClick={() => onNavigate('/admin')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'admin-dashboard' ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                    isActive('/admin') && !isActive('/admin/stores') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
@@ -600,9 +586,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 </button>
 
                 <button
-                  onClick={() => handleItemClick('admin-stores-applications')}
+                  onClick={() => onNavigate('/admin/stores-applications')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'admin-stores-applications' ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                    isActive('/admin/stores-applications') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
@@ -613,9 +599,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 </button>
 
                 <button
-                  onClick={() => handleItemClick('admin-stores')}
+                  onClick={() => onNavigate('/admin/stores')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'admin-stores' ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                    isActive('/admin/stores') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
@@ -626,9 +612,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 </button>
 
                 <button
-                  onClick={() => handleItemClick('admin-agents')}
+                  onClick={() => onNavigate('/admin/agents')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'admin-agents' ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                    isActive('/admin/agents') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
@@ -639,9 +625,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 </button>
 
                 <button
-                  onClick={() => handleItemClick('admin-orders')}
+                  onClick={() => onNavigate('/admin/orders')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'admin-orders' ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                    isActive('/admin/orders') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
@@ -652,9 +638,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 </button>
 
                 <button
-                  onClick={() => handleItemClick('admin-zones')}
+                  onClick={() => onNavigate('/admin/zones')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'admin-zones' ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                    isActive('/admin/zones') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
@@ -665,9 +651,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 </button>
 
                 <button
-                  onClick={() => handleItemClick('admin-coupons')}
+                  onClick={() => onNavigate('/admin/coupons')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'admin-coupons' ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                    isActive('/admin/coupons') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
@@ -678,9 +664,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 </button>
 
                 <button
-                  onClick={() => handleItemClick('admin-customers')}
+                  onClick={() => onNavigate('/admin/customers')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'admin-customers' ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                    isActive('/admin/customers') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
@@ -691,14 +677,27 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 </button>
 
                 <button
-                  onClick={() => handleItemClick('admin-payouts')}
+                  onClick={() => onNavigate('/admin/payouts')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
-                    currentTab === 'admin-payouts' ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                    isActive('/admin/payouts') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
                   }`}
                 >
                   <div className="flex items-center gap-2.5">
                     <DollarSign className="w-4 h-4" />
                     <span>طلبات سحب الأرباح</span>
+                  </div>
+                  <ChevronLeft className="w-4 h-4 opacity-60" />
+                </button>
+
+                <button
+                  onClick={() => onNavigate('/admin/supabase')}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                    isActive('/admin/supabase') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Database className="w-4 h-4" />
+                    <span>حالة Supabase</span>
                   </div>
                   <ChevronLeft className="w-4 h-4 opacity-60" />
                 </button>
@@ -712,9 +711,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
               </p>
 
               <button
-                onClick={() => handleItemClick('about')}
+                onClick={() => onNavigate('/about')}
                 className={`w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
-                  currentTab === 'about' ? 'bg-slate-100 text-slate-900' : 'text-slate-600 hover:bg-slate-50'
+                  isActive('/about') ? 'bg-slate-100 text-slate-900' : 'text-slate-600 hover:bg-slate-50'
                 }`}
               >
                 <div className="flex items-center gap-2.5">
@@ -724,9 +723,9 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
               </button>
 
               <button
-                onClick={() => handleItemClick('contact')}
+                onClick={() => onNavigate('/contact')}
                 className={`w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-xs font-bold transition-all ${
-                  currentTab === 'contact' ? 'bg-slate-100 text-slate-900' : 'text-slate-600 hover:bg-slate-50'
+                  isActive('/contact') ? 'bg-slate-100 text-slate-900' : 'text-slate-600 hover:bg-slate-50'
                 }`}
               >
                 <div className="flex items-center gap-2.5">
@@ -737,12 +736,10 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
             </div>
           </div>
 
-          {/* Drawer Footer */}
           <div className="shrink-0 p-4 bg-slate-50 border-t border-slate-200 text-center text-xs text-slate-500">
             <p className="font-bold text-slate-700">على بابك © 2026</p>
             <p className="text-[10px] mt-0.5">التوصيل الفائق من المتاجر المحلية</p>
           </div>
-
         </div>
       </div>
     </div>

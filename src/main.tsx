@@ -14,13 +14,7 @@ interface ErrorBoundaryState {
 }
 
 class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  props: ErrorBoundaryProps;
   state: ErrorBoundaryState = { hasError: false };
-
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-    this.props = props;
-  }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
@@ -51,23 +45,25 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 }
 
-// Prefetch Supabase auth session prior to initial render
+// Prefetch Supabase auth session
 supabase.auth.getSession().catch((err) => {
   console.warn('Initial auth getSession notice:', err);
 });
 
-// Register Service Worker for PWA support
-if (
-  ('serviceWorker' in navigator && window.location.protocol === 'https:') ||
-  window.location.hostname === 'localhost' ||
-  window.location.hostname.endsWith('run.app')
-) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').then(
-      (reg) => console.log('PWA Service Worker registered:', reg.scope),
-      (err) => console.log('Service Worker registration failed:', err)
-    );
-  });
+// Register Service Worker for PWA support - fix condition order
+if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+  const isHttps = window.location.protocol === 'https:';
+  const isLocalhost = window.location.hostname === 'localhost';
+  const isRunApp = window.location.hostname.endsWith('run.app');
+
+  if (isHttps || isLocalhost || isRunApp) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').then(
+        (reg) => console.log('PWA Service Worker registered:', reg.scope),
+        (err) => console.log('Service Worker registration failed:', err)
+      );
+    });
+  }
 }
 
 createRoot(document.getElementById('root')!).render(

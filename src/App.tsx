@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback, Suspense, lazy } from 'react';
+import React, { useState, useEffect, Suspense, lazy } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useParams, useNavigate } from 'react-router-dom';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
 import { StorageRepo, subscribeToStorageChange } from './lib/storage';
@@ -9,74 +10,77 @@ import { CartDrawer } from './components/cart/CartDrawer';
 import { PushNotificationToast } from './components/shared/PushNotificationToast';
 import { PwaInstallPrompt } from './components/pwa/PwaInstallPrompt';
 import { useCartStore } from './stores/cart-store';
+import { ToastProvider, useToast } from './components/shared/Toast';
+import { ConfirmDialogProvider } from './components/shared/ConfirmDialog';
 
+// ===== Lazy Imports for All Views =====
 // Customer Views
-import { CustomerStoresView } from './components/views/customer/CustomerStoresView';
-import { CustomerStoreDetailView } from './components/views/customer/CustomerStoreDetailView';
-import { CustomerCheckoutView } from './components/views/customer/CustomerCheckoutView';
-import { CustomerOrdersView } from './components/views/customer/CustomerOrdersView';
-import { CustomerOrderDetailView } from './components/views/customer/CustomerOrderDetailView';
-import { CustomerAddressesView } from './components/views/customer/CustomerAddressesView';
-import { SearchView } from './components/views/customer/SearchView';
-import { CategoriesBrowseView } from './components/views/customer/CategoriesBrowseView';
-import { ProfileView } from './components/views/customer/ProfileView';
-import { OrderConfirmationView } from './components/views/customer/OrderConfirmationView';
+const CustomerStoresView = lazy(() => import('./components/views/customer/CustomerStoresView'));
+const CustomerStoreDetailView = lazy(() => import('./components/views/customer/CustomerStoreDetailView'));
+const CustomerCheckoutView = lazy(() => import('./components/views/customer/CustomerCheckoutView'));
+const CustomerOrdersView = lazy(() => import('./components/views/customer/CustomerOrdersView'));
+const CustomerOrderDetailView = lazy(() => import('./components/views/customer/CustomerOrderDetailView'));
+const CustomerAddressesView = lazy(() => import('./components/views/customer/CustomerAddressesView'));
+const SearchView = lazy(() => import('./components/views/customer/SearchView'));
+const CategoriesBrowseView = lazy(() => import('./components/views/customer/CategoriesBrowseView'));
+const ProfileView = lazy(() => import('./components/views/customer/ProfileView'));
+const OrderConfirmationView = lazy(() => import('./components/views/customer/OrderConfirmationView'));
+const NotificationsView = lazy(() => import('./components/views/customer/NotificationsView'));
 
-// Auth Modals & Views
-import { ForgotPasswordModal, ResetPasswordModal } from './components/modals/AuthModals';
-import { AuthView } from './components/views/public/AuthView';
+// Auth & Public
+const AuthView = lazy(() => import('./components/views/public/AuthView'));
+const LandingView = lazy(() => import('./components/views/public/LandingView'));
+const AboutView = lazy(() => import('./components/views/public/AboutView'));
+const ApplyStoreView = lazy(() => import('./components/views/public/ApplyStoreView'));
+const ApplyAgentView = lazy(() => import('./components/views/public/ApplyAgentView'));
+const ContactView = lazy(() => import('./components/views/public/ContactView'));
+const TermsPrivacyView = lazy(() => import('./components/views/public/TermsPrivacyView'));
+const NotFoundView = lazy(() => import('./components/views/public/NotFoundView'));
 
-// Public Views
-import { LandingView } from './components/views/public/LandingView';
-import { AboutView } from './components/views/public/AboutView';
-import { ApplyStoreView } from './components/views/public/ApplyStoreView';
-import { ApplyAgentView } from './components/views/public/ApplyAgentView';
-import { ContactView } from './components/views/public/ContactView';
-import { TermsPrivacyView } from './components/views/public/TermsPrivacyView';
-import { NotificationsView } from './components/views/customer/NotificationsView';
-import { NotFoundView } from './components/views/public/NotFoundView';
+// Store Owner Views
+const StoreDashboardView = lazy(() => import('./components/views/store/StoreDashboardView'));
+const StoreOrdersView = lazy(() => import('./components/views/store/StoreOrdersView'));
+const StoreProductsView = lazy(() => import('./components/views/store/StoreProductsView'));
+const StoreSettingsView = lazy(() => import('./components/views/store/StoreSettingsView'));
+const StoreAnalyticsView = lazy(() => import('./components/views/store/StoreAnalyticsView'));
+const StoreReviewsView = lazy(() => import('./components/views/store/StoreReviewsView'));
+const StorePayoutsView = lazy(() => import('./components/views/store/StorePayoutsView'));
+const StoreNotificationsView = lazy(() => import('./components/views/store/StoreNotificationsView'));
 
-// Lazy Loaded Store Owner Views
-const StoreDashboardView = lazy(() => import('./components/views/store/StoreDashboardView').then(m => ({ default: m.StoreDashboardView })));
-const StoreOrdersView = lazy(() => import('./components/views/store/StoreOrdersView').then(m => ({ default: m.StoreOrdersView })));
-const StoreProductsView = lazy(() => import('./components/views/store/StoreProductsView').then(m => ({ default: m.StoreProductsView })));
-const StoreSettingsView = lazy(() => import('./components/views/store/StoreSettingsView').then(m => ({ default: m.StoreSettingsView })));
-const StoreAnalyticsView = lazy(() => import('./components/views/store/StoreAnalyticsView').then(m => ({ default: m.StoreAnalyticsView })));
-const StoreReviewsView = lazy(() => import('./components/views/store/StoreReviewsView').then(m => ({ default: m.StoreReviewsView })));
-const StorePayoutsView = lazy(() => import('./components/views/store/StorePayoutsView').then(m => ({ default: m.StorePayoutsView })));
-const StoreNotificationsView = lazy(() => import('./components/views/store/StoreNotificationsView').then(m => ({ default: m.StoreNotificationsView })));
+// Delivery Agent Views
+const DeliveryDashboardView = lazy(() => import('./components/views/delivery/DeliveryDashboardView'));
+const DeliveryAvailableView = lazy(() => import('./components/views/delivery/DeliveryAvailableView'));
+const DeliveryActiveView = lazy(() => import('./components/views/delivery/DeliveryActiveView'));
+const DeliveryHistoryView = lazy(() => import('./components/views/delivery/DeliveryHistoryView'));
+const DeliveryEarningsView = lazy(() => import('./components/views/delivery/DeliveryEarningsView'));
+const DeliveryProfileView = lazy(() => import('./components/views/delivery/DeliveryProfileView'));
+const DeliveryNotificationsView = lazy(() => import('./components/views/delivery/DeliveryNotificationsView'));
 
-// Lazy Loaded Delivery Agent Views
-const DeliveryDashboardView = lazy(() => import('./components/views/delivery/DeliveryDashboardView').then(m => ({ default: m.DeliveryDashboardView })));
-const DeliveryAvailableView = lazy(() => import('./components/views/delivery/DeliveryAvailableView').then(m => ({ default: m.DeliveryAvailableView })));
-const DeliveryActiveView = lazy(() => import('./components/views/delivery/DeliveryActiveView').then(m => ({ default: m.DeliveryActiveView })));
-const DeliveryHistoryView = lazy(() => import('./components/views/delivery/DeliveryHistoryView').then(m => ({ default: m.DeliveryHistoryView })));
-const DeliveryEarningsView = lazy(() => import('./components/views/delivery/DeliveryEarningsView').then(m => ({ default: m.DeliveryEarningsView })));
-const DeliveryProfileView = lazy(() => import('./components/views/delivery/DeliveryProfileView').then(m => ({ default: m.DeliveryProfileView })));
-const DeliveryNotificationsView = lazy(() => import('./components/views/delivery/DeliveryNotificationsView').then(m => ({ default: m.DeliveryNotificationsView })));
+// Admin & Specialized Views
+const AdminDashboardView = lazy(() => import('./components/views/admin/AdminDashboardView'));
+const AdminStoresApplicationsView = lazy(() => import('./components/views/admin/AdminStoresApplicationsView'));
+const AdminStoresView = lazy(() => import('./components/views/admin/AdminStoresView'));
+const AdminAgentsView = lazy(() => import('./components/views/admin/AdminAgentsView'));
+const AdminOrdersView = lazy(() => import('./components/views/admin/AdminOrdersView'));
+const AdminZonesView = lazy(() => import('./components/views/admin/AdminZonesView'));
+const AdminCouponsView = lazy(() => import('./components/views/admin/AdminCouponsView'));
+const AdminCategoriesView = lazy(() => import('./components/views/admin/AdminCategoriesView'));
+const AdminPayoutsView = lazy(() => import('./components/views/admin/AdminPayoutsView'));
+const AdminReviewsView = lazy(() => import('./components/views/admin/AdminReviewsView'));
+const AdminNotificationsView = lazy(() => import('./components/views/admin/AdminNotificationsView'));
+const AdminCustomersView = lazy(() => import('./components/views/admin/AdminCustomersView'));
+const AdminAnalyticsView = lazy(() => import('./components/views/admin/AdminAnalyticsView'));
+const AdminPlatformSettingsView = lazy(() => import('./components/views/admin/AdminPlatformSettingsView'));
+const AdminActivityLogView = lazy(() => import('./components/views/admin/AdminActivityLogView'));
+const AdminSupabaseSync = lazy(() => import('./components/views/admin/AdminSupabaseSync'));
 
-// Lazy Loaded Admin Views
-const AdminDashboardView = lazy(() => import('./components/views/admin/AdminDashboardView').then(m => ({ default: m.AdminDashboardView })));
-const AdminStoresApplicationsView = lazy(() => import('./components/views/admin/AdminStoresApplicationsView').then(m => ({ default: m.AdminStoresApplicationsView })));
-const AdminStoresView = lazy(() => import('./components/views/admin/AdminStoresView').then(m => ({ default: m.AdminStoresView })));
-const AdminAgentsView = lazy(() => import('./components/views/admin/AdminAgentsView').then(m => ({ default: m.AdminAgentsView })));
-const AdminOrdersView = lazy(() => import('./components/views/admin/AdminOrdersView').then(m => ({ default: m.AdminOrdersView })));
-const AdminZonesView = lazy(() => import('./components/views/admin/AdminZonesView').then(m => ({ default: m.AdminZonesView })));
-const AdminCouponsView = lazy(() => import('./components/views/admin/AdminCouponsView').then(m => ({ default: m.AdminCouponsView })));
-const AdminCategoriesView = lazy(() => import('./components/views/admin/AdminCategoriesView').then(m => ({ default: m.AdminCategoriesView })));
-const AdminPayoutsView = lazy(() => import('./components/views/admin/AdminPayoutsView').then(m => ({ default: m.AdminPayoutsView })));
-const AdminReviewsView = lazy(() => import('./components/views/admin/AdminReviewsView').then(m => ({ default: m.AdminReviewsView })));
-const AdminNotificationsView = lazy(() => import('./components/views/admin/AdminNotificationsView').then(m => ({ default: m.AdminNotificationsView })));
-const AdminCustomersView = lazy(() => import('./components/views/admin/AdminCustomersView').then(m => ({ default: m.AdminCustomersView })));
-const AdminAnalyticsView = lazy(() => import('./components/views/admin/AdminAnalyticsView').then(m => ({ default: m.AdminAnalyticsView })));
-const AdminPlatformSettingsView = lazy(() => import('./components/views/admin/AdminPlatformSettingsView').then(m => ({ default: m.AdminPlatformSettingsView })));
-const AdminActivityLogView = lazy(() => import('./components/views/admin/AdminActivityLogView').then(m => ({ default: m.AdminActivityLogView })));
-const AdminSupabaseSync = lazy(() => import('./components/views/admin/AdminSupabaseSync').then(m => ({ default: m.AdminSupabaseSync })));
+const DeliverySupervisorDashboardView = lazy(() => import('./components/views/supervisor/DeliverySupervisorDashboardView'));
+const FinanceAdminDashboardView = lazy(() => import('./components/views/finance/FinanceAdminDashboardView'));
+const OrdersManagerDashboardView = lazy(() => import('./components/views/orders/OrdersManagerDashboardView'));
 
-// Lazy Loaded Specialized Operational Views
-const DeliverySupervisorDashboardView = lazy(() => import('./components/views/supervisor/DeliverySupervisorDashboardView').then(m => ({ default: m.DeliverySupervisorDashboardView })));
-const FinanceAdminDashboardView = lazy(() => import('./components/views/finance/FinanceAdminDashboardView').then(m => ({ default: m.FinanceAdminDashboardView })));
-const OrdersManagerDashboardView = lazy(() => import('./components/views/orders/OrdersManagerDashboardView').then(m => ({ default: m.OrdersManagerDashboardView })));
+// Auth Modals
+const ForgotPasswordModal = lazy(() => import('./components/modals/AuthModals').then(m => ({ default: m.ForgotPasswordModal })));
+const ResetPasswordModal = lazy(() => import('./components/modals/AuthModals').then(m => ({ default: m.ResetPasswordModal })));
 
 function ViewFallback() {
   return (
@@ -87,514 +91,316 @@ function ViewFallback() {
   );
 }
 
-import {
-  ShoppingBag,
-  ListOrdered,
-  MapPin,
-  Store as StoreIcon,
-  Package,
-  TrendingUp,
-  Settings,
-  Bike,
-  ShieldCheck,
-  Tag,
-  DollarSign,
-  FolderTree,
-  Bell,
-  Star,
-  Database,
-  Search as SearchIcon,
-  User as UserIcon,
-  LayoutGrid,
-  Users,
-  Shield
-} from 'lucide-react';
+// ===== ProtectedRoute Component =====
+interface ProtectedRouteProps {
+  children: React.ReactNode;
+  allowedRoles: UserRole[];
+  redirectTo?: string;
+}
 
+function ProtectedRoute({ children, allowedRoles, redirectTo = '/auth' }: ProtectedRouteProps) {
+  const [user, setUser] = useState<UserProfile | null>(StorageRepo.getCurrentUser());
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const currentUser = StorageRepo.getCurrentUser();
+      setUser(currentUser);
+      setLoading(false);
+    };
+    checkAuth();
+
+    const unsubscribe = subscribeToStorageChange(() => {
+      const u = StorageRepo.getCurrentUser();
+      setUser(u);
+    });
+    return unsubscribe;
+  }, []);
+
+  if (loading) return <ViewFallback />;
+  if (!user) {
+    navigate(redirectTo);
+    return null;
+  }
+  if (!allowedRoles.includes(user.role)) {
+    // Redirect to default tab for their role
+    const defaultTab = DEFAULT_TAB_BY_ROLE[user.role] || 'landing';
+    navigate(`/${defaultTab}`);
+    return null;
+  }
+  return <>{children}</>;
+}
+
+// ===== Route Components with URL Parameters =====
+function StoreDetailRoute() {
+  const { storeId } = useParams<{ storeId: string }>();
+  const navigate = useNavigate();
+  const { setIsOpen } = useCartStore();
+  return (
+    <CustomerStoreDetailView
+      storeId={storeId!}
+      onBack={() => navigate('/stores')}
+      onOpenCart={() => setIsOpen(true)}
+    />
+  );
+}
+
+function OrderDetailRoute() {
+  const { orderId } = useParams<{ orderId: string }>();
+  const navigate = useNavigate();
+  return (
+    <CustomerOrderDetailView
+      orderId={orderId!}
+      onBack={() => navigate('/orders')}
+    />
+  );
+}
+
+function OrderConfirmationRoute() {
+  const { orderId } = useParams<{ orderId: string }>();
+  const navigate = useNavigate();
+  return (
+    <OrderConfirmationView
+      orderId={orderId!}
+      onNavigate={(tab) => navigate(`/${tab}`)}
+    />
+  );
+}
+
+// ===== Main App =====
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [showSplash, setShowSplash] = useState(true);
+  const [showSplash, setShowSplash] = useState(() => {
+    // Show splash only once per session
+    return !sessionStorage.getItem('splashShown');
+  });
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => StorageRepo.getCurrentUser());
-  const [activeTab, setActiveTab] = useState<string>('customer-stores');
-
-  // Customer navigation state
-  const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
-  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
-
-  // ===== Forgot/Reset Password Modals =====
   const [showForgotModal, setShowForgotModal] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
-
   const { isOpen, setIsOpen } = useCartStore();
 
-  const syncUserProfileFromSession = async (currentSession: Session | null) => {
-    if (!currentSession?.user) {
-      setCurrentUser(null);
-      StorageRepo.setCurrentUser(null);
-      useCartStore.getState().setUserId(null);
-      return null;
-    }
-
-    const userId = currentSession.user.id;
-    useCartStore.getState().setUserId(userId);
-
-    // Explicitly sync data with Supabase after real session is confirmed
-    StorageRepo.syncWithSupabase().catch(() => {});
-
-    try {
-      const { data: profile } = await (supabase
-        .from('profiles') as any)
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
-
-      if (profile) {
-        const userProfile: UserProfile = {
-          id: profile.id,
-          email: profile.email || currentSession.user.email || '',
-          name: profile.full_name || currentSession.user.user_metadata?.full_name || 'مستخدم',
-          full_name: profile.full_name,
-          phone: profile.phone || currentSession.user.user_metadata?.phone || '',
-          role: (profile.role as UserRole) || 'customer',
-          avatar_url: profile.avatar_url,
-          is_active: profile.is_active ?? true,
-          created_at: profile.created_at || currentSession.user.created_at,
-        };
-        setCurrentUser(userProfile);
-        StorageRepo.setCurrentUser(userProfile);
-        return userProfile;
-      } else {
-        const fallbackUser: UserProfile = {
-          id: userId,
-          email: currentSession.user.email || '',
-          name: currentSession.user.user_metadata?.full_name || 'مستخدم',
-          phone: currentSession.user.user_metadata?.phone || '',
-          role: 'customer',
-          created_at: currentSession.user.created_at,
-        };
-        setCurrentUser(fallbackUser);
-        StorageRepo.setCurrentUser(fallbackUser);
-        return fallbackUser;
-      }
-    } catch (err) {
-      console.error('Error fetching user profile from database:', err);
-      const cached = StorageRepo.getCurrentUser();
-      if (cached && cached.id === userId) {
-        setCurrentUser(cached);
-        return cached;
-      }
-    }
-    return null;
-  };
-
-  // ===== Initial Session Check =====
+  // Session sync
   useEffect(() => {
     let isMounted = true;
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!isMounted) return;
       setSession(session);
-      syncUserProfileFromSession(session).finally(() => {
-        if (isMounted) setIsLoading(false);
-      });
+      if (session?.user) {
+        syncUserProfile(session);
+      }
+      setIsLoading(false);
     });
 
-    // Real-time Auth State Change Listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!isMounted) return;
         setSession(session);
-
         if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
-          await syncUserProfileFromSession(session);
+          if (session) await syncUserProfile(session);
         } else if (event === 'SIGNED_OUT') {
           setCurrentUser(null);
           StorageRepo.setCurrentUser(null);
-          useCartStore.getState().setUserId(null);
-          setActiveTab('landing');
         }
-
-        // استماع لحدث استعادة كلمة المرور
-        if (event === 'PASSWORD_RECOVERY') {
-          setResetEmail(session?.user?.email || '');
-          setShowResetModal(true);
-        }
-
         setIsLoading(false);
       }
     );
 
-    const unsubscribeStorage = subscribeToStorageChange(() => {
-      const user = StorageRepo.getCurrentUser();
-      setCurrentUser(user);
-    });
-
     return () => {
       isMounted = false;
       subscription.unsubscribe();
-      unsubscribeStorage();
     };
   }, []);
 
-  // ===== Navigation =====
-  const handleNavigate = useCallback((tab: string, param?: string) => {
-    // حالة خاصة: فتح مودال نسيت كلمة المرور
-    if (tab === 'forgot-password') {
-      setShowForgotModal(true);
-      return; // لا نغير التاب الحالي
-    }
+  const syncUserProfile = async (session: Session) => {
+    try {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', session.user.id)
+        .maybeSingle();
 
-    if (param) {
-      if (tab === 'customer-store-detail') setSelectedStoreId(param);
-      if (tab === 'customer-order-detail' || tab === 'order-confirmation') setSelectedOrderId(param);
-    }
-    setActiveTab(tab);
-  }, []);
-
-  // ===== Auth & Role Guards =====
-  const PUBLIC_TABS = [
-    'landing', 'auth', 'about', 'apply-store',
-    'apply-agent', 'contact', 'terms'
-  ];
-
-  const isPublicTab = PUBLIC_TABS.includes(activeTab);
-  const isLoggedIn = !!session && !!currentUser;
-
-  useEffect(() => {
-    if (isLoading) return;
-
-    if (!isLoggedIn) {
-      if (!isPublicTab) {
-        setActiveTab('auth');
+      if (profile) {
+        const user: UserProfile = {
+          id: profile.id,
+          email: profile.email || session.user.email || '',
+          name: profile.full_name || session.user.user_metadata?.full_name || 'مستخدم',
+          phone: profile.phone || session.user.user_metadata?.phone || '',
+          role: (profile.role as UserRole) || 'customer',
+          avatar_url: profile.avatar_url,
+          is_active: profile.is_active ?? true,
+          created_at: profile.created_at || session.user.created_at,
+        };
+        setCurrentUser(user);
+        StorageRepo.setCurrentUser(user);
+        useCartStore.getState().setUserId(user.id);
       }
-    } else if (currentUser) {
-      const role = currentUser.role || 'customer';
-      const allowedTabs = ALLOWED_TABS_BY_ROLE[role] || [];
-      const isAuthTab = activeTab === 'auth';
-      const isAllowed = (isPublicTab && !isAuthTab) || allowedTabs.includes(activeTab);
-
-      if (!isAllowed) {
-        const defaultTab = DEFAULT_TAB_BY_ROLE[role] || 'customer-stores';
-        setActiveTab(defaultTab);
-      }
+    } catch (err) {
+      console.error('Error syncing user profile:', err);
     }
-  }, [isLoading, isLoggedIn, currentUser, isPublicTab, activeTab]);
+  };
 
-  const activeUserProfile = currentUser;
+  const handleSplashFinish = () => {
+    setShowSplash(false);
+    sessionStorage.setItem('splashShown', 'true');
+  };
 
-  const handleLogout = useCallback(async () => {
-    await supabase.auth.signOut().catch(() => {});
-    StorageRepo.logout();
-    useCartStore.getState().setUserId(null);
-    setCurrentUser(null);
-    setActiveTab('landing');
-  }, []);
-
-  const handleSelectStore = useCallback((storeOrId: Store | string) => {
-    const storeId = typeof storeOrId === 'string' ? storeOrId : storeOrId.id;
-    setSelectedStoreId(storeId);
-    setActiveTab('customer-store-detail');
-  }, []);
-
-  const handleProceedToCheckout = useCallback(() => {
-    setIsOpen(false);
-    setActiveTab('customer-checkout');
-  }, [setIsOpen]);
-
-  const handleOrderPlaced = useCallback((orderId: string) => {
-    setSelectedOrderId(orderId);
-    setActiveTab('order-confirmation');
-  }, []);
-
-  const currentRole = activeUserProfile?.role || 'customer';
+  if (isLoading) {
+    return <ViewFallback />;
+  }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans antialiased dir-rtl selection:bg-emerald-500 selection:text-white flex flex-col">
-      {/* Smart PWA Progressive Web App Install Banner */}
-      <PwaInstallPrompt />
+    <BrowserRouter>
+      <ToastProvider>
+        <ConfirmDialogProvider>
+          <div className="min-h-screen bg-slate-50 text-slate-900 font-sans antialiased dir-rtl selection:bg-emerald-500 selection:text-white flex flex-col">
+            <PwaInstallPrompt />
+            <PushNotificationToast />
+            {showSplash && (
+              <SplashScreen
+                durationSeconds={3}
+                onFinish={handleSplashFinish}
+              />
+            )}
+            <Navbar currentUser={currentUser} />
+            <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 overflow-x-hidden">
+              <Suspense fallback={<ViewFallback />}>
+                <Routes>
+                  {/* Public Routes */}
+                  <Route path="/" element={<LandingView />} />
+                  <Route path="/auth" element={<AuthView />} />
+                  <Route path="/about" element={<AboutView />} />
+                  <Route path="/apply-store" element={<ApplyStoreView />} />
+                  <Route path="/apply-agent" element={<ApplyAgentView />} />
+                  <Route path="/contact" element={<ContactView />} />
+                  <Route path="/terms" element={<TermsPrivacyView />} />
 
-      {/* Real-time Push Notification Toast Overlay */}
-      <PushNotificationToast onNavigate={handleNavigate} />
+                  {/* Customer Routes */}
+                  <Route path="/stores" element={<CustomerStoresView />} />
+                  <Route path="/stores/:storeId" element={<StoreDetailRoute />} />
+                  <Route path="/search" element={<SearchView />} />
+                  <Route path="/categories" element={<CategoriesBrowseView />} />
+                  <Route path="/checkout" element={<CustomerCheckoutView />} />
+                  <Route path="/orders" element={<CustomerOrdersView />} />
+                  <Route path="/orders/:orderId" element={<OrderDetailRoute />} />
+                  <Route path="/order-confirmation/:orderId" element={<OrderConfirmationRoute />} />
+                  <Route path="/profile" element={<ProfileView />} />
+                  <Route path="/addresses" element={<CustomerAddressesView />} />
+                  <Route path="/notifications" element={<NotificationsView />} />
 
-      {/* 5-Second Splash Screen */}
-      {showSplash && (
-        <SplashScreen
-          durationSeconds={5}
-          onFinish={() => setShowSplash(false)}
-        />
-      )}
+                  {/* Store Owner Routes */}
+                  <Route path="/store/dashboard" element={<ProtectedRoute allowedRoles={['store_owner']}><StoreDashboardView /></ProtectedRoute>} />
+                  <Route path="/store/orders" element={<ProtectedRoute allowedRoles={['store_owner']}><StoreOrdersView /></ProtectedRoute>} />
+                  <Route path="/store/products" element={<ProtectedRoute allowedRoles={['store_owner']}><StoreProductsView /></ProtectedRoute>} />
+                  <Route path="/store/reviews" element={<ProtectedRoute allowedRoles={['store_owner']}><StoreReviewsView /></ProtectedRoute>} />
+                  <Route path="/store/payouts" element={<ProtectedRoute allowedRoles={['store_owner']}><StorePayoutsView /></ProtectedRoute>} />
+                  <Route path="/store/analytics" element={<ProtectedRoute allowedRoles={['store_owner']}><StoreAnalyticsView /></ProtectedRoute>} />
+                  <Route path="/store/notifications" element={<ProtectedRoute allowedRoles={['store_owner']}><StoreNotificationsView /></ProtectedRoute>} />
+                  <Route path="/store/settings" element={<ProtectedRoute allowedRoles={['store_owner']}><StoreSettingsView /></ProtectedRoute>} />
 
-      {/* Primary Navigation Bar */}
-      <Navbar
-        currentTab={activeTab}
-        onNavigate={handleNavigate}
-        onOpenCart={() => setIsOpen(true)}
-      />
+                  {/* Delivery Agent Routes */}
+                  <Route path="/delivery/dashboard" element={<ProtectedRoute allowedRoles={['delivery_agent']}><DeliveryDashboardView /></ProtectedRoute>} />
+                  <Route path="/delivery/available" element={<ProtectedRoute allowedRoles={['delivery_agent']}><DeliveryAvailableView /></ProtectedRoute>} />
+                  <Route path="/delivery/active" element={<ProtectedRoute allowedRoles={['delivery_agent']}><DeliveryActiveView /></ProtectedRoute>} />
+                  <Route path="/delivery/history" element={<ProtectedRoute allowedRoles={['delivery_agent']}><DeliveryHistoryView /></ProtectedRoute>} />
+                  <Route path="/delivery/earnings" element={<ProtectedRoute allowedRoles={['delivery_agent']}><DeliveryEarningsView /></ProtectedRoute>} />
+                  <Route path="/delivery/profile" element={<ProtectedRoute allowedRoles={['delivery_agent']}><DeliveryProfileView /></ProtectedRoute>} />
+                  <Route path="/delivery/notifications" element={<ProtectedRoute allowedRoles={['delivery_agent']}><DeliveryNotificationsView /></ProtectedRoute>} />
 
-      {/* Main View Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 overflow-x-hidden">
-        <Suspense fallback={<ViewFallback />}>
-          {/* Public Global Views */}
-          {activeTab === 'landing' && <LandingView onNavigate={handleNavigate} />}
-          {activeTab === 'auth' && (
-            <AuthView
-              onSuccess={(user) => {
-                setCurrentUser(user);
-                const defaultTab = DEFAULT_TAB_BY_ROLE[user.role] || 'customer-stores';
-                setActiveTab(defaultTab);
-              }}
-              onNavigate={(tab) => {
-                if (tab === 'forgot-password') {
-                  setShowForgotModal(true);
-                } else {
-                  setActiveTab(tab);
-                }
+                  {/* Specialized Roles */}
+                  <Route path="/supervisor" element={<ProtectedRoute allowedRoles={['delivery_supervisor']}><DeliverySupervisorDashboardView /></ProtectedRoute>} />
+                  <Route path="/finance" element={<ProtectedRoute allowedRoles={['finance_admin']}><FinanceAdminDashboardView /></ProtectedRoute>} />
+                  <Route path="/orders-manager" element={<ProtectedRoute allowedRoles={['orders_manager']}><OrdersManagerDashboardView /></ProtectedRoute>} />
+
+                  {/* Admin Routes */}
+                  <Route path="/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboardView /></ProtectedRoute>} />
+                  <Route path="/admin/analytics" element={<ProtectedRoute allowedRoles={['admin']}><AdminAnalyticsView /></ProtectedRoute>} />
+                  <Route path="/admin/stores-applications" element={<ProtectedRoute allowedRoles={['admin']}><AdminStoresApplicationsView /></ProtectedRoute>} />
+                  <Route path="/admin/stores" element={<ProtectedRoute allowedRoles={['admin']}><AdminStoresView /></ProtectedRoute>} />
+                  <Route path="/admin/agents" element={<ProtectedRoute allowedRoles={['admin']}><AdminAgentsView /></ProtectedRoute>} />
+                  <Route path="/admin/customers" element={<ProtectedRoute allowedRoles={['admin']}><AdminCustomersView /></ProtectedRoute>} />
+                  <Route path="/admin/orders" element={<ProtectedRoute allowedRoles={['admin']}><AdminOrdersView /></ProtectedRoute>} />
+                  <Route path="/admin/zones" element={<ProtectedRoute allowedRoles={['admin']}><AdminZonesView /></ProtectedRoute>} />
+                  <Route path="/admin/coupons" element={<ProtectedRoute allowedRoles={['admin']}><AdminCouponsView /></ProtectedRoute>} />
+                  <Route path="/admin/categories" element={<ProtectedRoute allowedRoles={['admin']}><AdminCategoriesView /></ProtectedRoute>} />
+                  <Route path="/admin/payouts" element={<ProtectedRoute allowedRoles={['admin']}><AdminPayoutsView /></ProtectedRoute>} />
+                  <Route path="/admin/activity" element={<ProtectedRoute allowedRoles={['admin']}><AdminActivityLogView /></ProtectedRoute>} />
+                  <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={['admin']}><AdminPlatformSettingsView /></ProtectedRoute>} />
+                  <Route path="/admin/reviews" element={<ProtectedRoute allowedRoles={['admin']}><AdminReviewsView /></ProtectedRoute>} />
+                  <Route path="/admin/notifications" element={<ProtectedRoute allowedRoles={['admin']}><AdminNotificationsView /></ProtectedRoute>} />
+                  <Route path="/admin/supabase" element={<ProtectedRoute allowedRoles={['admin']}><AdminSupabaseSync /></ProtectedRoute>} />
+
+                  {/* Fallback */}
+                  <Route path="*" element={<NotFoundView />} />
+                </Routes>
+              </Suspense>
+            </main>
+
+            <CartDrawer
+              isOpen={isOpen}
+              onClose={() => setIsOpen(false)}
+              onProceedToCheckout={() => {
+                setIsOpen(false);
+                // Use navigate from inside component
               }}
             />
-          )}
-          {activeTab === 'about' && <AboutView onNavigate={handleNavigate} />}
-          {activeTab === 'apply-store' && <ApplyStoreView onNavigate={handleNavigate} />}
-          {activeTab === 'apply-agent' && <ApplyAgentView onNavigate={handleNavigate} />}
-          {activeTab === 'contact' && <ContactView onNavigate={handleNavigate} />}
-          {activeTab === 'terms' && <TermsPrivacyView />}
 
-          {/* Customer Route Render */}
-          {currentRole === 'customer' && !['landing', 'auth', 'about', 'apply-store', 'apply-agent', 'contact', 'terms'].includes(activeTab) && (
-            <>
-              {activeTab === 'customer-stores' && (
-                <CustomerStoresView onSelectStore={handleSelectStore} />
-              )}
-
-              {activeTab === 'search' && (
-                <SearchView
-                  onSelectStore={handleSelectStore}
-                  onNavigate={handleNavigate}
-                />
-              )}
-
-              {activeTab === 'categories-browse' && (
-                <CategoriesBrowseView onNavigate={handleNavigate} />
-              )}
-
-              {activeTab === 'profile' && (
-                <ProfileView
-                  onNavigate={handleNavigate}
-                  onLogout={handleLogout}
-                />
-              )}
-
-              {activeTab === 'customer-store-detail' && selectedStoreId && (
-                <CustomerStoreDetailView
-                  storeId={selectedStoreId}
-                  onBack={() => setActiveTab('customer-stores')}
-                  onOpenCart={() => setIsOpen(true)}
-                />
-              )}
-
-              {activeTab === 'customer-checkout' && (
-                <CustomerCheckoutView
-                  onOrderPlaced={handleOrderPlaced}
-                  onBack={() => setActiveTab('customer-stores')}
-                />
-              )}
-
-              {activeTab === 'order-confirmation' && selectedOrderId && (
-                <OrderConfirmationView
-                  orderId={selectedOrderId}
-                  onNavigate={handleNavigate}
-                />
-              )}
-
-              {activeTab === 'customer-orders' && (
-                <CustomerOrdersView
-                  onSelectOrder={(id) => {
-                    setSelectedOrderId(id);
-                    setActiveTab('customer-order-detail');
-                  }}
-                  onBrowseStores={() => setActiveTab('customer-stores')}
-                />
-              )}
-
-              {activeTab === 'customer-order-detail' && selectedOrderId && (
-                <CustomerOrderDetailView
-                  orderId={selectedOrderId}
-                  onBack={() => setActiveTab('customer-orders')}
-                />
-              )}
-
-              {activeTab === 'customer-addresses' && <CustomerAddressesView />}
-              {activeTab === 'notifications' && <NotificationsView onNavigate={handleNavigate} />}
-            </>
-          )}
-
-          {/* Store Owner Route Render */}
-          {currentRole === 'store_owner' && !['landing', 'auth', 'about', 'apply-store', 'apply-agent', 'contact', 'terms'].includes(activeTab) && (
-            <>
-              {activeTab === 'store-dashboard' && (
-                <StoreDashboardView onNavigate={(tab) => setActiveTab(tab)} />
-              )}
-              {activeTab === 'store-orders' && (
-                <StoreOrdersView onNavigate={(tab) => setActiveTab(tab)} />
-              )}
-              {activeTab === 'store-products' && (
-                <StoreProductsView onNavigate={(tab) => setActiveTab(tab)} />
-              )}
-              {activeTab === 'store-reviews' && (
-                <StoreReviewsView onNavigate={(tab) => setActiveTab(tab)} />
-              )}
-              {activeTab === 'store-payouts' && (
-                <StorePayoutsView onNavigate={(tab) => setActiveTab(tab)} />
-              )}
-              {activeTab === 'store-analytics' && (
-                <StoreAnalyticsView onNavigate={(tab) => setActiveTab(tab)} />
-              )}
-              {activeTab === 'store-notifications' && (
-                <StoreNotificationsView onNavigate={(tab) => setActiveTab(tab)} />
-              )}
-              {activeTab === 'store-settings' && (
-                <StoreSettingsView onNavigate={(tab) => setActiveTab(tab)} />
-              )}
-            </>
-          )}
-
-          {/* Delivery Agent Route Render */}
-          {currentRole === 'delivery_agent' && !['landing', 'auth', 'about', 'apply-store', 'apply-agent', 'contact', 'terms'].includes(activeTab) && (
-            <>
-              {activeTab === 'delivery-dashboard' && (
-                <DeliveryDashboardView onNavigate={(tab) => setActiveTab(tab)} />
-              )}
-              {activeTab === 'delivery-available' && (
-                <DeliveryAvailableView
-                  onOrderClaimed={() => {
-                    setActiveTab('delivery-active');
+            {/* Modals */}
+            <Suspense fallback={null}>
+              {showForgotModal && (
+                <ForgotPasswordModal
+                  onClose={() => setShowForgotModal(false)}
+                  onOpenReset={(email) => {
+                    setResetEmail(email);
+                    setShowForgotModal(false);
+                    setShowResetModal(true);
                   }}
                 />
               )}
-              {activeTab === 'delivery-active' && (
-                <DeliveryActiveView
-                  onTripCompleted={() => {
-                    setActiveTab('delivery-history');
+              {showResetModal && (
+                <ResetPasswordModal
+                  email={resetEmail}
+                  onClose={() => setShowResetModal(false)}
+                  onSuccess={() => {
+                    alert('تم تحديث كلمة المرور بنجاح!');
+                    setShowResetModal(false);
                   }}
                 />
               )}
-              {activeTab === 'delivery-history' && <DeliveryHistoryView />}
-              {activeTab === 'delivery-earnings' && <DeliveryEarningsView />}
-              {activeTab === 'delivery-profile' && <DeliveryProfileView />}
-              {activeTab === 'delivery-notifications' && <DeliveryNotificationsView />}
-            </>
-          )}
+            </Suspense>
 
-          {/* Delivery Supervisor Route Render */}
-          {currentRole === 'delivery_supervisor' && activeTab === 'delivery-supervisor-dashboard' && (
-            <DeliverySupervisorDashboardView />
-          )}
-
-          {/* Finance Admin Route Render */}
-          {currentRole === 'finance_admin' && activeTab === 'finance-admin-dashboard' && (
-            <FinanceAdminDashboardView />
-          )}
-
-          {/* Orders Manager Route Render */}
-          {currentRole === 'orders_manager' && activeTab === 'orders-manager-dashboard' && (
-            <OrdersManagerDashboardView />
-          )}
-
-          {/* Admin Route Render */}
-          {currentRole === 'admin' && !['landing', 'auth', 'about', 'apply-store', 'apply-agent', 'contact', 'terms'].includes(activeTab) && (
-            <>
-              {activeTab === 'admin-dashboard' && (
-                <AdminDashboardView onNavigate={(tab) => setActiveTab(tab)} />
-              )}
-              {activeTab === 'admin-analytics' && <AdminAnalyticsView />}
-              {activeTab === 'admin-stores-applications' && <AdminStoresApplicationsView />}
-              {activeTab === 'admin-stores' && <AdminStoresView />}
-              {activeTab === 'admin-agents' && <AdminAgentsView />}
-              {activeTab === 'admin-customers' && <AdminCustomersView />}
-              {activeTab === 'admin-orders' && <AdminOrdersView />}
-              {activeTab === 'admin-zones' && <AdminZonesView />}
-              {activeTab === 'admin-coupons' && <AdminCouponsView />}
-              {activeTab === 'admin-categories' && <AdminCategoriesView />}
-              {activeTab === 'admin-payouts' && <AdminPayoutsView />}
-              {activeTab === 'admin-activity-log' && <AdminActivityLogView />}
-              {activeTab === 'admin-settings' && <AdminPlatformSettingsView />}
-              {activeTab === 'admin-reviews' && <AdminReviewsView />}
-              {activeTab === 'admin-notifications' && <AdminNotificationsView />}
-              {activeTab === 'admin-supabase' && <AdminSupabaseSync />}
-            </>
-          )}
-        </Suspense>
-      </main>
-
-      {/* Cart Drawer Component */}
-      <CartDrawer
-        isOpen={isOpen}
-        onClose={() => setIsOpen(false)}
-        onProceedToCheckout={handleProceedToCheckout}
-      />
-
-      {/* ===== Forgot & Reset Password Modals ===== */}
-      {showForgotModal && (
-        <ForgotPasswordModal
-          onClose={() => setShowForgotModal(false)}
-          onOpenReset={(email) => {
-            setResetEmail(email);
-            setShowForgotModal(false);
-            setShowResetModal(true);
-          }}
-        />
-      )}
-      {showResetModal && (
-        <ResetPasswordModal
-          email={resetEmail}
-          onClose={() => setShowResetModal(false)}
-          onSuccess={() => {
-            alert('تم تحديث كلمة المرور بنجاح!');
-            setShowResetModal(false);
-          }}
-        />
-      )}
-
-      {/* Footer */}
-      <footer className="bg-white border-t border-slate-200 mt-auto py-8 dir-rtl">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
-          <div className="flex flex-wrap items-center justify-between gap-4 text-xs font-bold text-slate-700 pb-4 border-b border-slate-100">
-            <div className="flex items-center gap-4">
-              <button onClick={() => setActiveTab('landing')} className="hover:text-purple-600 transition-colors">
-                الرئيسية
-              </button>
-              <button onClick={() => setActiveTab('about')} className="hover:text-purple-600 transition-colors">
-                عن المنصة
-              </button>
-              <button onClick={() => setActiveTab('apply-store')} className="hover:text-purple-600 transition-colors">
-                انضم كمتجر
-              </button>
-              <button onClick={() => setActiveTab('apply-agent')} className="hover:text-purple-600 transition-colors">
-                انضم ككابتن
-              </button>
-              <button onClick={() => setActiveTab('contact')} className="hover:text-purple-600 transition-colors">
-                اتصل بنا
-              </button>
-              <button onClick={() => setActiveTab('terms')} className="hover:text-purple-600 transition-colors">
-                الشروط والخصوصية
-              </button>
-            </div>
-
-            <span className="text-[11px] text-slate-400 font-normal">
-              منصة على بابك (JIHAT Platform) - توصيل فائق السرعة
-            </span>
+            {/* Footer */}
+            <footer className="bg-white border-t border-slate-200 mt-auto py-8 dir-rtl">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+                <div className="flex flex-wrap items-center justify-between gap-4 text-xs font-bold text-slate-700 pb-4 border-b border-slate-100">
+                  <div className="flex items-center gap-4">
+                    <a href="/" className="hover:text-purple-600 transition-colors">الرئيسية</a>
+                    <a href="/about" className="hover:text-purple-600 transition-colors">عن المنصة</a>
+                    <a href="/apply-store" className="hover:text-purple-600 transition-colors">انضم كمتجر</a>
+                    <a href="/apply-agent" className="hover:text-purple-600 transition-colors">انضم ككابتن</a>
+                    <a href="/contact" className="hover:text-purple-600 transition-colors">اتصل بنا</a>
+                    <a href="/terms" className="hover:text-purple-600 transition-colors">الشروط والخصوصية</a>
+                  </div>
+                  <span className="text-[11px] text-slate-400 font-normal">
+                    منصة على بابك (JIHAT Platform) - توصيل فائق السرعة
+                  </span>
+                </div>
+                <div className="text-center text-xs text-slate-500">
+                  <p className="font-bold text-slate-800">
+                    منصة على بابك - التوصيل الفائق والتسوق المحلي المباشر في جمهورية مصر العربية 🇪🇬
+                  </p>
+                  <p className="mt-1 text-[11px] text-slate-400">
+                    جميع الحقوق محفوظة © {new Date().getFullYear()} - ربط أصحاب المحلات، كباتن التوصيل، والعملاء
+                  </p>
+                </div>
+              </div>
+            </footer>
           </div>
-
-          <div className="text-center text-xs text-slate-500">
-            <p className="font-bold text-slate-800">
-              منصة على بابك - التوصيل الفائق والتسوق المحلي المباشر في جمهورية مصر العربية 🇪🇬
-            </p>
-            <p className="mt-1 text-[11px] text-slate-400">
-              جميع الحقوق محفوظة © {new Date().getFullYear()} - ربط أصحاب المحلات، كباتن التوصيل، والعملاء
-            </p>
-          </div>
-        </div>
-      </footer>
-    </div>
+        </ConfirmDialogProvider>
+      </ToastProvider>
+    </BrowserRouter>
   );
 }
