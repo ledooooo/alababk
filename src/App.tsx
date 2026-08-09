@@ -282,15 +282,17 @@ export default function App() {
     setActiveTab('order-confirmation');
   }, []);
 
-  const handleNavigate = useCallback((tab: string, param?: string) => {
-    if (param) {
-      if (tab === 'customer-store-detail') setSelectedStoreId(param);
-      if (tab === 'customer-order-detail' || tab === 'order-confirmation') setSelectedOrderId(param);
-        if (tab === 'forgot-password') {
+const handleNavigate = useCallback((tab: string, param?: string) => {
+  if (tab === 'forgot-password') {
     setShowForgotModal(true);
-    }
-    setActiveTab(tab);
-  }, []);
+    return; // لا نغير التاب الحالي، فقط نفتح المودال
+  }
+  if (param) {
+    if (tab === 'customer-store-detail') setSelectedStoreId(param);
+    if (tab === 'customer-order-detail' || tab === 'order-confirmation') setSelectedOrderId(param);
+  }
+  setActiveTab(tab);
+}, []);
 
 // داخل App component
 const [showForgotModal, setShowForgotModal] = useState(false);
