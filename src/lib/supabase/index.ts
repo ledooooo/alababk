@@ -8,7 +8,7 @@ export * from './users';
 export * from './categories';
 export * from './stores';
 export * from './products';
-export * from './orders';      // يحتوي على fetchAgentStats و fetchStoreStats
+export * from './orders';
 export * from './addresses';
 export * from './delivery-agents';
 export * from './zones';
@@ -17,4 +17,4 @@ export * from './reviews';
 export * from './notifications';
 export * from './payouts';
 export * from './realtime';
-export * from './admin';       // يحتوي على seedSupabaseDatabase و checkSupabaseConnection
+export * from './admin';      // يحتوي على checkSupabaseConnection و seedSupabaseDatabase
