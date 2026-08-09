@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useCartStore } from '../../stores/cart-store';
 import { formatCurrency } from '../../lib/formatters';
 import { ShoppingBag, X, Plus, Minus, Trash2, ArrowLeft, Store, AlertCircle } from 'lucide-react';
@@ -15,6 +16,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   onProceedToCheckout,
 }) => {
   const { items, storeName, updateQuantity, removeItem, clearCart, getSubtotal } = useCartStore();
+  const navigate = useNavigate();
   const subtotal = getSubtotal();
   const estimatedDeliveryFee = subtotal > 0 ? 15 : 0;
   const total = subtotal + estimatedDeliveryFee;
@@ -23,7 +25,6 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 overflow-hidden dir-rtl">
-      {/* Backdrop */}
       <div
         className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity duration-200"
         onClick={onClose}
@@ -31,7 +32,6 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
       <div className="fixed inset-y-0 left-0 max-w-full flex h-full h-screen z-50">
         <div className="w-screen max-w-md h-full h-screen bg-white shadow-2xl flex flex-col justify-between border-r border-slate-200">
-          {/* Header */}
           <div className="shrink-0 p-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
             <div className="flex items-center gap-2">
               <div className="p-2 bg-emerald-500/20 text-emerald-400 rounded-lg">
@@ -55,7 +55,6 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
             </button>
           </div>
 
-          {/* Cart Items List */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {items.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center py-12">
@@ -130,7 +129,6 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
             )}
           </div>
 
-          {/* Footer Summary */}
           {items.length > 0 && (
             <div className="shrink-0 p-4 bg-slate-50 border-t border-slate-200 space-y-3">
               <div className="space-y-1.5 text-xs text-slate-600">
@@ -156,10 +154,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
               </div>
 
               <button
-                onClick={() => {
-                  onClose();
-                  onProceedToCheckout();
-                }}
+                onClick={onProceedToCheckout}
                 className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-md hover:shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 text-sm"
               >
                 <span>المتابعة لتحديد العنوان والتأكيد</span>

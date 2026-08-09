@@ -4,24 +4,13 @@ import { StorageRepo, subscribeToStorageChange } from '../../lib/storage';
 import { subscribeToNotifications } from '../../lib/supabase';
 import { useCartStore } from '../../stores/cart-store';
 import { SidebarDrawer } from './SidebarDrawer';
-import { UserProfile, Order, DEFAULT_TAB_BY_ROLE } from '../../types/domain';
+import { UserProfile, Order } from '../../types/domain';
 import {
   ShoppingBag,
   MapPin,
-  Truck,
-  Store,
-  Bike,
-  ShieldCheck,
-  User,
-  ListOrdered,
-  ChevronDown,
-  Sparkles,
-  PhoneCall,
-  Menu,
-  X,
   LogIn,
-  UserPlus,
-  Bell
+  Bell,
+  Menu,
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -37,7 +26,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentUser }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
   const cartItemCount = useCartStore((state) => state.getItemCount());
-
   const currentPath = location.pathname;
 
   useEffect(() => {
@@ -46,33 +34,32 @@ export const Navbar: React.FC<NavbarProps> = ({ currentUser }) => {
 
   useEffect(() => {
     const checkOrdersAndNotifications = () => {
-      const user = StorageRepo.getCurrentUser();
-      setUser(user);
+      const loggedUser = StorageRepo.getCurrentUser();
+      setUser(loggedUser);
 
-      const notifications = StorageRepo.getNotifications(user?.id);
+      const notifications = StorageRepo.getNotifications(loggedUser?.id);
       const unread = notifications.filter((n) => !n.is_read).length;
       setUnreadNotifCount(unread);
 
-      if (user) {
+      if (loggedUser) {
         const allOrders = StorageRepo.getOrders();
         let userActive: Order[] = [];
-        if (user.role === 'customer') {
+        if (loggedUser.role === 'customer') {
           userActive = allOrders.filter(
-            (o) => o.customer_id === user.id && !['delivered', 'cancelled', 'rejected'].includes(o.status)
+            (o) => o.customer_id === loggedUser.id && !['delivered', 'cancelled', 'rejected'].includes(o.status)
           );
-        } else if (user.role === 'store_owner') {
-          // Store owner orders
+        } else if (loggedUser.role === 'store_owner') {
           const store = StorageRepo.getCurrentStore();
           if (store) {
             userActive = allOrders.filter(
               (o) => o.store_id === store.id && !['delivered', 'cancelled', 'rejected'].includes(o.status)
             );
           }
-        } else if (user.role === 'delivery_agent') {
-          const agent = StorageRepo.getAgentByUserId(user.id);
-          const agentId = agent?.id || user.id;
+        } else if (loggedUser.role === 'delivery_agent') {
+          const agent = StorageRepo.getAgentByUserId(loggedUser.id);
+          const agentId = agent?.id || loggedUser.id;
           userActive = allOrders.filter(
-            (o) => (o.delivery_agent_id === agentId || o.delivery_agent_id === user.id) && !['delivered', 'cancelled', 'rejected'].includes(o.status)
+            (o) => (o.delivery_agent_id === agentId || o.delivery_agent_id === loggedUser.id) && !['delivered', 'cancelled', 'rejected'].includes(o.status)
           );
         }
         setActiveOrders(userActive);
@@ -108,7 +95,6 @@ export const Navbar: React.FC<NavbarProps> = ({ currentUser }) => {
   }, [user?.id]);
 
   const role = user?.role || 'customer';
-  const isActive = (path: string) => currentPath === path || currentPath.startsWith(path + '/');
 
   const handleNavigate = (path: string) => {
     navigate(path);
@@ -205,7 +191,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentUser }) => {
             <button
               onClick={() => navigate('/notifications')}
               className={`relative p-2 rounded-xl transition-all border flex items-center justify-center ${
-                isActive('/notifications')
+                currentPath === '/notifications'
                   ? 'bg-purple-100 text-purple-800 border-purple-300'
                   : 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-200'
               }`}
@@ -220,10 +206,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentUser }) => {
 
             {role === 'customer' && (
               <button
-                onClick={() => {
-                  // Open cart drawer via global state - we'll handle this via the store
-                  useCartStore.getState().openCart();
-                }}
+                onClick={() => useCartStore.getState().openCart()}
                 className="relative bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-xs px-3.5 py-2 rounded-xl shadow-md transition-all flex items-center gap-1.5"
               >
                 <ShoppingBag className="w-4 h-4 text-slate-950" />

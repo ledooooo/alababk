@@ -13,7 +13,6 @@ export default defineConfig(() => {
       {
         name: 'inject-sw-version',
         transformIndexHtml(html) {
-          // Inject cache version into HTML for SW registration
           return html.replace(
             '</head>',
             `<script>window.__SW_VERSION__ = '${version}';</script></head>`
@@ -51,7 +50,7 @@ export default defineConfig(() => {
           },
         },
       },
-      chunkSizeWarningLimit: 400,
+      chunkSizeWarningLimit: 500,
     },
     server: {
       hmr: process.env.DISABLE_HMR !== 'true',

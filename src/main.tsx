@@ -4,19 +4,10 @@ import App from './App.tsx';
 import './index.css';
 import { supabase } from './lib/supabase';
 
-interface ErrorBoundaryProps {
-  children: ReactNode;
-}
+class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error?: Error }> {
+  state = { hasError: false };
 
-interface ErrorBoundaryState {
-  hasError: boolean;
-  error?: Error;
-}
-
-class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  state: ErrorBoundaryState = { hasError: false };
-
-  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+  static getDerivedStateFromError(error: Error) {
     return { hasError: true, error };
   }
 
@@ -45,12 +36,11 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 }
 
-// Prefetch Supabase auth session
 supabase.auth.getSession().catch((err) => {
   console.warn('Initial auth getSession notice:', err);
 });
 
-// Register Service Worker for PWA support - fix condition order
+// Register Service Worker only if supported
 if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
   const isHttps = window.location.protocol === 'https:';
   const isLocalhost = window.location.hostname === 'localhost';

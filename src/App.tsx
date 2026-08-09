@@ -1,16 +1,16 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useParams, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useParams, useNavigate } from 'react-router-dom';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
 import { StorageRepo, subscribeToStorageChange } from './lib/storage';
-import { UserRole, UserProfile, Store, DEFAULT_TAB_BY_ROLE, ALLOWED_TABS_BY_ROLE } from './types/domain';
+import { UserRole, UserProfile, DEFAULT_TAB_BY_ROLE } from './types/domain';
 import { Navbar } from './components/layout/Navbar';
 import { SplashScreen } from './components/layout/SplashScreen';
 import { CartDrawer } from './components/cart/CartDrawer';
 import { PushNotificationToast } from './components/shared/PushNotificationToast';
 import { PwaInstallPrompt } from './components/pwa/PwaInstallPrompt';
 import { useCartStore } from './stores/cart-store';
-import { ToastProvider, useToast } from './components/shared/Toast';
+import { ToastProvider } from './components/shared/Toast';
 import { ConfirmDialogProvider } from './components/shared/ConfirmDialog';
 
 // ===== Lazy Imports for All Views =====
@@ -124,7 +124,6 @@ function ProtectedRoute({ children, allowedRoles, redirectTo = '/auth' }: Protec
     return null;
   }
   if (!allowedRoles.includes(user.role)) {
-    // Redirect to default tab for their role
     const defaultTab = DEFAULT_TAB_BY_ROLE[user.role] || 'landing';
     navigate(`/${defaultTab}`);
     return null;
@@ -172,10 +171,7 @@ function OrderConfirmationRoute() {
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [showSplash, setShowSplash] = useState(() => {
-    // Show splash only once per session
-    return !sessionStorage.getItem('splashShown');
-  });
+  const [showSplash, setShowSplash] = useState(() => !sessionStorage.getItem('splashShown'));
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => StorageRepo.getCurrentUser());
   const [showForgotModal, setShowForgotModal] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
@@ -344,7 +340,7 @@ export default function App() {
               onClose={() => setIsOpen(false)}
               onProceedToCheckout={() => {
                 setIsOpen(false);
-                // Use navigate from inside component
+                // التنقل يتم داخل المكون باستخدام useNavigate
               }}
             />
 
@@ -372,7 +368,6 @@ export default function App() {
               )}
             </Suspense>
 
-            {/* Footer */}
             <footer className="bg-white border-t border-slate-200 mt-auto py-8 dir-rtl">
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
                 <div className="flex flex-wrap items-center justify-between gap-4 text-xs font-bold text-slate-700 pb-4 border-b border-slate-100">
