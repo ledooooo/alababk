@@ -120,9 +120,12 @@ export default function App() {
   // Customer navigation state
   const [selectedStoreId, setSelectedStoreId] = useState<string | null>(null);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
-  const [resetEmail, setResetEmail] = useState('');
+
+  // ===== Forgot/Reset Password Modals =====
   const [showForgotModal, setShowForgotModal] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+
   const { isOpen, setIsOpen } = useCartStore();
 
   const syncUserProfileFromSession = async (currentSession: Session | null) => {
@@ -185,10 +188,10 @@ export default function App() {
     return null;
   };
 
+  // ===== Initial Session Check =====
   useEffect(() => {
     let isMounted = true;
 
-    // 1. Initial Session Check
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!isMounted) return;
       setSession(session);
@@ -197,7 +200,7 @@ export default function App() {
       });
     });
 
-    // 2. Real-time Auth State Change Listener
+    // Real-time Auth State Change Listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!isMounted) return;
@@ -211,6 +214,13 @@ export default function App() {
           useCartStore.getState().setUserId(null);
           setActiveTab('landing');
         }
+
+        // استماع لحدث استعادة كلمة المرور
+        if (event === 'PASSWORD_RECOVERY') {
+          setResetEmail(session?.user?.email || '');
+          setShowResetModal(true);
+        }
+
         setIsLoading(false);
       }
     );
@@ -227,6 +237,22 @@ export default function App() {
     };
   }, []);
 
+  // ===== Navigation =====
+  const handleNavigate = useCallback((tab: string, param?: string) => {
+    // حالة خاصة: فتح مودال نسيت كلمة المرور
+    if (tab === 'forgot-password') {
+      setShowForgotModal(true);
+      return; // لا نغير التاب الحالي
+    }
+
+    if (param) {
+      if (tab === 'customer-store-detail') setSelectedStoreId(param);
+      if (tab === 'customer-order-detail' || tab === 'order-confirmation') setSelectedOrderId(param);
+    }
+    setActiveTab(tab);
+  }, []);
+
+  // ===== Auth & Role Guards =====
   const PUBLIC_TABS = [
     'landing', 'auth', 'about', 'apply-store',
     'apply-agent', 'contact', 'terms'
@@ -235,7 +261,6 @@ export default function App() {
   const isPublicTab = PUBLIC_TABS.includes(activeTab);
   const isLoggedIn = !!session && !!currentUser;
 
-  // AuthGuard and RoleGuard for protected routes
   useEffect(() => {
     if (isLoading) return;
 
@@ -281,60 +306,6 @@ export default function App() {
     setSelectedOrderId(orderId);
     setActiveTab('order-confirmation');
   }, []);
-
-const handleNavigate = useCallback((tab: string, param?: string) => {
-  if (tab === 'forgot-password') {
-    setShowForgotModal(true);
-    return; // لا نغير التاب الحالي، فقط نفتح المودال
-  }
-  if (param) {
-    if (tab === 'customer-store-detail') setSelectedStoreId(param);
-    if (tab === 'customer-order-detail' || tab === 'order-confirmation') setSelectedOrderId(param);
-  }
-  setActiveTab(tab);
-}, []);
-
-
-
-// داخل App component
-const [showForgotModal, setShowForgotModal] = useState(false);
-const [showResetModal, setShowResetModal] = useState(false);
-const [resetEmail, setResetEmail] = useState('');
-
-// استماع لحدث استعادة كلمة المرور
-useEffect(() => {
-  const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-    if (event === 'PASSWORD_RECOVERY') {
-      // فتح مودال إعادة التعيين
-      setResetEmail(session?.user?.email || '');
-      setShowResetModal(true);
-    }
-  });
-  return () => subscription.unsubscribe();
-}, []);
-
-// في JSX، بعد </main> وقبل <CartDrawer> أو قبله:
-{showForgotModal && (
-  <ForgotPasswordModal
-    onClose={() => setShowForgotModal(false)}
-    onOpenReset={(email) => {
-      setResetEmail(email);
-      setShowForgotModal(false);
-      setShowResetModal(true);
-    }}
-  />
-)}
-{showResetModal && (
-  <ResetPasswordModal
-    email={resetEmail}
-    onClose={() => setShowResetModal(false)}
-    onSuccess={() => {
-      alert('تم تحديث كلمة المرور بنجاح!');
-      setShowResetModal(false);
-    }}
-  />
-)}
-
 
   const currentRole = activeUserProfile?.role || 'customer';
 
@@ -561,6 +532,28 @@ useEffect(() => {
         onClose={() => setIsOpen(false)}
         onProceedToCheckout={handleProceedToCheckout}
       />
+
+      {/* ===== Forgot & Reset Password Modals ===== */}
+      {showForgotModal && (
+        <ForgotPasswordModal
+          onClose={() => setShowForgotModal(false)}
+          onOpenReset={(email) => {
+            setResetEmail(email);
+            setShowForgotModal(false);
+            setShowResetModal(true);
+          }}
+        />
+      )}
+      {showResetModal && (
+        <ResetPasswordModal
+          email={resetEmail}
+          onClose={() => setShowResetModal(false)}
+          onSuccess={() => {
+            alert('تم تحديث كلمة المرور بنجاح!');
+            setShowResetModal(false);
+          }}
+        />
+      )}
 
       {/* Footer */}
       <footer className="bg-white border-t border-slate-200 mt-auto py-8 dir-rtl">
