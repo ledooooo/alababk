@@ -11,13 +11,13 @@ export const AdminStoresApplicationsView: React.FC = () => {
   const [pendingStores, setPendingStores] = useState<Store[]>([]);
   const { showToast } = useToast();
   const { showConfirm } = useConfirm();
+
   useEffect(() => {
     const fetchPending = () => {
       const allStores = StorageRepo.getStores();
       setPendingStores(allStores.filter((s) => !s.is_approved));
     };
 
-    // Initial render from cache + trigger Supabase refresh
     fetchPending();
     StorageRepo.refreshStores();
 
@@ -39,17 +39,20 @@ export const AdminStoresApplicationsView: React.FC = () => {
     try {
       const updated = { ...store, is_approved: true };
       await StorageRepo.saveStore(updated);
+      showToast({
+        type: 'success',
+        title: 'تم الاعتماد',
+        message: `تم اعتماد متجر "${store.name}" بنجاح`,
+      });
+      // تحديث القائمة
+      const allStores = StorageRepo.getStores();
+      setPendingStores(allStores.filter((s) => !s.is_approved));
     } catch (err: any) {
-      alert(`تعذر اعتماد المتجر: ${err.message || 'خطأ غير معروف'}`);
-    }
-  };
-  const handleApprove = async (store: Store) => {
-    try {
-      const updated = { ...store, is_approved: true };
-      await StorageRepo.saveStore(updated);
-      showToast({ type: 'success', title: 'تم الاعتماد', message: `تم اعتماد متجر "${store.name}" بنجاح` });
-    } catch (err: any) {
-      showToast({ type: 'error', title: 'فشل الاعتماد', message: err.message || 'تعذر اعتماد المتجر' });
+      showToast({
+        type: 'error',
+        title: 'فشل الاعتماد',
+        message: err.message || 'تعذر اعتماد المتجر',
+      });
     }
   };
 
@@ -62,21 +65,23 @@ export const AdminStoresApplicationsView: React.FC = () => {
       onConfirm: async () => {
         try {
           await StorageRepo.deleteStore(storeId);
-          showToast({ type: 'success', title: 'تم الرفض', message: 'تم رفض طلب المتجر' });
+          showToast({
+            type: 'success',
+            title: 'تم الرفض',
+            message: 'تم رفض طلب المتجر',
+          });
+          // تحديث القائمة
+          const allStores = StorageRepo.getStores();
+          setPendingStores(allStores.filter((s) => !s.is_approved));
         } catch (err: any) {
-          showToast({ type: 'error', title: 'فشل الرفض', message: err.message || 'تعذر رفض الطلب' });
+          showToast({
+            type: 'error',
+            title: 'فشل الرفض',
+            message: err.message || 'تعذر رفض الطلب',
+          });
         }
       },
     });
-  };
-  const handleReject = async (storeId: string) => {
-    if (window.confirm('هل أنت تأكد من رفض هذا الطلب؟')) {
-      try {
-        await StorageRepo.deleteStore(storeId);
-      } catch (err: any) {
-        alert(`تعذر رفض الطلب: ${err.message || 'خطأ غير معروف'}`);
-      }
-    }
   };
 
   return (
@@ -127,7 +132,7 @@ export const AdminStoresApplicationsView: React.FC = () => {
                   </button>
 
                   <button
-                    onClick={() => handleReject(store.id)}
+                    onClick={() => handleReject(store.id, store.name)}
                     className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-xl border border-rose-200 transition-colors flex items-center gap-1"
                   >
                     <XCircle className="w-4 h-4" />
