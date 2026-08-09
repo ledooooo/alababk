@@ -10,7 +10,7 @@ import { CartDrawer } from './components/cart/CartDrawer';
 import { PushNotificationToast } from './components/shared/PushNotificationToast';
 import { PwaInstallPrompt } from './components/pwa/PwaInstallPrompt';
 import { useCartStore } from './stores/cart-store';
-import { ToastProvider } from './components/shared/Toast';
+import { ToastProvider, useToast } from './components/shared/Toast';
 import { ConfirmDialogProvider } from './components/shared/ConfirmDialog';
 
 // ===== Lazy Imports for All Views =====
@@ -167,6 +167,25 @@ function OrderConfirmationRoute() {
   );
 }
 
+// ===== CartDrawerWrapper =====
+function CartDrawerWrapper() {
+  const { isOpen, setIsOpen } = useCartStore();
+  const navigate = useNavigate();
+
+  const handleProceedToCheckout = () => {
+    setIsOpen(false);
+    navigate('/checkout');
+  };
+
+  return (
+    <CartDrawer
+      isOpen={isOpen}
+      onClose={() => setIsOpen(false)}
+      onProceedToCheckout={handleProceedToCheckout}
+    />
+  );
+}
+
 // ===== Main App =====
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -176,7 +195,7 @@ export default function App() {
   const [showForgotModal, setShowForgotModal] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
-  const { isOpen, setIsOpen } = useCartStore();
+  const { showToast } = useToast();
 
   // Session sync
   useEffect(() => {
@@ -335,14 +354,8 @@ export default function App() {
               </Suspense>
             </main>
 
-            <CartDrawer
-              isOpen={isOpen}
-              onClose={() => setIsOpen(false)}
-              onProceedToCheckout={() => {
-                setIsOpen(false);
-                // التنقل يتم داخل المكون باستخدام useNavigate
-              }}
-            />
+            {/* Cart Drawer with proper navigation */}
+            <CartDrawerWrapper />
 
             {/* Modals */}
             <Suspense fallback={null}>
@@ -361,7 +374,11 @@ export default function App() {
                   email={resetEmail}
                   onClose={() => setShowResetModal(false)}
                   onSuccess={() => {
-                    alert('تم تحديث كلمة المرور بنجاح!');
+                    showToast({
+                      type: 'success',
+                      title: 'تم التحديث',
+                      message: 'تم تحديث كلمة المرور بنجاح!',
+                    });
                     setShowResetModal(false);
                   }}
                 />

@@ -5,7 +5,19 @@ import { CustomerAddress } from '../../../types/domain';
 import { formatCurrency } from '../../../lib/formatters';
 import { useCartStore } from '../../../stores/cart-store';
 import { LeafletMap } from '../../shared/LeafletMap';
-import { ArrowRight, MapPin, CheckCircle2, AlertCircle, Loader2, Truck, CreditCard, Wallet, Store as StoreIcon, Plus, RefreshCw } from 'lucide-react';
+import {
+  ArrowRight,
+  MapPin,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
+  Truck,
+  CreditCard,
+  Wallet,
+  Store as StoreIcon,
+  Plus,
+  RefreshCw
+} from 'lucide-react';
 import { useToast } from '../../shared/Toast';
 
 interface CustomerCheckoutViewProps {
@@ -23,6 +35,7 @@ export const CustomerCheckoutView: React.FC<CustomerCheckoutViewProps> = ({
   const [selectedAddressId, setSelectedAddressId] = useState<string>('');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   // حالة التسعير
   const [quote, setQuote] = useState<{
@@ -58,30 +71,6 @@ export const CustomerCheckoutView: React.FC<CustomerCheckoutViewProps> = ({
     lng: 31.2357,
     is_default: false,
   });
-  const { showToast } = useToast();
-
-  const handleSaveNewAddress = async () => {
-    // ... التحقق من الحقول ...
-    try {
-      const saved = await upsertAddress({ ... });
-      // ...
-      showToast({ type: 'success', title: 'تم', message: 'تم حفظ العنوان بنجاح' });
-    } catch (err: any) {
-      showToast({ type: 'error', title: 'فشل الحفظ', message: err.message || 'فشل حفظ العنوان' });
-    }
-  };
-
-  const handleSubmitOrder = async () => {
-    // ... التحقق ...
-    try {
-      const result = await createSecureOrder({ ... });
-      clearCart();
-      onOrderPlaced(result.order_id);
-      showToast({ type: 'success', title: 'تم', message: 'تم إنشاء الطلب بنجاح' });
-    } catch (err: any) {
-      showToast({ type: 'error', title: 'فشل إنشاء الطلب', message: err.message || 'فشل إنشاء الطلب' });
-    }
-  };
 
   // تحميل العناوين
   const loadAddresses = async () => {
@@ -94,10 +83,14 @@ export const CustomerCheckoutView: React.FC<CustomerCheckoutViewProps> = ({
         const defaultAddr = addrs.find((a) => a.is_default) || addrs[0];
         setSelectedAddressId(defaultAddr.id);
       } else {
-        // لا يوجد عنوان، نفتح تحديد موقع جديد
         setIsSelectingLocation(true);
       }
     } catch (err: any) {
+      showToast({
+        type: 'error',
+        title: 'فشل تحميل العناوين',
+        message: err.message || 'تعذر تحميل العناوين المحفوظة',
+      });
       setError(err.message || 'فشل تحميل العناوين');
     }
   };
@@ -134,6 +127,11 @@ export const CustomerCheckoutView: React.FC<CustomerCheckoutViewProps> = ({
     } catch (err: any) {
       setQuoteError(err.message || 'فشل حساب التسعير');
       setQuote(null);
+      showToast({
+        type: 'error',
+        title: 'خطأ في التسعير',
+        message: err.message || 'تعذر حساب تكلفة الطلب',
+      });
     } finally {
       setQuoteLoading(false);
     }
@@ -150,6 +148,138 @@ export const CustomerCheckoutView: React.FC<CustomerCheckoutViewProps> = ({
     }
   }, [selectedAddressId, couponCode, tipAmount, items]);
 
+  // ===== دوال معالجة العنوان =====
+  const handleSaveNewAddress = async () => {
+    const user = StorageRepo.getCurrentUser();
+    if (!user) {
+      showToast({
+        type: 'error',
+        title: 'غير مسموح',
+        message: 'يجب تسجيل الدخول أولاً',
+      });
+      return;
+    }
+    if (!newAddress.address_line) {
+      showToast({
+        type: 'error',
+        title: 'بيانات ناقصة',
+        message: 'يرجى إدخال اسم الشارع',
+      });
+      return;
+    }
+    if (!newAddress.lat || !newAddress.lng) {
+      showToast({
+        type: 'error',
+        title: 'بيانات ناقصة',
+        message: 'يرجى تحديد الموقع على الخريطة',
+      });
+      return;
+    }
+
+    try {
+      const saved = await upsertAddress({
+        id: undefined,
+        user_id: user.id,
+        title: newAddress.title || 'عنوان جديد',
+        address_line: newAddress.address_line,
+        building: newAddress.building || null,
+        floor: newAddress.floor || null,
+        apartment: newAddress.apartment || null,
+        notes: newAddress.notes || null,
+        lat: newAddress.lat,
+        lng: newAddress.lng,
+        is_default: newAddress.is_default || false,
+      });
+      setAddresses((prev) => [saved, ...prev]);
+      setSelectedAddressId(saved.id);
+      setIsSelectingLocation(false);
+      showToast({
+        type: 'success',
+        title: 'تم الحفظ',
+        message: 'تم حفظ العنوان بنجاح',
+      });
+      await updateQuote(saved.id);
+    } catch (err: any) {
+      showToast({
+        type: 'error',
+        title: 'فشل الحفظ',
+        message: err.message || 'تعذر حفظ العنوان',
+      });
+    }
+  };
+
+  // ===== تقديم الطلب =====
+  const handleSubmitOrder = async () => {
+    if (!storeId || items.length === 0) {
+      setSubmitError('السلة فارغة');
+      showToast({
+        type: 'error',
+        title: 'خطأ',
+        message: 'السلة فارغة',
+      });
+      return;
+    }
+    if (!selectedAddressId) {
+      setSubmitError('يرجى تحديد عنوان التوصيل');
+      showToast({
+        type: 'error',
+        title: 'بيانات ناقصة',
+        message: 'يرجى تحديد عنوان التوصيل',
+      });
+      return;
+    }
+    if (!quote) {
+      setSubmitError('يرجى انتظار حساب التسعير');
+      showToast({
+        type: 'error',
+        title: 'خطأ',
+        message: 'يرجى انتظار حساب التسعير',
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      const selectedAddress = addresses.find((a) => a.id === selectedAddressId);
+      if (!selectedAddress) {
+        throw new Error('العنوان المحدد غير موجود');
+      }
+
+      const result = await createSecureOrder({
+        store_id: storeId,
+        address: selectedAddress,
+        payment_method: paymentMethod,
+        items: items.map((item) => ({
+          product_id: item.product.id,
+          quantity: item.quantity,
+          notes: item.notes,
+        })),
+        coupon_code: couponCode || undefined,
+        customer_notes: customerNotes || undefined,
+        tip_amount: tipAmount,
+      });
+
+      clearCart();
+      showToast({
+        type: 'success',
+        title: 'تم الطلب',
+        message: `تم إنشاء الطلب #${result.code} بنجاح`,
+      });
+      onOrderPlaced(result.order_id);
+    } catch (err: any) {
+      const msg = err.message || 'فشل إنشاء الطلب';
+      setSubmitError(msg);
+      showToast({
+        type: 'error',
+        title: 'فشل الطلب',
+        message: msg,
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   // ===== حالة التحميل =====
   if (isLoading) {
