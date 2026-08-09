@@ -41,7 +41,6 @@ export function extractCoordinates(locationObj: any): { lat: number; lng: number
           if (!isNaN(lat) && !isNaN(lng) && (lat !== 0 || lng !== 0)) return { lat, lng };
         }
       }
-      // EWKB Hex parsing (اختصاراً)
     }
   } catch {
     // ignore
@@ -49,7 +48,7 @@ export function extractCoordinates(locationObj: any): { lat: number; lng: number
   return null;
 }
 
-// أعد تصدير دوال الأخطاء من errors.ts
+// أعد تصدير دوال الأخطاء
 export { translateSupabaseError, isNotFoundError, isPermissionError } from './errors';
 
 // دوال مساعدة للجلب الآمن (بدون CRUD)

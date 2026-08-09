@@ -208,7 +208,6 @@ export async function fetchSupabaseOrders(filters?: {
     const { data, error } = await query.order('placed_at', { ascending: false });
 
     if (error) {
-      // محاولة ثانية بدون products(images) في حال فشل العلاقة
       const fallbackQuery = supabase
         .from('orders')
         .select('*, order_items(*), stores(*), profiles:customer_id(full_name, phone, avatar_url), addresses(*)');

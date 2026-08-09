@@ -2,9 +2,6 @@
 import { supabase } from './client';
 import { translateSupabaseError } from './errors';
 
-/**
- * Check connectivity to Supabase instance
- */
 export async function checkSupabaseConnection(): Promise<{ connected: boolean; message: string }> {
   try {
     const { data, error } = await supabase.from('categories').select('count', { count: 'exact', head: true });
@@ -17,12 +14,8 @@ export async function checkSupabaseConnection(): Promise<{ connected: boolean; m
   }
 }
 
-/**
- * Seed initial data directly into Supabase tables if empty
- */
 export async function seedSupabaseDatabase() {
   try {
-    // 1. Seed categories if empty
     const { count: catCount } = await supabase.from('categories').select('*', { count: 'exact', head: true });
     if (!catCount || catCount === 0) {
       await supabase.from('categories').insert([
@@ -35,7 +28,6 @@ export async function seedSupabaseDatabase() {
       ]);
     }
 
-    // 2. Seed delivery zones if empty
     const { count: zoneCount } = await supabase.from('delivery_zones').select('*', { count: 'exact', head: true });
     if (!zoneCount || zoneCount === 0) {
       await supabase.from('delivery_zones').insert([
@@ -46,7 +38,6 @@ export async function seedSupabaseDatabase() {
       ]);
     }
 
-    // 3. Seed coupons if empty
     const { count: couponCount } = await supabase.from('coupons').select('*', { count: 'exact', head: true });
     if (!couponCount || couponCount === 0) {
       await supabase.from('coupons').insert([
