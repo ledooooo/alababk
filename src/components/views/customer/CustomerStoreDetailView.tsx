@@ -1,4 +1,3 @@
-// src/components/views/customer/CustomerStoreDetailView.tsx
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
 import { subscribeSupabase } from '../../../lib/supabase';
@@ -6,7 +5,7 @@ import { Store, Product } from '../../../types/domain';
 import { useCartStore } from '../../../stores/cart-store';
 import { ProductCard } from '../../product/ProductCard';
 import { StoreReviewsSection } from './StoreReviewsSection';
-import StoreCategoryFilterBar from './StoreCategoryFilterBar'; // تم التعديل هنا
+import { StoreCategoryFilterBar } from './StoreCategoryFilterBar';
 import { Pagination } from '../../shared/Pagination';
 import { formatCurrency } from '../../../lib/formatters';
 import {
@@ -22,7 +21,7 @@ import {
   Info,
   Heart,
   MessageSquare
-} from 'lucide-react
+} from 'lucide-react';  // <-- علامة التنصيص المغلقة موجودة هنا
 
 interface CustomerStoreDetailViewProps {
   storeId: string;
@@ -34,7 +33,7 @@ export default function CustomerStoreDetailView({
   storeId,
   onBack,
   onOpenCart,
-}) {
+}: CustomerStoreDetailViewProps) {
   const store = StorageRepo.getStoreById(storeId);
   const [products, setProducts] = useState<Product[]>([]);
   const [activeTab, setActiveTab] = useState<'products' | 'reviews'>('products');
@@ -66,19 +65,16 @@ export default function CustomerStoreDetailView({
       }
     };
 
-    // 1. Initial cached render + trigger Supabase refresh
     syncData();
     if (storeId) {
       StorageRepo.refreshProducts(storeId);
       StorageRepo.refreshStores();
     }
 
-    // 2. Storage change listener
     const unsubscribeStorage = subscribeToStorageChange(() => {
       syncData();
     });
 
-    // 3. Supabase Realtime subscription for products table
     const unsubscribeRealtimeProducts = subscribeSupabase<Product>(
       'products',
       () => {
@@ -89,7 +85,6 @@ export default function CustomerStoreDetailView({
       storeId ? `store_id=eq.${storeId}` : undefined
     );
 
-    // 4. Supabase Realtime subscription for store info
     const unsubscribeRealtimeStore = subscribeSupabase<Store>(
       'stores',
       () => {
@@ -412,4 +407,4 @@ export default function CustomerStoreDetailView({
       )}
     </div>
   );
-};
+}
