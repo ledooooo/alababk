@@ -1,12 +1,17 @@
-// src/components/views/customer/StoreCategoryFilterBar.tsx
 import React from 'react';
 import {
   Search,
-  ArrowUpDown,
-  Filter,
-  Tag,
+  SlidersHorizontal,
   X,
+  Tag,
+  Coffee,
+  Utensils,
+  Cake,
+  Flame,
+  Pizza,
   Sparkles,
+  ArrowUpDown,
+  Filter
 } from 'lucide-react';
 
 interface StoreCategoryFilterBarProps {
@@ -23,7 +28,7 @@ interface StoreCategoryFilterBarProps {
   onToggleOnlyOffers: () => void;
 }
 
-// نستخدم export default ليكون متاحاً للاستيراد بالاسم المطلوب
+// ✅ التغيير الرئيسي: export default بدلاً من export const
 export default function StoreCategoryFilterBar({
   categories,
   selectedCategory,
@@ -37,6 +42,7 @@ export default function StoreCategoryFilterBar({
   showOnlyOffers,
   onToggleOnlyOffers,
 }: StoreCategoryFilterBarProps) {
+  // Helper to pick dynamic icons/emojis for categories
   const getCategoryBadge = (catName: string) => {
     const lower = catName.toLowerCase();
     if (lower.includes('مشروب') || lower.includes('عصير') || lower.includes('قهوة') || lower.includes('شاي')) {
