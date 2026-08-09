@@ -1,4 +1,3 @@
-// src/lib/supabase/orders.ts
 import { supabase } from './client';
 import { ensureUUID, isValidUUID, extractCoordinates, translateSupabaseError } from './helpers';
 import { upsertAddress } from './addresses';
@@ -186,7 +185,7 @@ export async function quoteOrderSecure(params: {
   return data as OrderQuoteResponse;
 }
 
-// ===== دالة جلب الطلبات (معدلة لحل خطأ 500) =====
+// ===== دالة جلب الطلبات المُعدَّلة (تعتمد على الأعمدة الفعلية) =====
 export async function fetchSupabaseOrders(filters?: {
   customer_id?: string;
   store_id?: string;
@@ -195,10 +194,17 @@ export async function fetchSupabaseOrders(filters?: {
   is_unassigned?: boolean;
 }): Promise<Order[]> {
   try {
-    // استعلام مبسط بدون علاقات معقدة لتجنب خطأ 500
+    // بناء الاستعلام الأساسي مع الجداول المطلوبة
+    // ملاحظة: استخدمت 'placed_at' للترتيب، و'created_at' كاحتياطي
+    // تم إزالة 'addresses' من select لتجنب تعقيد العلاقات، سيتم جلبها بشكل منفصل.
     let query = supabase
       .from('orders')
-      .select('*, order_items(*), stores(*), profiles:customer_id(full_name, phone, avatar_url)');
+      .select(`
+        *,
+        order_items (*),
+        stores (*),
+        profiles:customer_id (id, full_name, phone, avatar_url, email)
+      `);
 
     if (filters?.customer_id) query = query.eq('customer_id', filters.customer_id);
     if (filters?.store_id) query = query.eq('store_id', filters.store_id);
@@ -206,41 +212,79 @@ export async function fetchSupabaseOrders(filters?: {
     if (filters?.status) query = query.eq('status', filters.status);
     if (filters?.is_unassigned) query = query.is('delivery_agent_id', null);
 
-    const { data, error } = await query.order('placed_at', { ascending: false });
+    // استخدام placed_at إن وجد، وإلا created_at
+    const { data, error } = await query.order('placed_at', { ascending: false, nullsFirst: false });
 
     if (error) {
-      // محاولة ثانية بدون علاقات
+      // محاولة ثانية بدون profiles (في حال فشل العلاقة)
       const fallbackQuery = supabase
         .from('orders')
-        .select('*, order_items(*), stores(*)');
+        .select('*, order_items (*), stores (*)');
+
       if (filters?.customer_id) fallbackQuery.eq('customer_id', filters.customer_id);
       if (filters?.store_id) fallbackQuery.eq('store_id', filters.store_id);
       if (filters?.delivery_agent_id) fallbackQuery.eq('delivery_agent_id', filters.delivery_agent_id);
       if (filters?.status) fallbackQuery.eq('status', filters.status);
       if (filters?.is_unassigned) fallbackQuery.is('delivery_agent_id', null);
 
-      const fallbackRes = await fallbackQuery.order('placed_at', { ascending: false });
+      const fallbackRes = await fallbackQuery.order('placed_at', { ascending: false, nullsFirst: false });
       if (fallbackRes.error) throw fallbackRes.error;
-      return mapOrders(fallbackRes.data || []);
+
+      // جلب بيانات العملاء بشكل منفصل
+      const customerIds = fallbackRes.data?.map(o => o.customer_id).filter(id => id) || [];
+      let customerMap: Record<string, any> = {};
+      if (customerIds.length > 0) {
+        const { data: customers } = await supabase
+          .from('profiles')
+          .select('id, full_name, phone, avatar_url, email')
+          .in('id', customerIds);
+        if (customers) {
+          customerMap = customers.reduce((acc, c) => { acc[c.id] = c; return acc; }, {});
+        }
+      }
+      // دمج بيانات العملاء مع الطلبات
+      const ordersWithCustomers = fallbackRes.data?.map(o => ({
+        ...o,
+        profiles: customerMap[o.customer_id] || null,
+      })) || [];
+
+      // جلب العناوين بشكل منفصل
+      const addressIds = ordersWithCustomers.map(o => o.address_id).filter(id => id) || [];
+      let addressMap: Record<string, any> = {};
+      if (addressIds.length > 0) {
+        const { data: addresses } = await supabase
+          .from('addresses')
+          .select('*')
+          .in('id', addressIds);
+        if (addresses) {
+          addressMap = addresses.reduce((acc, a) => { acc[a.id] = a; return acc; }, {});
+        }
+      }
+      // دمج العناوين مع الطلبات
+      const finalOrders = ordersWithCustomers.map(o => ({
+        ...o,
+        addresses: addressMap[o.address_id] || null,
+      }));
+
+      return mapOrders(finalOrders);
     }
 
-    // جلب العناوين بشكل منفصل
+    // إذا نجح الاستعلام الأول، نقوم بجلب العناوين بشكل منفصل
     const addressIds = data?.map(o => o.address_id).filter(id => id) || [];
-    let addressesMap: Record<string, any> = {};
+    let addressMap: Record<string, any> = {};
     if (addressIds.length > 0) {
-      const { data: addressesData } = await supabase
+      const { data: addresses } = await supabase
         .from('addresses')
         .select('*')
         .in('id', addressIds);
-      if (addressesData) {
-        addressesMap = addressesData.reduce((acc, addr) => { acc[addr.id] = addr; return acc; }, {});
+      if (addresses) {
+        addressMap = addresses.reduce((acc, a) => { acc[a.id] = a; return acc; }, {});
       }
     }
-
-    // دمج العناوين مع الطلبات
+    // دمج العناوين
     const ordersWithAddresses = data?.map(o => ({
       ...o,
-      addresses: addressesMap[o.address_id] || null,
+      addresses: addressMap[o.address_id] || null,
     })) || [];
 
     return mapOrders(ordersWithAddresses);
@@ -252,7 +296,7 @@ export async function fetchSupabaseOrders(filters?: {
 function mapOrders(ordersData: any[]): Order[] {
   return ordersData.map((o) => {
     const custProfile = o.profiles || {};
-    const custName = custProfile.full_name || custProfile.name || o.customer_name || null;
+    const custName = custProfile.full_name || o.customer_name || null;
     const custPhone = custProfile.phone || o.customer_phone || null;
 
     const storeObj = o.stores || {};
@@ -265,18 +309,15 @@ function mapOrders(ordersData: any[]): Order[] {
     const addrCoords = extractCoordinates(addrObj?.location || addrObj);
 
     const items = (o.order_items || []).map((item: any) => {
-      // محاولة الحصول على الصورة من المنتج إذا كانت متوفرة
-      const productImages = item.products?.images;
-      const itemImg = Array.isArray(productImages) ? productImages[0] : null;
-
+      // product_images لا تأتي مع order_items مباشرة، نتركها فارغة
       return {
         id: item.id,
         product_id: item.product_id || '',
-        product_name: item.name || item.product_name || 'منتج',
-        product_image: itemImg || '',
-        unit_price: Number(item.price || item.unit_price || 0),
+        product_name: item.name || 'منتج',
+        product_image: null, // سنقوم بتحميل الصور بشكل منفصل إذا احتجنا
+        unit_price: Number(item.price || 0),
         quantity: Number(item.quantity || 1),
-        total_price: Number(item.subtotal || item.total_price || 0),
+        total_price: Number(item.subtotal || item.price * item.quantity || 0),
         notes: item.notes || null,
       };
     });
@@ -297,7 +338,7 @@ function mapOrders(ordersData: any[]): Order[] {
         id: addrObj?.id || o.address_id || undefined,
         user_id: o.customer_id,
         title: addrObj?.label || addrObj?.title || 'عنوان التوصيل',
-        address_line: addrObj?.street || addrObj?.address_line || addrObj?.label || 'عنوان التوصيل',
+        address_line: addrObj?.street || addrObj?.address_line || '',
         street: addrObj?.street ?? null,
         building: addrObj?.building ?? null,
         floor: addrObj?.floor ?? null,
@@ -321,7 +362,7 @@ function mapOrders(ordersData: any[]): Order[] {
       status_history: [
         {
           status: o.status || 'pending',
-          timestamp: o.placed_at || new Date().toISOString(),
+          timestamp: o.placed_at || o.created_at || new Date().toISOString(),
           note: 'تم إنشاء الطلب',
         },
       ],
@@ -350,9 +391,9 @@ export async function fetchOrderStatusHistory(orderId: string): Promise<OrderSta
     if (error || !data) return [];
 
     return (data as any[]).map((row) => ({
-      status: (row.status || row.new_status || 'pending') as OrderStatus,
-      timestamp: row.created_at || row.timestamp || new Date().toISOString(),
-      note: row.notes || row.note || row.comment || undefined,
+      status: (row.status || 'pending') as OrderStatus,
+      timestamp: row.created_at || new Date().toISOString(),
+      note: row.note || undefined,
     }));
   } catch {
     return [];
@@ -384,8 +425,7 @@ export async function fetchAgentStats(agentId: string): Promise<{
       total_tips: Number(a.total_tips || 0),
       avg_rating: Number(a.avg_rating || a.rating || 0),
     };
-  } catch (err) {
-    console.error('Error in fetchAgentStats:', err);
+  } catch {
     return null;
   }
 }
@@ -415,8 +455,7 @@ export async function fetchStoreStats(storeId: string): Promise<{
       total_commission: Number(s.total_commission || 0),
       avg_rating: Number(s.avg_rating || s.rating || 0),
     };
-  } catch (err) {
-    console.error('Error in fetchStoreStats:', err);
+  } catch {
     return null;
   }
 }
