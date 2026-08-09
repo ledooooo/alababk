@@ -4,8 +4,8 @@ import { subscribeSupabase } from '../../../lib/supabase';
 import { Store, Product } from '../../../types/domain';
 import { useCartStore } from '../../../stores/cart-store';
 import { ProductCard } from '../../product/ProductCard';
-import { StoreReviewsSection } from './StoreReviewsSection';
-import { StoreCategoryFilterBar } from './StoreCategoryFilterBar';
+import StoreReviewsSection  from './StoreReviewsSection';
+import StoreCategoryFilterBar from './StoreCategoryFilterBar';
 import { Pagination } from '../../shared/Pagination';
 import { formatCurrency } from '../../../lib/formatters';
 import {
