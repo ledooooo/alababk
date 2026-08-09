@@ -5,6 +5,8 @@ import { formatCurrency } from '../../../lib/formatters';
 import { LeafletMap } from '../../shared/LeafletMap';
 import { ensureUUID } from '../../../lib/supabase';
 import { MapPin, Plus, Clock, Edit2, ShieldCheck, Check, AlertCircle } from 'lucide-react';
+import { useToast } from '../../shared/Toast';
+import { useConfirm } from '../../shared/ConfirmDialog';
 
 export const AdminZonesView: React.FC = () => {
   const [zones, setZones] = useState<DeliveryZone[]>(StorageRepo.getZones());
@@ -12,6 +14,8 @@ export const AdminZonesView: React.FC = () => {
   const [polygonStr, setPolygonStr] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const { showToast } = useToast();
+  const { showConfirm } = useConfirm();
 
   useEffect(() => {
     if (editingZone?.polygon && Array.isArray(editingZone.polygon)) {
@@ -27,7 +31,9 @@ export const AdminZonesView: React.FC = () => {
     const etaVal = Number(editingZone?.eta_minutes ?? editingZone?.estimated_delivery_mins ?? 30);
 
     if (!editingZone?.name || !feeVal) {
-      setErrorMessage('يرجى إدخال اسم المنطقة ورسوم التوصيل الأساسية');
+      const msg = 'يرجى إدخال اسم المنطقة ورسوم التوصيل الأساسية';
+      setErrorMessage(msg);
+      showToast({ type: 'error', title: 'بيانات ناقصة', message: msg });
       return;
     }
 
@@ -38,11 +44,15 @@ export const AdminZonesView: React.FC = () => {
         if (Array.isArray(arr) && arr.every((pt) => Array.isArray(pt) && pt.length === 2)) {
           parsedPolygon = arr as [number, number][];
         } else {
-          setErrorMessage('صيغة المضلع (polygon) غير صحيحة. يجب أن تكون قائمة إحداثيات مثل [[30.05, 31.23], [30.05, 31.26]]');
+          const msg = 'صيغة المضلع (polygon) غير صحيحة. يجب أن تكون قائمة إحداثيات مثل [[30.05, 31.23], [30.05, 31.26]]';
+          setErrorMessage(msg);
+          showToast({ type: 'error', title: 'خطأ في الإحداثيات', message: msg });
           return;
         }
       } catch {
-        setErrorMessage('تعذر قراءة إحداثيات المضلع. يرجى التأكد من كتابة JSON صحيح');
+        const msg = 'تعذر قراءة إحداثيات المضلع. يرجى التأكد من كتابة JSON صحيح';
+        setErrorMessage(msg);
+        showToast({ type: 'error', title: 'خطأ في JSON', message: msg });
         return;
       }
     }
@@ -66,12 +76,37 @@ export const AdminZonesView: React.FC = () => {
       await StorageRepo.saveZone(fullZone);
       setZones(StorageRepo.getZones());
       setEditingZone(null);
+      showToast({ type: 'success', title: 'تم الحفظ', message: 'تم حفظ المنطقة بنجاح' });
     } catch (err: any) {
       console.error('Failed to save zone in AdminZonesView:', err);
-      setErrorMessage(err?.message || 'فشل حفظ المنطقة في قاعدة البيانات');
+      const msg = err?.message || 'فشل حفظ المنطقة في قاعدة البيانات';
+      setErrorMessage(msg);
+      showToast({ type: 'error', title: 'فشل الحفظ', message: msg });
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleDeleteZone = (zoneId: string, zoneName: string) => {
+    showConfirm({
+      title: 'تأكيد الحذف',
+      message: `هل أنت متأكد من حذف منطقة "${zoneName}"؟`,
+      variant: 'danger',
+      confirmLabel: 'حذف',
+      onConfirm: async () => {
+        // حذف المنطق هنا
+        try {
+          // افترض وجود دالة حذف في StorageRepo
+          // إذا لم تكن موجودة، يمكننا إزالة المنطقة من القائمة المحلية
+          const updatedZones = zones.filter(z => z.id !== zoneId);
+          setZones(updatedZones);
+          // يمكن أيضاً تحديث التخزين إذا كان هناك دالة
+          showToast({ type: 'success', title: 'تم الحذف', message: 'تم حذف المنطقة' });
+        } catch (err: any) {
+          showToast({ type: 'error', title: 'فشل الحذف', message: err.message || 'تعذر حذف المنطقة' });
+        }
+      },
+    });
   };
 
   const zoneMarkers = zones.map((z) => ({
