@@ -10,8 +10,6 @@ import { CartDrawer } from './components/cart/CartDrawer';
 import { PushNotificationToast } from './components/shared/PushNotificationToast';
 import { PwaInstallPrompt } from './components/pwa/PwaInstallPrompt';
 import { useCartStore } from './stores/cart-store';
-import { ToastProvider, useToast } from './components/shared/Toast';
-import { ConfirmDialogProvider } from './components/shared/ConfirmDialog';
 
 // ===== Lazy Imports for All Views =====
 // Customer Views
@@ -195,7 +193,7 @@ export default function App() {
   const [showForgotModal, setShowForgotModal] = useState(false);
   const [showResetModal, setShowResetModal] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
-  const { showToast } = useToast();
+  const { isOpen, setIsOpen } = useCartStore();
 
   // Session sync
   useEffect(() => {
@@ -269,150 +267,140 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <ToastProvider>
-        <ConfirmDialogProvider>
-          <div className="min-h-screen bg-slate-50 text-slate-900 font-sans antialiased dir-rtl selection:bg-emerald-500 selection:text-white flex flex-col">
-            <PwaInstallPrompt />
-            <PushNotificationToast />
-            {showSplash && (
-              <SplashScreen
-                durationSeconds={3}
-                onFinish={handleSplashFinish}
-              />
-            )}
-            <Navbar currentUser={currentUser} />
-            <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 overflow-x-hidden">
-              <Suspense fallback={<ViewFallback />}>
-                <Routes>
-                  {/* Public Routes */}
-                  <Route path="/" element={<LandingView />} />
-                  <Route path="/auth" element={<AuthView />} />
-                  <Route path="/about" element={<AboutView />} />
-                  <Route path="/apply-store" element={<ApplyStoreView />} />
-                  <Route path="/apply-agent" element={<ApplyAgentView />} />
-                  <Route path="/contact" element={<ContactView />} />
-                  <Route path="/terms" element={<TermsPrivacyView />} />
+      <div className="min-h-screen bg-slate-50 text-slate-900 font-sans antialiased dir-rtl selection:bg-emerald-500 selection:text-white flex flex-col">
+        <PwaInstallPrompt />
+        <PushNotificationToast />
+        {showSplash && (
+          <SplashScreen
+            durationSeconds={3}
+            onFinish={handleSplashFinish}
+          />
+        )}
+        <Navbar currentUser={currentUser} />
+        <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-6 overflow-x-hidden">
+          <Suspense fallback={<ViewFallback />}>
+            <Routes>
+              {/* Public Routes */}
+              <Route path="/" element={<LandingView />} />
+              <Route path="/auth" element={<AuthView />} />
+              <Route path="/about" element={<AboutView />} />
+              <Route path="/apply-store" element={<ApplyStoreView />} />
+              <Route path="/apply-agent" element={<ApplyAgentView />} />
+              <Route path="/contact" element={<ContactView />} />
+              <Route path="/terms" element={<TermsPrivacyView />} />
 
-                  {/* Customer Routes */}
-                  <Route path="/stores" element={<CustomerStoresView />} />
-                  <Route path="/stores/:storeId" element={<StoreDetailRoute />} />
-                  <Route path="/search" element={<SearchView />} />
-                  <Route path="/categories" element={<CategoriesBrowseView />} />
-                  <Route path="/checkout" element={<CustomerCheckoutView />} />
-                  <Route path="/orders" element={<CustomerOrdersView />} />
-                  <Route path="/orders/:orderId" element={<OrderDetailRoute />} />
-                  <Route path="/order-confirmation/:orderId" element={<OrderConfirmationRoute />} />
-                  <Route path="/profile" element={<ProfileView />} />
-                  <Route path="/addresses" element={<CustomerAddressesView />} />
-                  <Route path="/notifications" element={<NotificationsView />} />
+              {/* Customer Routes */}
+              <Route path="/stores" element={<CustomerStoresView />} />
+              <Route path="/stores/:storeId" element={<StoreDetailRoute />} />
+              <Route path="/search" element={<SearchView />} />
+              <Route path="/categories" element={<CategoriesBrowseView />} />
+              <Route path="/checkout" element={<CustomerCheckoutView />} />
+              <Route path="/orders" element={<CustomerOrdersView />} />
+              <Route path="/orders/:orderId" element={<OrderDetailRoute />} />
+              <Route path="/order-confirmation/:orderId" element={<OrderConfirmationRoute />} />
+              <Route path="/profile" element={<ProfileView />} />
+              <Route path="/addresses" element={<CustomerAddressesView />} />
+              <Route path="/notifications" element={<NotificationsView />} />
 
-                  {/* Store Owner Routes */}
-                  <Route path="/store/dashboard" element={<ProtectedRoute allowedRoles={['store_owner']}><StoreDashboardView /></ProtectedRoute>} />
-                  <Route path="/store/orders" element={<ProtectedRoute allowedRoles={['store_owner']}><StoreOrdersView /></ProtectedRoute>} />
-                  <Route path="/store/products" element={<ProtectedRoute allowedRoles={['store_owner']}><StoreProductsView /></ProtectedRoute>} />
-                  <Route path="/store/reviews" element={<ProtectedRoute allowedRoles={['store_owner']}><StoreReviewsView /></ProtectedRoute>} />
-                  <Route path="/store/payouts" element={<ProtectedRoute allowedRoles={['store_owner']}><StorePayoutsView /></ProtectedRoute>} />
-                  <Route path="/store/analytics" element={<ProtectedRoute allowedRoles={['store_owner']}><StoreAnalyticsView /></ProtectedRoute>} />
-                  <Route path="/store/notifications" element={<ProtectedRoute allowedRoles={['store_owner']}><StoreNotificationsView /></ProtectedRoute>} />
-                  <Route path="/store/settings" element={<ProtectedRoute allowedRoles={['store_owner']}><StoreSettingsView /></ProtectedRoute>} />
+              {/* Store Owner Routes */}
+              <Route path="/store/dashboard" element={<ProtectedRoute allowedRoles={['store_owner']}><StoreDashboardView /></ProtectedRoute>} />
+              <Route path="/store/orders" element={<ProtectedRoute allowedRoles={['store_owner']}><StoreOrdersView /></ProtectedRoute>} />
+              <Route path="/store/products" element={<ProtectedRoute allowedRoles={['store_owner']}><StoreProductsView /></ProtectedRoute>} />
+              <Route path="/store/reviews" element={<ProtectedRoute allowedRoles={['store_owner']}><StoreReviewsView /></ProtectedRoute>} />
+              <Route path="/store/payouts" element={<ProtectedRoute allowedRoles={['store_owner']}><StorePayoutsView /></ProtectedRoute>} />
+              <Route path="/store/analytics" element={<ProtectedRoute allowedRoles={['store_owner']}><StoreAnalyticsView /></ProtectedRoute>} />
+              <Route path="/store/notifications" element={<ProtectedRoute allowedRoles={['store_owner']}><StoreNotificationsView /></ProtectedRoute>} />
+              <Route path="/store/settings" element={<ProtectedRoute allowedRoles={['store_owner']}><StoreSettingsView /></ProtectedRoute>} />
 
-                  {/* Delivery Agent Routes */}
-                  <Route path="/delivery/dashboard" element={<ProtectedRoute allowedRoles={['delivery_agent']}><DeliveryDashboardView /></ProtectedRoute>} />
-                  <Route path="/delivery/available" element={<ProtectedRoute allowedRoles={['delivery_agent']}><DeliveryAvailableView /></ProtectedRoute>} />
-                  <Route path="/delivery/active" element={<ProtectedRoute allowedRoles={['delivery_agent']}><DeliveryActiveView /></ProtectedRoute>} />
-                  <Route path="/delivery/history" element={<ProtectedRoute allowedRoles={['delivery_agent']}><DeliveryHistoryView /></ProtectedRoute>} />
-                  <Route path="/delivery/earnings" element={<ProtectedRoute allowedRoles={['delivery_agent']}><DeliveryEarningsView /></ProtectedRoute>} />
-                  <Route path="/delivery/profile" element={<ProtectedRoute allowedRoles={['delivery_agent']}><DeliveryProfileView /></ProtectedRoute>} />
-                  <Route path="/delivery/notifications" element={<ProtectedRoute allowedRoles={['delivery_agent']}><DeliveryNotificationsView /></ProtectedRoute>} />
+              {/* Delivery Agent Routes */}
+              <Route path="/delivery/dashboard" element={<ProtectedRoute allowedRoles={['delivery_agent']}><DeliveryDashboardView /></ProtectedRoute>} />
+              <Route path="/delivery/available" element={<ProtectedRoute allowedRoles={['delivery_agent']}><DeliveryAvailableView /></ProtectedRoute>} />
+              <Route path="/delivery/active" element={<ProtectedRoute allowedRoles={['delivery_agent']}><DeliveryActiveView /></ProtectedRoute>} />
+              <Route path="/delivery/history" element={<ProtectedRoute allowedRoles={['delivery_agent']}><DeliveryHistoryView /></ProtectedRoute>} />
+              <Route path="/delivery/earnings" element={<ProtectedRoute allowedRoles={['delivery_agent']}><DeliveryEarningsView /></ProtectedRoute>} />
+              <Route path="/delivery/profile" element={<ProtectedRoute allowedRoles={['delivery_agent']}><DeliveryProfileView /></ProtectedRoute>} />
+              <Route path="/delivery/notifications" element={<ProtectedRoute allowedRoles={['delivery_agent']}><DeliveryNotificationsView /></ProtectedRoute>} />
 
-                  {/* Specialized Roles */}
-                  <Route path="/supervisor" element={<ProtectedRoute allowedRoles={['delivery_supervisor']}><DeliverySupervisorDashboardView /></ProtectedRoute>} />
-                  <Route path="/finance" element={<ProtectedRoute allowedRoles={['finance_admin']}><FinanceAdminDashboardView /></ProtectedRoute>} />
-                  <Route path="/orders-manager" element={<ProtectedRoute allowedRoles={['orders_manager']}><OrdersManagerDashboardView /></ProtectedRoute>} />
+              {/* Specialized Roles */}
+              <Route path="/supervisor" element={<ProtectedRoute allowedRoles={['delivery_supervisor']}><DeliverySupervisorDashboardView /></ProtectedRoute>} />
+              <Route path="/finance" element={<ProtectedRoute allowedRoles={['finance_admin']}><FinanceAdminDashboardView /></ProtectedRoute>} />
+              <Route path="/orders-manager" element={<ProtectedRoute allowedRoles={['orders_manager']}><OrdersManagerDashboardView /></ProtectedRoute>} />
 
-                  {/* Admin Routes */}
-                  <Route path="/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboardView /></ProtectedRoute>} />
-                  <Route path="/admin/analytics" element={<ProtectedRoute allowedRoles={['admin']}><AdminAnalyticsView /></ProtectedRoute>} />
-                  <Route path="/admin/stores-applications" element={<ProtectedRoute allowedRoles={['admin']}><AdminStoresApplicationsView /></ProtectedRoute>} />
-                  <Route path="/admin/stores" element={<ProtectedRoute allowedRoles={['admin']}><AdminStoresView /></ProtectedRoute>} />
-                  <Route path="/admin/agents" element={<ProtectedRoute allowedRoles={['admin']}><AdminAgentsView /></ProtectedRoute>} />
-                  <Route path="/admin/customers" element={<ProtectedRoute allowedRoles={['admin']}><AdminCustomersView /></ProtectedRoute>} />
-                  <Route path="/admin/orders" element={<ProtectedRoute allowedRoles={['admin']}><AdminOrdersView /></ProtectedRoute>} />
-                  <Route path="/admin/zones" element={<ProtectedRoute allowedRoles={['admin']}><AdminZonesView /></ProtectedRoute>} />
-                  <Route path="/admin/coupons" element={<ProtectedRoute allowedRoles={['admin']}><AdminCouponsView /></ProtectedRoute>} />
-                  <Route path="/admin/categories" element={<ProtectedRoute allowedRoles={['admin']}><AdminCategoriesView /></ProtectedRoute>} />
-                  <Route path="/admin/payouts" element={<ProtectedRoute allowedRoles={['admin']}><AdminPayoutsView /></ProtectedRoute>} />
-                  <Route path="/admin/activity" element={<ProtectedRoute allowedRoles={['admin']}><AdminActivityLogView /></ProtectedRoute>} />
-                  <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={['admin']}><AdminPlatformSettingsView /></ProtectedRoute>} />
-                  <Route path="/admin/reviews" element={<ProtectedRoute allowedRoles={['admin']}><AdminReviewsView /></ProtectedRoute>} />
-                  <Route path="/admin/notifications" element={<ProtectedRoute allowedRoles={['admin']}><AdminNotificationsView /></ProtectedRoute>} />
-                  <Route path="/admin/supabase" element={<ProtectedRoute allowedRoles={['admin']}><AdminSupabaseSync /></ProtectedRoute>} />
+              {/* Admin Routes */}
+              <Route path="/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboardView /></ProtectedRoute>} />
+              <Route path="/admin/analytics" element={<ProtectedRoute allowedRoles={['admin']}><AdminAnalyticsView /></ProtectedRoute>} />
+              <Route path="/admin/stores-applications" element={<ProtectedRoute allowedRoles={['admin']}><AdminStoresApplicationsView /></ProtectedRoute>} />
+              <Route path="/admin/stores" element={<ProtectedRoute allowedRoles={['admin']}><AdminStoresView /></ProtectedRoute>} />
+              <Route path="/admin/agents" element={<ProtectedRoute allowedRoles={['admin']}><AdminAgentsView /></ProtectedRoute>} />
+              <Route path="/admin/customers" element={<ProtectedRoute allowedRoles={['admin']}><AdminCustomersView /></ProtectedRoute>} />
+              <Route path="/admin/orders" element={<ProtectedRoute allowedRoles={['admin']}><AdminOrdersView /></ProtectedRoute>} />
+              <Route path="/admin/zones" element={<ProtectedRoute allowedRoles={['admin']}><AdminZonesView /></ProtectedRoute>} />
+              <Route path="/admin/coupons" element={<ProtectedRoute allowedRoles={['admin']}><AdminCouponsView /></ProtectedRoute>} />
+              <Route path="/admin/categories" element={<ProtectedRoute allowedRoles={['admin']}><AdminCategoriesView /></ProtectedRoute>} />
+              <Route path="/admin/payouts" element={<ProtectedRoute allowedRoles={['admin']}><AdminPayoutsView /></ProtectedRoute>} />
+              <Route path="/admin/activity" element={<ProtectedRoute allowedRoles={['admin']}><AdminActivityLogView /></ProtectedRoute>} />
+              <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={['admin']}><AdminPlatformSettingsView /></ProtectedRoute>} />
+              <Route path="/admin/reviews" element={<ProtectedRoute allowedRoles={['admin']}><AdminReviewsView /></ProtectedRoute>} />
+              <Route path="/admin/notifications" element={<ProtectedRoute allowedRoles={['admin']}><AdminNotificationsView /></ProtectedRoute>} />
+              <Route path="/admin/supabase" element={<ProtectedRoute allowedRoles={['admin']}><AdminSupabaseSync /></ProtectedRoute>} />
 
-                  {/* Fallback */}
-                  <Route path="*" element={<NotFoundView />} />
-                </Routes>
-              </Suspense>
-            </main>
+              {/* Fallback */}
+              <Route path="*" element={<NotFoundView />} />
+            </Routes>
+          </Suspense>
+        </main>
 
-            {/* Cart Drawer with proper navigation */}
-            <CartDrawerWrapper />
+        <CartDrawerWrapper />
 
-            {/* Modals */}
-            <Suspense fallback={null}>
-              {showForgotModal && (
-                <ForgotPasswordModal
-                  onClose={() => setShowForgotModal(false)}
-                  onOpenReset={(email) => {
-                    setResetEmail(email);
-                    setShowForgotModal(false);
-                    setShowResetModal(true);
-                  }}
-                />
-              )}
-              {showResetModal && (
-                <ResetPasswordModal
-                  email={resetEmail}
-                  onClose={() => setShowResetModal(false)}
-                  onSuccess={() => {
-                    showToast({
-                      type: 'success',
-                      title: 'تم التحديث',
-                      message: 'تم تحديث كلمة المرور بنجاح!',
-                    });
-                    setShowResetModal(false);
-                  }}
-                />
-              )}
-            </Suspense>
+        {/* Modals */}
+        <Suspense fallback={null}>
+          {showForgotModal && (
+            <ForgotPasswordModal
+              onClose={() => setShowForgotModal(false)}
+              onOpenReset={(email) => {
+                setResetEmail(email);
+                setShowForgotModal(false);
+                setShowResetModal(true);
+              }}
+            />
+          )}
+          {showResetModal && (
+            <ResetPasswordModal
+              email={resetEmail}
+              onClose={() => setShowResetModal(false)}
+              onSuccess={() => {
+                setShowResetModal(false);
+              }}
+            />
+          )}
+        </Suspense>
 
-            <footer className="bg-white border-t border-slate-200 mt-auto py-8 dir-rtl">
-              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
-                <div className="flex flex-wrap items-center justify-between gap-4 text-xs font-bold text-slate-700 pb-4 border-b border-slate-100">
-                  <div className="flex items-center gap-4">
-                    <a href="/" className="hover:text-purple-600 transition-colors">الرئيسية</a>
-                    <a href="/about" className="hover:text-purple-600 transition-colors">عن المنصة</a>
-                    <a href="/apply-store" className="hover:text-purple-600 transition-colors">انضم كمتجر</a>
-                    <a href="/apply-agent" className="hover:text-purple-600 transition-colors">انضم ككابتن</a>
-                    <a href="/contact" className="hover:text-purple-600 transition-colors">اتصل بنا</a>
-                    <a href="/terms" className="hover:text-purple-600 transition-colors">الشروط والخصوصية</a>
-                  </div>
-                  <span className="text-[11px] text-slate-400 font-normal">
-                    منصة على بابك (JIHAT Platform) - توصيل فائق السرعة
-                  </span>
-                </div>
-                <div className="text-center text-xs text-slate-500">
-                  <p className="font-bold text-slate-800">
-                    منصة على بابك - التوصيل الفائق والتسوق المحلي المباشر في جمهورية مصر العربية 🇪🇬
-                  </p>
-                  <p className="mt-1 text-[11px] text-slate-400">
-                    جميع الحقوق محفوظة © {new Date().getFullYear()} - ربط أصحاب المحلات، كباتن التوصيل، والعملاء
-                  </p>
-                </div>
+        <footer className="bg-white border-t border-slate-200 mt-auto py-8 dir-rtl">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+            <div className="flex flex-wrap items-center justify-between gap-4 text-xs font-bold text-slate-700 pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-4">
+                <a href="/" className="hover:text-purple-600 transition-colors">الرئيسية</a>
+                <a href="/about" className="hover:text-purple-600 transition-colors">عن المنصة</a>
+                <a href="/apply-store" className="hover:text-purple-600 transition-colors">انضم كمتجر</a>
+                <a href="/apply-agent" className="hover:text-purple-600 transition-colors">انضم ككابتن</a>
+                <a href="/contact" className="hover:text-purple-600 transition-colors">اتصل بنا</a>
+                <a href="/terms" className="hover:text-purple-600 transition-colors">الشروط والخصوصية</a>
               </div>
-            </footer>
+              <span className="text-[11px] text-slate-400 font-normal">
+                منصة على بابك (JIHAT Platform) - توصيل فائق السرعة
+              </span>
+            </div>
+            <div className="text-center text-xs text-slate-500">
+              <p className="font-bold text-slate-800">
+                منصة على بابك - التوصيل الفائق والتسوق المحلي المباشر في جمهورية مصر العربية 🇪🇬
+              </p>
+              <p className="mt-1 text-[11px] text-slate-400">
+                جميع الحقوق محفوظة © {new Date().getFullYear()} - ربط أصحاب المحلات، كباتن التوصيل، والعملاء
+              </p>
+            </div>
           </div>
-        </ConfirmDialogProvider>
-      </ToastProvider>
+        </footer>
+      </div>
     </BrowserRouter>
   );
 }
