@@ -71,6 +71,20 @@ import {
 let _myStoreCache: { store: Store | null; timestamp: number } | null = null;
 const MY_STORE_CACHE_TTL: number = 30000;
 
+// منع الحلقات اللانهائية: دوال getX() تطلق refreshX() في الخلفية، وrefreshX() تبعث
+// notifyStorageChange التي يسمعها subscribeToStorageChange في مكونات مثل Navbar/ProfileView،
+// فتستدعي getX() مرة أخرى وتكرر الدورة بلا نهاية (orders/profiles/notifications في الـ network log).
+// هذا الـ throttle يمنع إطلاق أكثر من refresh واحد لنفس المصدر خلال فترة قصيرة.
+const _refreshThrottle = new Map<string, number>();
+const REFRESH_THROTTLE_MS = 4000;
+function shouldTriggerBackgroundRefresh(key: string): boolean {
+  const now = Date.now();
+  const last = _refreshThrottle.get(key) || 0;
+  if (now - last < REFRESH_THROTTLE_MS) return false;
+  _refreshThrottle.set(key, now);
+  return true;
+}
+
 const lastLocationUpdateMap = new Map<string, number>();
 
 const STORAGE_KEYS = {
@@ -378,7 +392,9 @@ export const StorageRepo = {
 
   getUsers(): UserProfile[] {
     const cached = this.getCachedUsers();
-    this.refreshUsers().catch((err) => console.warn('refreshUsers background error:', err));
+    if (shouldTriggerBackgroundRefresh('users')) {
+      this.refreshUsers().catch((err) => console.warn('refreshUsers background error:', err));
+    }
     return cached;
   },
 
@@ -411,7 +427,9 @@ export const StorageRepo = {
   // --- STORES ---
   getStores(): Store[] {
     const cached = this.getCachedStores();
-    this.refreshStores().catch((err) => console.warn('refreshStores background error:', err));
+    if (shouldTriggerBackgroundRefresh('stores')) {
+      this.refreshStores().catch((err) => console.warn('refreshStores background error:', err));
+    }
     return cached;
   },
 
@@ -463,7 +481,9 @@ export const StorageRepo = {
   // --- PRODUCTS ---
   getProducts(storeId?: string): Product[] {
     const cached = this.getCachedProducts();
-    this.refreshProducts(storeId).catch((err) => console.warn('refreshProducts background error:', err));
+    if (shouldTriggerBackgroundRefresh(`products:${storeId || 'all'}`)) {
+      this.refreshProducts(storeId).catch((err) => console.warn('refreshProducts background error:', err));
+    }
     if (storeId) return cached.filter((p) => p.store_id === storeId);
     return cached;
   },
@@ -507,7 +527,9 @@ export const StorageRepo = {
     const targetUserId = userId || this.getCurrentUser()?.id;
     if (!targetUserId) return [];
     const cached = getCached<CustomerAddress>(STORAGE_KEYS.ADDRESSES);
-    this.refreshAddresses(targetUserId).catch((err) => console.warn('refreshAddresses background error:', err));
+    if (shouldTriggerBackgroundRefresh(`addresses:${targetUserId}`)) {
+      this.refreshAddresses(targetUserId).catch((err) => console.warn('refreshAddresses background error:', err));
+    }
     return cached.filter((a) => a.user_id === targetUserId);
   },
 
@@ -544,7 +566,9 @@ export const StorageRepo = {
   // --- ORDERS ---
   getOrders(): Order[] {
     const cached = this.getCachedOrders();
-    this.refreshOrders().catch((err) => console.warn('refreshOrders background error:', err));
+    if (shouldTriggerBackgroundRefresh('orders')) {
+      this.refreshOrders().catch((err) => console.warn('refreshOrders background error:', err));
+    }
     return cached;
   },
 
@@ -706,7 +730,9 @@ export const StorageRepo = {
   // --- PAYOUTS ---
   getPayouts(): Payout[] {
     const cached = this.getCachedPayouts();
-    this.refreshPayouts().catch((err) => console.warn('refreshPayouts background error:', err));
+    if (shouldTriggerBackgroundRefresh('payouts')) {
+      this.refreshPayouts().catch((err) => console.warn('refreshPayouts background error:', err));
+    }
     return cached;
   },
 
@@ -742,7 +768,9 @@ export const StorageRepo = {
   // --- DELIVERY AGENTS ---
   getAgents(): DeliveryAgent[] {
     const cached = this.getCachedAgents();
-    this.refreshAgents().catch((err) => console.warn('refreshAgents background error:', err));
+    if (shouldTriggerBackgroundRefresh('agents')) {
+      this.refreshAgents().catch((err) => console.warn('refreshAgents background error:', err));
+    }
     return cached;
   },
 
@@ -790,7 +818,9 @@ export const StorageRepo = {
   // --- CATEGORIES & ZONES & COUPONS ---
   getCategories(): Category[] {
     const data = getCached<Category>('alababak_categories');
-    this.refreshCategories().catch((err) => console.warn('refreshCategories background error:', err));
+    if (shouldTriggerBackgroundRefresh('categories')) {
+      this.refreshCategories().catch((err) => console.warn('refreshCategories background error:', err));
+    }
     return data.length > 0 ? data : DEFAULT_CATEGORIES;
   },
 
@@ -813,7 +843,9 @@ export const StorageRepo = {
 
   getZones(): DeliveryZone[] {
     const cached = this.getCachedZones();
-    this.refreshZones().catch((err) => console.warn('refreshZones background error:', err));
+    if (shouldTriggerBackgroundRefresh('zones')) {
+      this.refreshZones().catch((err) => console.warn('refreshZones background error:', err));
+    }
     return cached.length > 0 ? cached : EGYPT_DEFAULT_ZONES;
   },
 
@@ -845,7 +877,9 @@ export const StorageRepo = {
 
   getCoupons(): Coupon[] {
     const cached = this.getCachedCoupons();
-    this.refreshCoupons().catch((err) => console.warn('refreshCoupons background error:', err));
+    if (shouldTriggerBackgroundRefresh('coupons')) {
+      this.refreshCoupons().catch((err) => console.warn('refreshCoupons background error:', err));
+    }
     return cached;
   },
 
@@ -912,7 +946,9 @@ export const StorageRepo = {
   // --- REVIEWS ---
   getReviews(storeId?: string): Review[] {
     const cached = this.getCachedReviews();
-    this.refreshReviews(storeId).catch((err) => console.warn('refreshReviews background error:', err));
+    if (shouldTriggerBackgroundRefresh(`reviews:${storeId || 'all'}`)) {
+      this.refreshReviews(storeId).catch((err) => console.warn('refreshReviews background error:', err));
+    }
     if (storeId) return cached.filter((r) => r.store_id === storeId);
     return cached;
   },
@@ -946,7 +982,9 @@ export const StorageRepo = {
   // --- NOTIFICATIONS ---
   getNotifications(userId?: string): NotificationItem[] {
     const cached = this.getCachedNotifications();
-    this.refreshNotifications(userId).catch((err) => console.warn('refreshNotifications background error:', err));
+    if (shouldTriggerBackgroundRefresh(`notifications:${userId || 'all'}`)) {
+      this.refreshNotifications(userId).catch((err) => console.warn('refreshNotifications background error:', err));
+    }
     if (userId) return cached.filter((n) => n.user_id === userId || n.user_id === 'all');
     return cached;
   },
