@@ -1,21 +1,36 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
 import { subscribeSupabase } from '../../../lib/supabase';
 import { Store } from '../../../types/domain';
 import { StoreCard } from '../../store/StoreCard';
-import { Search, Filter, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { Search, Filter, Loader2, AlertCircle, RefreshCw, X } from 'lucide-react';
 
 interface CustomerStoresViewProps {
   onSelectStore: (store: Store) => void;
 }
 
-export default function CustomerStoresView({ onSelectStore }) {
+export default function CustomerStoresView({ onSelectStore }: CustomerStoresViewProps) {
   // ===== HOOKS ===== (جميعها في الأعلى)
+  const [searchParams, setSearchParams] = useSearchParams();
   const [stores, setStores] = useState<Store[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  // فلتر التصنيف يُقرأ من ?category= في الرابط (مثلًا لما ييجي من صفحة
+  // التصنيفات أو الصفحة الرئيسية) بدل ما يبدأ 'all' دايمًا ويتجاهل اختيار المستخدم
+  const [categoryFilter, setCategoryFilter] = useState<string>(searchParams.get('category') || 'all');
+
+  useEffect(() => {
+    const fromUrl = searchParams.get('category') || 'all';
+    setCategoryFilter(fromUrl);
+  }, [searchParams]);
+
+  const clearCategoryFilter = () => {
+    setCategoryFilter('all');
+    searchParams.delete('category');
+    setSearchParams(searchParams, { replace: true });
+  };
 
   const loadStores = async () => {
     try {
@@ -58,6 +73,11 @@ export default function CustomerStoresView({ onSelectStore }) {
     const matchesCategory = categoryFilter === 'all' || store.category_id === categoryFilter;
     return matchesSearch && matchesCategory;
   });
+
+  const activeCategoryName =
+    categoryFilter !== 'all'
+      ? StorageRepo.getCategories().find((c) => c.id === categoryFilter)?.name
+      : null;
 
   // ===== حالات العرض =====
   if (loading) {
@@ -107,6 +127,17 @@ export default function CustomerStoresView({ onSelectStore }) {
         </div>
       </div>
 
+      {activeCategoryName && (
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl text-xs font-bold">
+            التصنيف: {activeCategoryName}
+            <button onClick={clearCategoryFilter} className="hover:text-emerald-900" title="مسح الفلتر">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </span>
+        </div>
+      )}
+
       {filteredStores.length === 0 ? (
         <div className="bg-white rounded-2xl p-12 text-center border border-slate-200">
           <p className="text-slate-500">لا توجد متاجر تطابق بحثك.</p>
@@ -120,4 +151,4 @@ export default function CustomerStoresView({ onSelectStore }) {
       )}
     </div>
   );
-};
+}

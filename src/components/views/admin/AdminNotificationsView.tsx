@@ -1,5 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { fetchSupabaseNotifications, createSupabaseNotification } from '../../../lib/supabase';
+import {
+  listAllSupabaseNotifications,
+  sendBroadcastNotification,
+  fetchNotificationBroadcasts,
+  NotificationBroadcast,
+} from '../../../lib/supabase';
 import { NotificationItem } from '../../../types/domain';
 import { formatDate } from '../../../lib/formatters';
 import { Bell, Send, CheckCircle2, RefreshCw, Smartphone, Tag, ShoppingBag } from 'lucide-react';
@@ -7,7 +12,9 @@ import { useToast } from '../../shared/Toast';
 
 export default function AdminNotificationsView() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [broadcasts, setBroadcasts] = useState<NotificationBroadcast[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [sending, setSending] = useState<boolean>(false);
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [type, setType] = useState<'system' | 'promotion' | 'order_status'>('promotion');
@@ -16,31 +23,14 @@ export default function AdminNotificationsView() {
   const loadNotifications = async () => {
     setLoading(true);
     try {
-      const data = await fetchSupabaseNotifications('usr-customer-1');
-      if (data.length > 0) {
-        setNotifications(data);
-      } else {
-        setNotifications([
-          {
-            id: 'notif-1',
-            user_id: 'usr-customer-1',
-            title: 'عرض خاص بمناسبة إطلاق منصة علي بابك! 🎉',
-            message: 'احصل على خصم 20% على أول طلب لك باستخدام الكوبون ALABABAK10.',
-            type: 'promotion',
-            is_read: false,
-            created_at: new Date().toISOString(),
-          },
-          {
-            id: 'notif-2',
-            user_id: 'usr-customer-1',
-            title: 'تم توصيل طلبك بنجاح 🛵',
-            message: 'تم تسليم الطلب #ORD-20260129-0001 بنجاح بواسطة الكابتن محمود طارق.',
-            type: 'order_status',
-            is_read: true,
-            created_at: new Date(Date.now() - 3600 * 1000).toISOString(),
-          },
-        ]);
-      }
+      // نحمّل الإشعارات الحقيقية لكل المستخدمين + سجل عمليات البث الفعلي —
+      // لا يوجد أي مستخدم وهمي ولا بيانات تجريبية هنا.
+      const [notifData, broadcastData] = await Promise.all([
+        listAllSupabaseNotifications(),
+        fetchNotificationBroadcasts(),
+      ]);
+      setNotifications(notifData);
+      setBroadcasts(broadcastData);
     } catch (err: any) {
       showToast({
         type: 'error',
@@ -67,42 +57,34 @@ export default function AdminNotificationsView() {
       return;
     }
 
+    setSending(true);
     try {
-      await createSupabaseNotification({
-        user_id: 'usr-customer-1',
+      // بث حقيقي لكل المستخدمين المسجَّلين عبر broadcast_notification_to_all
+      // (RPC واحدة، إدراج دفعة واحدة لكل profile — وليس مستخدمًا وهميًا واحدًا)
+      const recipientsCount = await sendBroadcastNotification({
         title: title.trim(),
         body: body.trim(),
-        type: type === 'promotion' ? 'promo' : 'system',
+        type: type === 'promotion' ? 'promo' : type,
       });
+
+      setTitle('');
+      setBody('');
+      showToast({
+        type: 'success',
+        title: 'تم الإرسال',
+        message: `تم بث الإشعار فعليًا إلى ${recipientsCount} مستخدم وتخزينه في جدول Supabase Notifications.`,
+      });
+      await loadNotifications();
     } catch (err: any) {
-      console.error('Error sending notification via RPC:', err);
+      console.error('Error broadcasting notification:', err);
       showToast({
         type: 'error',
         title: 'فشل الإرسال',
         message: err.message || 'تعذر إرسال الإشعار',
       });
-      return;
+    } finally {
+      setSending(false);
     }
-
-    const newNotif: NotificationItem = {
-      id: `notif-${Date.now()}`,
-      user_id: 'usr-customer-1',
-      title: title.trim(),
-      message: body.trim(),
-      body: body.trim(),
-      type,
-      is_read: false,
-      created_at: new Date().toISOString(),
-    };
-
-    setNotifications([newNotif, ...notifications]);
-    setTitle('');
-    setBody('');
-    showToast({
-      type: 'success',
-      title: 'تم الإرسال',
-      message: 'تم بث الإشعار بنجاح لجميع مستخدمي المنصة وتخزينه في جدول Supabase Notifications!',
-    });
   };
 
   return (
@@ -177,23 +159,48 @@ export default function AdminNotificationsView() {
 
             <button
               type="submit"
-              className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs transition-colors shadow-xs flex items-center justify-center gap-2"
+              disabled={sending}
+              className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-bold rounded-xl text-xs transition-colors shadow-xs flex items-center justify-center gap-2"
             >
               <Smartphone className="w-4 h-4" />
-              <span>إرسال وتخزين في Supabase</span>
+              <span>{sending ? 'جاري الإرسال...' : 'إرسال وتخزين في Supabase'}</span>
             </button>
           </form>
         </div>
 
         {/* Sent Notifications History */}
         <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 space-y-4">
-          <h2 className="font-extrabold text-slate-900 text-base">سجل التنبيهات المرسلة ({notifications.length})</h2>
+          <h2 className="font-extrabold text-slate-900 text-base">سجل الحملات المُرسَلة ({broadcasts.length})</h2>
 
           <div className="space-y-3">
+            {broadcasts.length === 0 && (
+              <p className="text-xs text-slate-500 text-center py-6">لا توجد حملات بث جماعي بعد.</p>
+            )}
+            {broadcasts.map((b) => (
+              <div key={b.id} className="p-4 bg-slate-50 border border-slate-200/80 rounded-xl flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center shrink-0">
+                  {b.type === 'promo' ? <Tag className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
+                </div>
+                <div className="flex-1 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-extrabold text-slate-900 text-xs">{b.title}</h3>
+                    <span className="text-[10px] text-slate-400 font-medium">{formatDate(b.created_at)}</span>
+                  </div>
+                  <p className="text-xs text-slate-600 font-medium">{b.body}</p>
+                  <p className="text-[10px] text-emerald-600 font-bold">تم الإرسال إلى {b.recipients_count} مستخدم</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <h2 className="font-extrabold text-slate-900 text-base pt-2 border-t border-slate-100">
+            آخر الإشعارات لكل المستخدمين ({notifications.length})
+          </h2>
+          <div className="space-y-3 max-h-96 overflow-y-auto">
             {notifications.map((n) => (
               <div key={n.id} className="p-4 bg-slate-50 border border-slate-200/80 rounded-xl flex items-start gap-3">
                 <div className="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center shrink-0">
-                  {n.type === 'promotion' ? <Tag className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
+                  {n.type === 'promotion' || n.type === 'promo' ? <Tag className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
                 </div>
                 <div className="flex-1 space-y-1">
                   <div className="flex items-center justify-between">
@@ -209,4 +216,4 @@ export default function AdminNotificationsView() {
       </div>
     </div>
   );
-};
+}

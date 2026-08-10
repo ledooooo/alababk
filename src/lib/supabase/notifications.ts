@@ -60,6 +60,45 @@ export async function createSupabaseNotification(params: {
   if (error) throw new Error(translateSupabaseError(error).message);
 }
 
+export interface NotificationBroadcast {
+  id: string;
+  title: string;
+  body: string | null;
+  type: string;
+  recipients_count: number;
+  sent_by: string | null;
+  created_at: string;
+}
+
+/**
+ * يبث إشعارًا حقيقيًا لكل المستخدمين المسجَّلين في profiles دفعة واحدة
+ * عبر broadcast_notification_to_all (مُعرَّفة في fix_03_broadcast_notifications.sql).
+ * يرجع عدد المستلمين الفعليين.
+ */
+export async function sendBroadcastNotification(params: {
+  title: string;
+  body: string;
+  type: string;
+}): Promise<number> {
+  const { data, error } = await supabase.rpc('broadcast_notification_to_all', {
+    p_title: params.title,
+    p_body: params.body,
+    p_type: params.type,
+  });
+  if (error) throw new Error(translateSupabaseError(error).message);
+  return (data as number) ?? 0;
+}
+
+export async function fetchNotificationBroadcasts(): Promise<NotificationBroadcast[]> {
+  const { data, error } = await supabase
+    .from('notification_broadcasts')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(50);
+  if (error) throw new Error(translateSupabaseError(error).message);
+  return (data || []) as NotificationBroadcast[];
+}
+
 export async function markSupabaseNotificationRead(id: string): Promise<void> {
   const { data, error } = await supabase
     .from('notifications')

@@ -4,7 +4,7 @@ import { StorageRepo, subscribeToStorageChange } from '../../lib/storage';
 import { subscribeToNotifications, supabase } from '../../lib/supabase';
 import { useCartStore } from '../../stores/cart-store';
 import { SidebarDrawer } from './SidebarDrawer';
-import { UserProfile, Order } from '../../types/domain';
+import { UserProfile, Order, DeliveryZone } from '../../types/domain';
 import {
   ShoppingBag,
   MapPin,
@@ -22,7 +22,8 @@ export const Navbar: React.FC<NavbarProps> = ({ currentUser }) => {
   const location = useLocation();
   const [user, setUser] = useState<UserProfile | null>(currentUser);
   const [activeOrders, setActiveOrders] = useState<Order[]>([]);
-  const [selectedZone, setSelectedZone] = useState('المعادي وشارع 9');
+  const [selectedZone, setSelectedZone] = useState('');
+  const [zones, setZones] = useState<DeliveryZone[]>(StorageRepo.getZones());
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
   
@@ -34,6 +35,26 @@ export const Navbar: React.FC<NavbarProps> = ({ currentUser }) => {
   useEffect(() => {
     setUser(currentUser);
   }, [currentUser]);
+
+  // زر اختيار المنطقة يعرض المناطق الحقيقية اللي بيديرها الأدمن من
+  // AdminZonesView (StorageRepo.getZones())، مش قائمة هاردكودد ثابتة.
+  useEffect(() => {
+    const syncZones = () => {
+      const list = StorageRepo.getZones();
+      setZones(list);
+      setSelectedZone((prev) => {
+        if (prev && list.some((z) => z.name === prev)) return prev;
+        const firstActive = list.find((z) => z.is_active) || list[0];
+        return firstActive?.name || '';
+      });
+    };
+
+    syncZones();
+    const unsubscribe = subscribeToStorageChange((detail) => {
+      if (detail.entityType === 'zone') syncZones();
+    });
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
     const checkOrdersAndNotifications = async () => {
@@ -161,7 +182,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentUser }) => {
               </div>
             </button>
 
-            {role === 'customer' && (
+            {role === 'customer' && zones.length > 0 && (
               <div className="hidden md:flex items-center gap-1.5 bg-slate-100/80 border border-slate-200 hover:border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-700 font-medium cursor-pointer transition-colors mr-2">
                 <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                 <span>المنطقة:</span>
@@ -170,10 +191,9 @@ export const Navbar: React.FC<NavbarProps> = ({ currentUser }) => {
                   onChange={(e) => setSelectedZone(e.target.value)}
                   className="bg-transparent font-bold text-slate-900 focus:outline-none cursor-pointer"
                 >
-                  <option value="المعادي وشارع 9">المعادي وشارع 9</option>
-                  <option value="مدينة نصر ومكرم عبيد">مدينة نصر ومكرم عبيد</option>
-                  <option value="الزمالك والمهندسين">الزمالك والمهندسين</option>
-                  <option value="مصر الجديدة والتجمع">مصر الجديدة والتجمع</option>
+                  {zones.map((zone) => (
+                    <option key={zone.id} value={zone.name}>{zone.name}</option>
+                  ))}
                 </select>
               </div>
             )}

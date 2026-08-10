@@ -163,6 +163,9 @@ const TAB_TO_PARAM_PATH: Record<string, (param: string) => string> = {
   'store-detail': (id) => `/stores/${id}`, // اسمان مختلفان يُستخدمان لنفس الوجهة في شاشات مختلفة
   'customer-order-detail': (id) => `/orders/${id}`,
   'order-confirmation': (id) => `/order-confirmation/${id}`,
+  // فلتر التصنيف يُمرَّر كـ query string لأنه فلتر على صفحة قائمة وليس
+  // معرّف مورد داخل المسار نفسه — CustomerStoresView تقرأه بـ useSearchParams
+  'customer-stores': (categoryId) => `/stores?category=${categoryId}`,
 };
 
 /**
