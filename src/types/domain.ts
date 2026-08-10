@@ -132,7 +132,10 @@ export interface Store {
   reviews_count?: number | null;
   commission_rate: number; // e.g. 10 (%)
   min_order_amount: number;
-  delivery_fee: number;
+  // ملاحظة: لا يوجد عمود delivery_fee ثابت في جدول stores — رسوم التوصيل
+  // تُحسَب ديناميكيًا حسب منطقة العميل عبر calculate_delivery_fee/quote_order_secure.
+  // هذا الحقل اختياري ويُستخدم فقط كقيمة عرض تقريبية (تبدأ من...) عند توفرها.
+  delivery_fee?: number;
   opening_hours?: { [key: string]: { open: string; close: string; closed?: boolean } };
   created_at: string;
 }
@@ -255,7 +258,7 @@ export interface DeliveryAgent {
   name: string;
   phone?: string | null;
   avatar_url?: string | null;
-  vehicle_type: 'scooter' | 'motorcycle' | 'bicycle' | 'car';
+  vehicle_type: 'motorcycle' | 'bicycle' | 'car' | 'walking';
   license_plate?: string | null;
   national_id?: string | null;
   is_approved: boolean;
@@ -382,3 +385,30 @@ export type DatabaseRow<T> = T & {
   id: string;
   created_at: string;
 };
+
+// ===== أشكال ردود دوال RPC الآمنة (create_order_secure / quote_order_secure) =====
+// مطابقة حرفيًا لِـ jsonb_build_object في تعريف كل دالة داخل supabase_full.sql
+export interface OrderQuoteResponse {
+  subtotal: number;
+  delivery_fee: number;
+  eta_minutes: number | null;
+  zone_id: string | null;
+  discount: number;
+  tip_amount: number;
+  total: number;
+}
+
+export interface SecureOrderResponse {
+  order_id: string;
+  code: string;
+  subtotal: number;
+  delivery_fee: number;
+  eta_minutes: number | null;
+  zone_id: string | null;
+  tip_amount: number;
+  discount: number;
+  commission_pct: number;
+  commission_amount: number;
+  total: number;
+  status: string;
+}

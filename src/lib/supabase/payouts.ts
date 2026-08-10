@@ -6,7 +6,7 @@ import { Payout } from '../../types/domain';
 export async function fetchSupabasePayouts(): Promise<Payout[]> {
   const { data, error } = await supabase
     .from('payouts')
-    .select('*, profiles(full_name)')
+    .select('*, profiles!payouts_recipient_id_fkey(full_name)')
     .order('created_at', { ascending: false });
 
   if (error) throw new Error(translateSupabaseError(error).message);

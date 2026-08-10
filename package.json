@@ -47,6 +47,8 @@
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "typescript-eslint": "^8.22.0",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "@testing-library/react": "^16.0.1",
+    "@testing-library/jest-dom": "^6.6.3"
   }
 }

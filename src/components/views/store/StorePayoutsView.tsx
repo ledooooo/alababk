@@ -1,12 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo } from '../../../lib/storage';
 import { ensureUUID } from '../../../lib/supabase';
-import { Payout } from '../../../types/domain';
+import { Payout, Store } from '../../../types/domain';
 import { formatCurrency, formatDateArabic } from '../../../lib/formatters';
 import { Wallet, ArrowDownRight, Building2, CheckCircle2, Clock, Landmark, Smartphone, AlertCircle, Loader2 } from 'lucide-react';
 
 export default function StorePayoutsView() {
-  const currentStore = StorageRepo.getCurrentStore();
+  const [currentStore, setCurrentStore] = useState<Store | null>(null);
+  const [storeLoading, setStoreLoading] = useState(true);
+
+  useEffect(() => {
+    let isMounted = true;
+    StorageRepo.getCurrentStore().then((store) => {
+      if (isMounted) {
+        setCurrentStore(store);
+        setStoreLoading(false);
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   const orders = StorageRepo.getOrders().filter(
     (o) => !currentStore || o.store_id === currentStore.id
   );
@@ -263,4 +278,4 @@ export default function StorePayoutsView() {
       </div>
     </div>
   );
-};
+}

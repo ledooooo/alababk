@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { StorageRepo } from '../../../lib/storage';
+import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
 import { subscribeSupabase } from '../../../lib/supabase';
 import { Order, Product, Store } from '../../../types/domain';
 import { formatCurrency } from '../../../lib/formatters';

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, Suspense, lazy } from 'react';
-import { BrowserRouter, Routes, Route, useParams, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useParams, useNavigate, Navigate } from 'react-router-dom';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
 import { StorageRepo, subscribeToStorageChange } from './lib/storage';
@@ -90,6 +90,110 @@ function ViewFallback() {
   );
 }
 
+// ===== Legacy tab-name -> router path adapter =====
+// معظم شاشات هذا التطبيق مكتوبة بنمط قديم يستدعي onNavigate('tab-name', param)
+// بدل استخدام useNavigate مباشرة. الخريطة التالية تترجم كل اسم "تبويب" معروف
+// إلى مسار الراوتر الفعلي المطابق له في <Routes> بالأسفل.
+const TAB_TO_PATH: Record<string, string> = {
+  // Public
+  landing: '/',
+  auth: '/auth',
+  about: '/about',
+  'apply-store': '/apply-store',
+  'apply-agent': '/apply-agent',
+  contact: '/contact',
+  terms: '/terms',
+
+  // Customer
+  'customer-stores': '/stores',
+  search: '/search',
+  'categories-browse': '/categories',
+  'customer-checkout': '/checkout',
+  'customer-orders': '/orders',
+  profile: '/profile',
+  'customer-addresses': '/addresses',
+  notifications: '/notifications',
+
+  // Store owner
+  'store-dashboard': '/store/dashboard',
+  'store-orders': '/store/orders',
+  'store-products': '/store/products',
+  'store-reviews': '/store/reviews',
+  'store-payouts': '/store/payouts',
+  'store-analytics': '/store/analytics',
+  'store-notifications': '/store/notifications',
+  'store-settings': '/store/settings',
+
+  // Delivery agent
+  'delivery-dashboard': '/delivery/dashboard',
+  'delivery-available': '/delivery/available',
+  'delivery-active': '/delivery/active',
+  'delivery-history': '/delivery/history',
+  'delivery-earnings': '/delivery/earnings',
+  'delivery-profile': '/delivery/profile',
+  'delivery-notifications': '/delivery/notifications',
+
+  // Specialized roles
+  'delivery-supervisor-dashboard': '/supervisor',
+  'finance-admin-dashboard': '/finance',
+  'orders-manager-dashboard': '/orders-manager',
+
+  // Admin
+  'admin-dashboard': '/admin',
+  'admin-analytics': '/admin/analytics',
+  'admin-stores-applications': '/admin/stores-applications',
+  'admin-stores': '/admin/stores',
+  'admin-agents': '/admin/agents',
+  'admin-customers': '/admin/customers',
+  'admin-orders': '/admin/orders',
+  'admin-zones': '/admin/zones',
+  'admin-coupons': '/admin/coupons',
+  'admin-categories': '/admin/categories',
+  'admin-payouts': '/admin/payouts',
+  'admin-activity-log': '/admin/activity',
+  'admin-settings': '/admin/settings',
+  'admin-reviews': '/admin/reviews',
+  'admin-notifications': '/admin/notifications',
+  'admin-supabase': '/admin/supabase',
+};
+
+// تبويبات تحتاج مُعامِلًا (param) يُلحَق بالمسار كجزء منه، وليس كـ query string
+const TAB_TO_PARAM_PATH: Record<string, (param: string) => string> = {
+  'customer-store-detail': (id) => `/stores/${id}`,
+  'store-detail': (id) => `/stores/${id}`, // اسمان مختلفان يُستخدمان لنفس الوجهة في شاشات مختلفة
+  'customer-order-detail': (id) => `/orders/${id}`,
+  'order-confirmation': (id) => `/order-confirmation/${id}`,
+};
+
+/**
+ * يترجم اسم تبويب قديم (ونادرًا مسارًا فعليًا جاهزًا، أو صيغة notification
+ * القديمة "tab:param") إلى مسار راوتر صالح لاستخدامه مع navigate().
+ */
+function mapTabToPath(tab: string, param?: string): string {
+  if (!tab) return '/';
+
+  // بعض الإشعارات القديمة تخزّن الرابط كسلسلة واحدة "tab:param"
+  if (!param && tab.includes(':')) {
+    const [rawTab, rawParam] = tab.split(':');
+    tab = rawTab;
+    param = rawParam;
+  }
+
+  if (param) {
+    const paramMapper = TAB_TO_PARAM_PATH[tab];
+    if (paramMapper) return paramMapper(param);
+  }
+
+  const path = TAB_TO_PATH[tab];
+  if (path) return path;
+
+  // قد يكون tab بالفعل مسارًا فعليًا صالحًا (مثل روابط SidebarDrawer الحديثة)
+  if (tab.startsWith('/')) return tab;
+
+  console.warn('[mapTabToPath] تبويب غير معروف:', tab);
+  return '/';
+}
+
 // ===== ProtectedRoute Component =====
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -100,7 +204,6 @@ interface ProtectedRouteProps {
 function ProtectedRoute({ children, allowedRoles, redirectTo = '/auth' }: ProtectedRouteProps) {
   const [user, setUser] = useState<UserProfile | null>(StorageRepo.getCurrentUser());
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -119,13 +222,11 @@ function ProtectedRoute({ children, allowedRoles, redirectTo = '/auth' }: Protec
 
   if (loading) return <ViewFallback />;
   if (!user) {
-    navigate(redirectTo);
-    return null;
+    return <Navigate to={redirectTo} replace />;
   }
   if (!allowedRoles.includes(user.role)) {
     const defaultTab = DEFAULT_TAB_BY_ROLE[user.role] || 'landing';
-    navigate(`/${defaultTab}`);
-    return null;
+    return <Navigate to={mapTabToPath(defaultTab)} replace />;
   }
   return <>{children}</>;
 }
@@ -161,9 +262,168 @@ function OrderConfirmationRoute() {
   return (
     <OrderConfirmationView
       orderId={orderId!}
-      onNavigate={(tab) => navigate(`/${tab}`)}
+      onNavigate={(tab, param) => navigate(mapTabToPath(tab, param))}
     />
   );
+}
+
+// ===== Simple onNavigate-only wrappers (public pages) =====
+function LandingRoute() {
+  const navigate = useNavigate();
+  return <LandingView onNavigate={(tab, param) => navigate(mapTabToPath(tab, param))} />;
+}
+
+function AuthRoute({ onOpenForgotPassword }: { onOpenForgotPassword: () => void }) {
+  const navigate = useNavigate();
+  return (
+    <AuthView
+      onSuccess={(user) => navigate(mapTabToPath(DEFAULT_TAB_BY_ROLE[user.role] || 'landing'))}
+      onNavigate={(tab) => {
+        if (tab === 'forgot-password') {
+          onOpenForgotPassword();
+          return;
+        }
+        navigate(mapTabToPath(tab));
+      }}
+    />
+  );
+}
+
+function AboutRoute() {
+  const navigate = useNavigate();
+  return <AboutView onNavigate={(tab, param) => navigate(mapTabToPath(tab, param))} />;
+}
+
+function ApplyStoreRoute() {
+  const navigate = useNavigate();
+  return <ApplyStoreView onNavigate={(tab, param) => navigate(mapTabToPath(tab, param))} />;
+}
+
+function ApplyAgentRoute() {
+  const navigate = useNavigate();
+  return <ApplyAgentView onNavigate={(tab, param) => navigate(mapTabToPath(tab, param))} />;
+}
+
+function ContactRoute() {
+  const navigate = useNavigate();
+  return <ContactView onNavigate={(tab, param) => navigate(mapTabToPath(tab, param))} />;
+}
+
+function NotFoundRoute() {
+  const navigate = useNavigate();
+  return <NotFoundView onNavigate={(tab) => navigate(mapTabToPath(tab))} />;
+}
+
+// ===== Customer wrappers =====
+function CustomerStoresRoute() {
+  const navigate = useNavigate();
+  return <CustomerStoresView onSelectStore={(store) => navigate(`/stores/${store.id}`)} />;
+}
+
+function SearchRoute() {
+  const navigate = useNavigate();
+  return (
+    <SearchView
+      onSelectStore={(store) => navigate(`/stores/${store.id}`)}
+      onSelectProduct={(product) => navigate(`/stores/${product.store_id}`)}
+    />
+  );
+}
+
+function CategoriesBrowseRoute() {
+  const navigate = useNavigate();
+  return <CategoriesBrowseView onNavigate={(tab, param) => navigate(mapTabToPath(tab, param))} />;
+}
+
+function CustomerCheckoutRoute() {
+  const navigate = useNavigate();
+  return (
+    <CustomerCheckoutView
+      onOrderPlaced={(orderId) => navigate(`/order-confirmation/${orderId}`)}
+      onBack={() => navigate('/stores')}
+    />
+  );
+}
+
+function CustomerOrdersRoute() {
+  const navigate = useNavigate();
+  return (
+    <CustomerOrdersView
+      onSelectOrder={(orderId) => navigate(`/orders/${orderId}`)}
+      onBrowseStores={() => navigate('/stores')}
+    />
+  );
+}
+
+function ProfileRoute() {
+  const navigate = useNavigate();
+  return (
+    <ProfileView
+      onNavigate={(tab, param) => navigate(mapTabToPath(tab, param))}
+      onLogout={async () => {
+        try {
+          await supabase.auth.signOut();
+        } catch (err) {
+          console.warn('Sign out notice:', err);
+        }
+        StorageRepo.logout();
+        navigate('/');
+      }}
+    />
+  );
+}
+
+function NotificationsRoute() {
+  const navigate = useNavigate();
+  return <NotificationsView onNavigate={(tab, param) => navigate(mapTabToPath(tab, param))} />;
+}
+
+// ===== Store owner wrappers (single-arg onNavigate) =====
+function StoreDashboardRoute() {
+  const navigate = useNavigate();
+  return <StoreDashboardView onNavigate={(tab) => navigate(mapTabToPath(tab))} />;
+}
+
+function StoreOrdersRoute() {
+  const navigate = useNavigate();
+  return <StoreOrdersView onNavigate={(tab) => navigate(mapTabToPath(tab))} />;
+}
+
+function StoreProductsRoute() {
+  const navigate = useNavigate();
+  return <StoreProductsView onNavigate={(tab) => navigate(mapTabToPath(tab))} />;
+}
+
+function StoreAnalyticsRoute() {
+  const navigate = useNavigate();
+  return <StoreAnalyticsView onNavigate={(tab) => navigate(mapTabToPath(tab))} />;
+}
+
+function StoreSettingsRoute() {
+  const navigate = useNavigate();
+  return <StoreSettingsView onNavigate={(tab) => navigate(mapTabToPath(tab))} />;
+}
+
+// ===== Delivery agent wrappers =====
+function DeliveryDashboardRoute() {
+  const navigate = useNavigate();
+  return <DeliveryDashboardView onNavigate={(tab) => navigate(mapTabToPath(tab))} />;
+}
+
+function DeliveryAvailableRoute() {
+  const navigate = useNavigate();
+  return <DeliveryAvailableView onOrderClaimed={() => navigate('/delivery/active')} />;
+}
+
+function DeliveryActiveRoute() {
+  const navigate = useNavigate();
+  return <DeliveryActiveView onTripCompleted={() => navigate('/delivery/history')} />;
+}
+
+// ===== Admin wrappers =====
+function AdminDashboardRoute() {
+  const navigate = useNavigate();
+  return <AdminDashboardView onNavigate={(tab) => navigate(mapTabToPath(tab))} />;
 }
 
 // ===== CartDrawerWrapper =====
@@ -283,41 +543,41 @@ export default function App() {
           <Suspense fallback={<ViewFallback />}>
             <Routes>
               {/* Public Routes */}
-              <Route path="/" element={<LandingView />} />
-              <Route path="/auth" element={<AuthView />} />
-              <Route path="/about" element={<AboutView />} />
-              <Route path="/apply-store" element={<ApplyStoreView />} />
-              <Route path="/apply-agent" element={<ApplyAgentView />} />
-              <Route path="/contact" element={<ContactView />} />
+              <Route path="/" element={<LandingRoute />} />
+              <Route path="/auth" element={<AuthRoute onOpenForgotPassword={() => setShowForgotModal(true)} />} />
+              <Route path="/about" element={<AboutRoute />} />
+              <Route path="/apply-store" element={<ApplyStoreRoute />} />
+              <Route path="/apply-agent" element={<ApplyAgentRoute />} />
+              <Route path="/contact" element={<ContactRoute />} />
               <Route path="/terms" element={<TermsPrivacyView />} />
 
               {/* Customer Routes */}
-              <Route path="/stores" element={<CustomerStoresView />} />
+              <Route path="/stores" element={<CustomerStoresRoute />} />
               <Route path="/stores/:storeId" element={<StoreDetailRoute />} />
-              <Route path="/search" element={<SearchView />} />
-              <Route path="/categories" element={<CategoriesBrowseView />} />
-              <Route path="/checkout" element={<CustomerCheckoutView />} />
-              <Route path="/orders" element={<CustomerOrdersView />} />
+              <Route path="/search" element={<SearchRoute />} />
+              <Route path="/categories" element={<CategoriesBrowseRoute />} />
+              <Route path="/checkout" element={<CustomerCheckoutRoute />} />
+              <Route path="/orders" element={<CustomerOrdersRoute />} />
               <Route path="/orders/:orderId" element={<OrderDetailRoute />} />
               <Route path="/order-confirmation/:orderId" element={<OrderConfirmationRoute />} />
-              <Route path="/profile" element={<ProfileView />} />
+              <Route path="/profile" element={<ProfileRoute />} />
               <Route path="/addresses" element={<CustomerAddressesView />} />
-              <Route path="/notifications" element={<NotificationsView />} />
+              <Route path="/notifications" element={<NotificationsRoute />} />
 
               {/* Store Owner Routes */}
-              <Route path="/store/dashboard" element={<ProtectedRoute allowedRoles={['store_owner']}><StoreDashboardView /></ProtectedRoute>} />
-              <Route path="/store/orders" element={<ProtectedRoute allowedRoles={['store_owner']}><StoreOrdersView /></ProtectedRoute>} />
-              <Route path="/store/products" element={<ProtectedRoute allowedRoles={['store_owner']}><StoreProductsView /></ProtectedRoute>} />
+              <Route path="/store/dashboard" element={<ProtectedRoute allowedRoles={['store_owner']}><StoreDashboardRoute /></ProtectedRoute>} />
+              <Route path="/store/orders" element={<ProtectedRoute allowedRoles={['store_owner']}><StoreOrdersRoute /></ProtectedRoute>} />
+              <Route path="/store/products" element={<ProtectedRoute allowedRoles={['store_owner']}><StoreProductsRoute /></ProtectedRoute>} />
               <Route path="/store/reviews" element={<ProtectedRoute allowedRoles={['store_owner']}><StoreReviewsView /></ProtectedRoute>} />
               <Route path="/store/payouts" element={<ProtectedRoute allowedRoles={['store_owner']}><StorePayoutsView /></ProtectedRoute>} />
-              <Route path="/store/analytics" element={<ProtectedRoute allowedRoles={['store_owner']}><StoreAnalyticsView /></ProtectedRoute>} />
+              <Route path="/store/analytics" element={<ProtectedRoute allowedRoles={['store_owner']}><StoreAnalyticsRoute /></ProtectedRoute>} />
               <Route path="/store/notifications" element={<ProtectedRoute allowedRoles={['store_owner']}><StoreNotificationsView /></ProtectedRoute>} />
-              <Route path="/store/settings" element={<ProtectedRoute allowedRoles={['store_owner']}><StoreSettingsView /></ProtectedRoute>} />
+              <Route path="/store/settings" element={<ProtectedRoute allowedRoles={['store_owner']}><StoreSettingsRoute /></ProtectedRoute>} />
 
               {/* Delivery Agent Routes */}
-              <Route path="/delivery/dashboard" element={<ProtectedRoute allowedRoles={['delivery_agent']}><DeliveryDashboardView /></ProtectedRoute>} />
-              <Route path="/delivery/available" element={<ProtectedRoute allowedRoles={['delivery_agent']}><DeliveryAvailableView /></ProtectedRoute>} />
-              <Route path="/delivery/active" element={<ProtectedRoute allowedRoles={['delivery_agent']}><DeliveryActiveView /></ProtectedRoute>} />
+              <Route path="/delivery/dashboard" element={<ProtectedRoute allowedRoles={['delivery_agent']}><DeliveryDashboardRoute /></ProtectedRoute>} />
+              <Route path="/delivery/available" element={<ProtectedRoute allowedRoles={['delivery_agent']}><DeliveryAvailableRoute /></ProtectedRoute>} />
+              <Route path="/delivery/active" element={<ProtectedRoute allowedRoles={['delivery_agent']}><DeliveryActiveRoute /></ProtectedRoute>} />
               <Route path="/delivery/history" element={<ProtectedRoute allowedRoles={['delivery_agent']}><DeliveryHistoryView /></ProtectedRoute>} />
               <Route path="/delivery/earnings" element={<ProtectedRoute allowedRoles={['delivery_agent']}><DeliveryEarningsView /></ProtectedRoute>} />
               <Route path="/delivery/profile" element={<ProtectedRoute allowedRoles={['delivery_agent']}><DeliveryProfileView /></ProtectedRoute>} />
@@ -329,7 +589,7 @@ export default function App() {
               <Route path="/orders-manager" element={<ProtectedRoute allowedRoles={['orders_manager']}><OrdersManagerDashboardView /></ProtectedRoute>} />
 
               {/* Admin Routes */}
-              <Route path="/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboardView /></ProtectedRoute>} />
+              <Route path="/admin" element={<ProtectedRoute allowedRoles={['admin']}><AdminDashboardRoute /></ProtectedRoute>} />
               <Route path="/admin/analytics" element={<ProtectedRoute allowedRoles={['admin']}><AdminAnalyticsView /></ProtectedRoute>} />
               <Route path="/admin/stores-applications" element={<ProtectedRoute allowedRoles={['admin']}><AdminStoresApplicationsView /></ProtectedRoute>} />
               <Route path="/admin/stores" element={<ProtectedRoute allowedRoles={['admin']}><AdminStoresView /></ProtectedRoute>} />
@@ -347,7 +607,7 @@ export default function App() {
               <Route path="/admin/supabase" element={<ProtectedRoute allowedRoles={['admin']}><AdminSupabaseSync /></ProtectedRoute>} />
 
               {/* Fallback */}
-              <Route path="*" element={<NotFoundView />} />
+              <Route path="*" element={<NotFoundRoute />} />
             </Routes>
           </Suspense>
         </main>

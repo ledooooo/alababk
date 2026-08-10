@@ -8,17 +8,80 @@ import { useToast } from '../../shared/Toast';
 import { useConfirm } from '../../shared/ConfirmDialog';
 
 export default function CustomerAddressesView() {
-  // ... الحالات والدوال ...
+  const currentUser = StorageRepo.getCurrentUser();
   const { showToast } = useToast();
   const { showConfirm } = useConfirm();
 
-  const handleSave = () => {
+  const [addresses, setAddresses] = useState<CustomerAddress[]>(
+    StorageRepo.getAddresses(currentUser?.id)
+  );
+  const [isAdding, setIsAdding] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const [title, setTitle] = useState('');
+  const [addressLine, setAddressLine] = useState('');
+  const [building, setBuilding] = useState('');
+  const [floor, setFloor] = useState('');
+  const [apartment, setApartment] = useState('');
+  const [isDefault, setIsDefault] = useState(false);
+  const [lat, setLat] = useState<number>(DEFAULT_LAT);
+  const [lng, setLng] = useState<number>(DEFAULT_LNG);
+
+  useEffect(() => {
+    const syncAddresses = () => {
+      setAddresses(StorageRepo.getAddresses(currentUser?.id));
+    };
+
+    syncAddresses();
+    StorageRepo.refreshAddresses(currentUser?.id).catch(() => {});
+
+    const unsubscribe = subscribeToStorageChange(() => {
+      syncAddresses();
+    });
+    return unsubscribe;
+  }, [currentUser?.id]);
+
+  const resetForm = () => {
+    setTitle('');
+    setAddressLine('');
+    setBuilding('');
+    setFloor('');
+    setApartment('');
+    setIsDefault(false);
+    setLat(DEFAULT_LAT);
+    setLng(DEFAULT_LNG);
+  };
+
+  const handleSave = async () => {
     if (!addressLine.trim()) {
       showToast({ type: 'error', title: 'خطأ', message: 'يرجى إدخال تفاصيل الشارع والعنوان' });
       return;
     }
-    // ... حفظ العنوان ...
-    showToast({ type: 'success', title: 'تم', message: 'تم حفظ العنوان بنجاح' });
+
+    setIsSaving(true);
+    try {
+      await StorageRepo.saveAddress({
+        id: '',
+        user_id: currentUser?.id,
+        title: title.trim() || 'عنوان جديد',
+        address_line: addressLine.trim(),
+        building: building.trim() || null,
+        floor: floor.trim() || null,
+        apartment: apartment.trim() || null,
+        lat,
+        lng,
+        is_default: isDefault,
+      });
+
+      showToast({ type: 'success', title: 'تم', message: 'تم حفظ العنوان بنجاح' });
+      resetForm();
+      setIsAdding(false);
+      setAddresses(StorageRepo.getAddresses(currentUser?.id));
+    } catch (err: any) {
+      showToast({ type: 'error', title: 'خطأ', message: err?.message || 'تعذر حفظ العنوان' });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleDelete = (id: string) => {
@@ -27,9 +90,14 @@ export default function CustomerAddressesView() {
       message: 'هل ترغب في حذف هذا العنوان؟',
       variant: 'danger',
       confirmLabel: 'حذف',
-      onConfirm: () => {
-        StorageRepo.deleteAddress(id);
-        showToast({ type: 'success', title: 'تم الحذف', message: 'تم حذف العنوان' });
+      onConfirm: async () => {
+        try {
+          await StorageRepo.deleteAddress(id);
+          showToast({ type: 'success', title: 'تم الحذف', message: 'تم حذف العنوان' });
+          setAddresses(StorageRepo.getAddresses(currentUser?.id));
+        } catch (err: any) {
+          showToast({ type: 'error', title: 'خطأ', message: err?.message || 'تعذر حذف العنوان' });
+        }
       },
     });
   };
@@ -148,9 +216,10 @@ export default function CustomerAddressesView() {
           <div className="flex gap-2 pt-2">
             <button
               onClick={handleSave}
-              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-colors"
+              disabled={isSaving}
+              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold text-xs rounded-xl shadow-md transition-colors"
             >
-              حفظ العنوان
+              {isSaving ? 'جاري الحفظ...' : 'حفظ العنوان'}
             </button>
             <button
               onClick={() => setIsAdding(false)}
@@ -201,4 +270,4 @@ export default function CustomerAddressesView() {
       </div>
     </div>
   );
-};
+}

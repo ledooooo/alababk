@@ -119,24 +119,36 @@ export async function createSecureOrder(params: SecureOrderPayload): Promise<Sec
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.user) throw new Error('يجب تسجيل الدخول');
 
+  // العنوان المختار من العميل محفوظ بالفعل في addresses (له id صالح) —
+  // لا داعي لإعادة كتابته هنا. إعادة الكتابة كانت تستبدل الإحداثيات الحقيقية
+  // بإحداثيات القاهرة الافتراضية كلما غاب lat/lng من الكائن الممرَّر، فتُفسد
+  // عنوانًا محفوظًا سابقًا. لا نحفظ عنوانًا جديدًا هنا إلا إذا لم يكن محفوظًا أصلًا،
+  // وحتى في هذه الحالة نرفض المتابعة بدون إحداثيات حقيقية بدل استخدام قيم افتراضية.
   let addressId = params.address.id;
-  if (!addressId || !isValidUUID(addressId)) addressId = ensureUUID();
+  const hasExistingAddress = !!addressId && isValidUUID(addressId);
 
-  const addressToSave: CustomerAddress = {
-    id: addressId,
-    user_id: session.user.id,
-    title: params.address.title || 'عنوان التوصيل',
-    address_line: params.address.address_line || params.address.street || '',
-    building: params.address.building || null,
-    floor: params.address.floor || null,
-    apartment: params.address.apartment || null,
-    notes: params.address.notes || null,
-    lat: params.address.lat ?? 30.0444,
-    lng: params.address.lng ?? 31.2357,
-    is_default: params.address.is_default ?? false,
-  };
+  if (!hasExistingAddress) {
+    if (params.address.lat == null || params.address.lng == null) {
+      throw new Error('يرجى تحديد موقع العنوان على الخريطة قبل تأكيد الطلب');
+    }
 
-  const savedAddress = await upsertAddress(addressToSave);
+    const addressToSave: CustomerAddress = {
+      id: ensureUUID(),
+      user_id: session.user.id,
+      title: params.address.title || 'عنوان التوصيل',
+      address_line: params.address.address_line || params.address.street || '',
+      building: params.address.building || null,
+      floor: params.address.floor || null,
+      apartment: params.address.apartment || null,
+      notes: params.address.notes || null,
+      lat: params.address.lat,
+      lng: params.address.lng,
+      is_default: params.address.is_default ?? false,
+    };
+
+    const savedAddress = await upsertAddress(addressToSave);
+    addressId = savedAddress.id;
+  }
 
   const formattedItems = params.items.map((item) => ({
     product_id: ensureUUID(item.product_id),
@@ -147,7 +159,7 @@ export async function createSecureOrder(params: SecureOrderPayload): Promise<Sec
 
   const { data, error } = await supabase.rpc('create_order_secure', {
     p_store_id: ensureUUID(params.store_id),
-    p_address_id: savedAddress.id,
+    p_address_id: addressId,
     p_payment_method: params.payment_method,
     p_items: formattedItems,
     p_coupon_code: params.coupon_code ? params.coupon_code.trim() : null,

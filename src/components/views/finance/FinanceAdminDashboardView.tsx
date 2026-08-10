@@ -9,6 +9,7 @@ import {
   fetchSupabasePayouts,
 } from '../../../lib/supabase';
 import { Store, Order, PayoutRequest, Payout } from '../../../types/domain';
+import { formatCurrency } from '../../../lib/formatters';
 import {
   DollarSign,
   TrendingUp,

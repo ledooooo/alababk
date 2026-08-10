@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { StorageRepo } from '../../../lib/storage';
-import { verifyPhonePassword } from '../../../lib/supabase';
+import { resolveEmailByPhonePassword } from '../../../lib/supabase';
 import { UserRole, UserProfile, USER_ROLES } from '../../../types/domain';
 import {
   User,
@@ -121,30 +121,16 @@ export default function AuthView({
           return;
         }
 
-        const { userId, error: verifyError } = await verifyPhonePassword(cleanPhone, password);
-        if (verifyError || !userId) {
-          const msg = 'بيانات الدخول غير صحيحة، يرجى التأكد من رقم الهاتف وكلمة المرور.';
+        const { email: resolvedEmail, error: verifyError } = await resolveEmailByPhonePassword(cleanPhone, password);
+        if (verifyError || !resolvedEmail) {
+          const msg = verifyError || 'بيانات الدخول غير صحيحة، يرجى التأكد من رقم الهاتف وكلمة المرور.';
           setError(msg);
           showToast({ type: 'error', title: 'فشل تسجيل الدخول', message: msg });
           setLoading(false);
           return;
         }
 
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('email')
-          .eq('id', userId)
-          .single();
-
-        if (!profile?.email) {
-          const msg = 'تعذر العثور على البريد الإلكتروني للحساب، يرجى التواصل مع الدعم.';
-          setError(msg);
-          showToast({ type: 'error', title: 'خطأ', message: msg });
-          setLoading(false);
-          return;
-        }
-
-        emailForLogin = profile.email;
+        emailForLogin = resolvedEmail;
       }
 
       const { data, error: authError } = await supabase.auth.signInWithPassword({

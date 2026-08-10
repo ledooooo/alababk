@@ -5,7 +5,7 @@ import { Product } from '../../types/domain';
 
 export async function fetchSupabaseProducts(storeId?: string): Promise<Product[]> {
   try {
-    let query = supabase.from('products').select('*');
+    let query = supabase.from('products').select('*, categories(name)');
     if (storeId) query = query.eq('store_id', storeId);
     const { data, error } = await query;
     if (error || !data) throw error || new Error('No data');
@@ -17,7 +17,8 @@ export async function fetchSupabaseProducts(storeId?: string): Promise<Product[]
       description: p.description || '',
       price: Number(p.price),
       original_price: p.old_price != null ? Number(p.old_price) : undefined,
-      category_name: 'عام',
+      category_id: p.category_id || undefined,
+      category_name: p.categories?.name || 'عام',
       image_url: p.images?.[0] || '',
       stock: p.stock ?? 0,
       is_active: p.is_active ?? true,
@@ -38,6 +39,7 @@ export async function saveSupabaseProduct(product: Partial<Product>): Promise<Pr
   const payload: Record<string, any> = {
     id: validId,
     store_id: validStoreId,
+    category_id: product.category_id || null,
     name: product.name || 'منتج جديد',
     slug: (product.name || 'prod').toLowerCase().replace(/\s+/g, '-') + '-' + validId.slice(0, 4),
     description: product.description || '',
@@ -49,7 +51,7 @@ export async function saveSupabaseProduct(product: Partial<Product>): Promise<Pr
     updated_at: new Date().toISOString(),
   };
 
-  const { data, error } = await supabase.from('products').upsert(payload, { onConflict: 'id' }).select('*').single();
+  const { data, error } = await supabase.from('products').upsert(payload, { onConflict: 'id' }).select('*, categories(name)').single();
   if (error) throw new Error(translateSupabaseError(error).message);
 
   const p = data as any;
@@ -60,7 +62,8 @@ export async function saveSupabaseProduct(product: Partial<Product>): Promise<Pr
     description: p.description || '',
     price: Number(p.price),
     original_price: p.old_price ? Number(p.old_price) : undefined,
-    category_name: product.category_name || 'عام',
+    category_id: p.category_id || undefined,
+    category_name: p.categories?.name || product.category_name || 'عام',
     image_url: p.images?.[0] || '',
     stock: p.stock ?? 0,
     is_active: p.is_active ?? true,

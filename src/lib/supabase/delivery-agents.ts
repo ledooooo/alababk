@@ -6,11 +6,14 @@ import { DeliveryAgent } from '../../types/domain';
 export async function fetchSupabaseAgents(): Promise<DeliveryAgent[]> {
   const { data, error } = await supabase
     .from('delivery_agents')
-    .select('*, profiles(full_name, phone, avatar_url), delivery_zones(name)');
+    // ملاحظة: لا توجد أي علاقة بين delivery_agents و delivery_zones في الـschema
+    // الحالي (لا عمود zone_id ولا أي FK)، لذا لا يمكن تضمينها هنا. المنطقة
+    // النشطة تُشتق فقط من current_location الجغرافي إن توفر لاحقًا.
+    .select('*, profiles(full_name, phone, avatar_url)');
 
   if (error) throw new Error(translateSupabaseError(error).message);
   return (data || []).map((a: any) => {
-    const zoneName = a.active_zone || a.zone || a.delivery_zones?.name || null;
+    const zoneName = a.active_zone || a.zone || null;
     const coords = extractCoordinates(a.current_location || a);
     return {
       id: a.id,

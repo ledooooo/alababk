@@ -3,7 +3,6 @@ import { StorageRepo } from '../../../lib/storage';
 import { Bell, CheckCircle2, ShoppingBag, Info, AlertTriangle, Trash2 } from 'lucide-react';
 
 export default function StoreNotificationsView() {
-  const currentStore = StorageRepo.getCurrentStore();
   const allNotifications = StorageRepo.getNotifications();
   const [notifications, setNotifications] = useState(allNotifications);
 
@@ -94,4 +93,4 @@ export default function StoreNotificationsView() {
       </div>
     </div>
   );
-};
+}

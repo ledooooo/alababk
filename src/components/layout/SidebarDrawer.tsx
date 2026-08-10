@@ -25,6 +25,7 @@ import {
   Coins,
   Ticket,
   Users,
+  Database,
   ChevronLeft
 } from 'lucide-react';
 

@@ -75,7 +75,10 @@ export default function CustomerCheckoutView({
   // تحميل العناوين
   const loadAddresses = async () => {
     const user = StorageRepo.getCurrentUser();
-    if (!user) return;
+    if (!user) {
+      setIsLoading(false);
+      return;
+    }
     try {
       const addrs = await fetchAddresses(user.id);
       setAddresses(addrs);
@@ -92,6 +95,8 @@ export default function CustomerCheckoutView({
         message: err.message || 'تعذر تحميل العناوين المحفوظة',
       });
       setError(err.message || 'فشل تحميل العناوين');
+    } finally {
+      setIsLoading(false);
     }
   };
 

@@ -1,7 +1,11 @@
-// Dynamic cache name from build version (injected at build time)
-// For production, this should be replaced by a build-time variable.
-// We'll use a timestamp-based approach.
-const CACHE_VERSION = 'v' + Date.now();
+// Static cache version — يجب رفعها يدويًا (v1 -> v2 -> ...) مع كل إصدار جديد.
+// تحذير: لا تستخدم Date.now() أو أي قيمة تتغيّر وقت التشغيل هنا. الـService
+// Worker يُعاد تشغيله (restart) من المتصفح دوريًا بدون المرور بدورة
+// install/activate الكاملة، وحينها يُعاد تنفيذ هذا الكود من جديد — فإذا كانت
+// القيمة ديناميكية سيُنشأ اسم Cache مختلف في كل مرة، ويتراكم عدد لا نهائي من
+// الكاشات القديمة لأن تنظيف الكاشات القديمة يحدث فقط داخل activate (لا يحدث
+// عند مجرد إعادة تشغيل الـworker)، بالإضافة لظهور رسالة "تحديث متاح" بلا داعٍ.
+const CACHE_VERSION = 'v1';
 const CACHE_NAME = `alababak-pwa-${CACHE_VERSION}`;
 const ASSETS_TO_CACHE = [
   '/',

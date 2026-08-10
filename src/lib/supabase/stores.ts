@@ -25,6 +25,7 @@ export function mapStoreRow(s: any): Store {
     reviews_count: s.rating_count ? Number(s.rating_count) : 0,
     commission_rate: Number(s.commission_pct ?? 15),
     min_order_amount: Number(s.min_order_amount ?? 0),
+    delivery_fee: 0, // لا يوجد عمود ثابت لهذا في الـschema؛ القيمة الفعلية تُحسب وقت الطلب حسب المنطقة
     opening_hours: s.working_hours || { everyday: { open: '08:00', close: '23:00' } },
     created_at: s.created_at || new Date().toISOString(),
   };
@@ -76,6 +77,7 @@ export async function saveSupabaseStore(store: Partial<Store>, options: SaveStor
     name: store.name || 'متجر جديد',
     slug: store.slug || (store.name || 'store').toLowerCase().replace(/\s+/g, '-') + '-' + validStoreId.slice(0, 4),
     description: store.description || '',
+    category_id: store.category_id && isValidUUID(store.category_id) ? store.category_id : null,
     phone: store.phone ?? undefined,
     address: store.address ?? undefined,
     logo_url: store.logo_url ?? null,

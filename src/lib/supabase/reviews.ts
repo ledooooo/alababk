@@ -36,11 +36,25 @@ export async function saveSupabaseReview(review: Partial<Review>): Promise<Revie
     throw new Error('تقييم المندوب يجب أن يكون بين 1 و 5');
   }
 
+  // order_id و customer_id إلزاميان (NOT NULL) في جدول reviews — نتحقق منهما
+  // هنا صراحة برسالة عربية واضحة بدل ترك الإدراج يفشل بخطأ قاعدة بيانات مبهم.
+  if (!review.order_id) {
+    throw new Error('لا يمكن إرسال تقييم بدون طلب مرتبط به');
+  }
+  let customerId = review.customer_id;
+  if (!customerId) {
+    const { data: authData } = await supabase.auth.getUser();
+    customerId = authData?.user?.id;
+  }
+  if (!customerId) {
+    throw new Error('يجب تسجيل الدخول لإرسال تقييم');
+  }
+
   const payload: Record<string, any> = {
     id: validId,
-    order_id: review.order_id ? ensureUUID(review.order_id) : null,
+    order_id: ensureUUID(review.order_id),
     store_id: review.store_id ? ensureUUID(review.store_id) : null,
-    customer_id: review.customer_id ? ensureUUID(review.customer_id) : null,
+    customer_id: ensureUUID(customerId),
     store_rating: storeRating,
     delivery_rating: deliveryRating,
     agent_rating: deliveryRating,

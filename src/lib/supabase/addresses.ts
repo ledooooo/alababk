@@ -19,7 +19,17 @@ export function addressToRow(address: CustomerAddress): Record<string, any> {
 }
 
 export function rowToAddress(row: any): CustomerAddress {
-  const coords = extractCoordinates(row.location);
+  // upsert_address_secure() يرجّع jsonb بحقلي lat/lng مباشرة،
+  // بينما select * from addresses يرجّع عمود location (PostGIS geography).
+  // نتعامل مع الشكلين هنا حتى لا تضيع الإحداثيات بعد الحفظ عبر الـRPC.
+  let lat: number | null = typeof row.lat === 'number' ? row.lat : null;
+  let lng: number | null = typeof row.lng === 'number' ? row.lng : null;
+  if ((lat == null || lng == null) && row.location) {
+    const coords = extractCoordinates(row.location);
+    lat = coords?.lat ?? null;
+    lng = coords?.lng ?? null;
+  }
+
   return {
     id: row.id,
     user_id: row.user_id,
@@ -30,8 +40,8 @@ export function rowToAddress(row: any): CustomerAddress {
     floor: row.floor,
     apartment: row.apartment,
     notes: row.notes,
-    lat: coords?.lat ?? null,
-    lng: coords?.lng ?? null,
+    lat,
+    lng,
     is_default: row.is_default ?? false,
     created_at: row.created_at,
     updated_at: row.updated_at,

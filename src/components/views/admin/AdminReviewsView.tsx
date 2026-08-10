@@ -1,14 +1,37 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
-import { subscribeSupabase } from '../../../lib/supabase';
 import { Review } from '../../../types/domain';
 import { formatDate } from '../../../lib/formatters';
-import { Star, Store, Bike, RefreshCw, Loader2 } from 'lucide-react';
+import { Star, Store, Bike, RefreshCw } from 'lucide-react';
 import { useToast } from '../../shared/Toast';
 
 export default function AdminReviewsView() {
-  // ... الحالات والدوال ...
   const { showToast } = useToast();
+
+  const [reviews, setReviews] = useState<Review[]>(StorageRepo.getReviews());
+  const [loading, setLoading] = useState(false);
+  const [replyText, setReplyText] = useState<Record<string, string>>({});
+  const [submittingId, setSubmittingId] = useState<string | null>(null);
+
+  const loadReviews = async () => {
+    setLoading(true);
+    try {
+      const list = await StorageRepo.refreshReviews();
+      setReviews(list);
+    } catch (err: any) {
+      showToast({ type: 'error', title: 'خطأ', message: err?.message || 'تعذر تحميل التقييمات' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadReviews();
+    const unsubscribe = subscribeToStorageChange(() => {
+      setReviews(StorageRepo.getReviews());
+    });
+    return unsubscribe;
+  }, []);
 
   const handleSaveReply = async (reviewId: string) => {
     const reply = replyText[reviewId]?.trim();
@@ -19,7 +42,8 @@ export default function AdminReviewsView() {
 
     try {
       setSubmittingId(reviewId);
-      await StorageRepo.replyToReview(reviewId, reply);
+      const updated = await StorageRepo.replyToReview(reviewId, reply);
+      setReviews((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
       setReplyText((prev) => ({ ...prev, [reviewId]: '' }));
       showToast({ type: 'success', title: 'تم', message: 'تم إرسال الرد بنجاح' });
     } catch (err: any) {
@@ -114,9 +138,10 @@ export default function AdminReviewsView() {
                 />
                 <button
                   onClick={() => handleSaveReply(rev.id)}
-                  className="px-4 py-2 bg-purple-600 text-white font-bold rounded-xl text-xs hover:bg-purple-700 transition-colors shrink-0"
+                  disabled={submittingId === rev.id}
+                  className="px-4 py-2 bg-purple-600 text-white font-bold rounded-xl text-xs hover:bg-purple-700 disabled:opacity-60 transition-colors shrink-0"
                 >
-                  إرسال الرد
+                  {submittingId === rev.id ? 'جاري الإرسال...' : 'إرسال الرد'}
                 </button>
               </div>
             )}
@@ -125,4 +150,4 @@ export default function AdminReviewsView() {
       </div>
     </div>
   );
-};
+}

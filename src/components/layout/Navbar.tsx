@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { StorageRepo, subscribeToStorageChange } from '../../lib/storage';
-import { subscribeToNotifications } from '../../lib/supabase';
+import { subscribeToNotifications, supabase } from '../../lib/supabase';
 import { useCartStore } from '../../stores/cart-store';
 import { SidebarDrawer } from './SidebarDrawer';
 import { UserProfile, Order } from '../../types/domain';
@@ -36,7 +36,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentUser }) => {
   }, [currentUser]);
 
   useEffect(() => {
-    const checkOrdersAndNotifications = () => {
+    const checkOrdersAndNotifications = async () => {
       const loggedUser = StorageRepo.getCurrentUser();
       setUser(loggedUser);
 
@@ -52,7 +52,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentUser }) => {
             (o) => o.customer_id === loggedUser.id && !['delivered', 'cancelled', 'rejected'].includes(o.status)
           );
         } else if (loggedUser.role === 'store_owner') {
-          const store = StorageRepo.getCurrentStore();
+          const store = await StorageRepo.getCurrentStore();
           if (store) {
             userActive = allOrders.filter(
               (o) => o.store_id === store.id && !['delivered', 'cancelled', 'rejected'].includes(o.status)

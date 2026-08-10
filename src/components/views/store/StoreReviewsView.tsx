@@ -1,16 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
 import { subscribeSupabase } from '../../../lib/supabase';
-import { Review } from '../../../types/domain';
+import { Review, Store } from '../../../types/domain';
 import { Star, MessageSquare, CornerDownLeft, CheckCircle2, ThumbsUp, Loader2 } from 'lucide-react';
 import { useToast } from '../../shared/Toast';
 
 export default function StoreReviewsView() {
-  const currentStore = StorageRepo.getCurrentStore();
+  const [currentStore, setCurrentStore] = useState<Store | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [replyText, setReplyText] = useState<Record<string, string>>({});
   const [submittingId, setSubmittingId] = useState<string | null>(null);
   const { showToast } = useToast();
+
+  useEffect(() => {
+    let isMounted = true;
+    StorageRepo.getCurrentStore().then((store) => {
+      if (isMounted) setCurrentStore(store);
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     const sync = () => {
@@ -211,4 +221,4 @@ export default function StoreReviewsView() {
       </div>
     </div>
   );
-};
+}

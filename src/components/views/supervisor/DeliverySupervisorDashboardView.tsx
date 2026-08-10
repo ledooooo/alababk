@@ -368,7 +368,7 @@ export default function DeliverySupervisorDashboardView() {
 
                       <td className="p-3 font-mono">
                         <span className="px-2 py-0.5 bg-slate-100 text-slate-800 rounded-md font-bold text-[11px]">
-                          {agent.vehicle_type === 'motorcycle' ? 'موتوسيكل' : agent.vehicle_type === 'scooter' ? 'سكوتر' : 'سيارة'}
+                          {agent.vehicle_type === 'motorcycle' ? 'موتوسيكل' : agent.vehicle_type === 'bicycle' ? 'دراجة' : agent.vehicle_type === 'walking' ? 'سيرًا على الأقدام' : 'سيارة'}
                         </span>
                         {agent.license_plate && (
                           <p className="text-[10px] text-slate-500 mt-0.5">{agent.license_plate}</p>

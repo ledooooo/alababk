@@ -93,3 +93,5 @@ export const DeliveryNotificationsView: React.FC = () => {
     </div>
   );
 };
+
+export default DeliveryNotificationsView;
