@@ -84,15 +84,21 @@ self.addEventListener('fetch', (event) => {
           if (cachedResponse) {
             return cachedResponse;
           }
-          return fetch(event.request).then((response) => {
-            if (response && response.status === 200 && (response.type === 'basic' || response.type === 'cors')) {
-              const responseToCache = response.clone();
-              caches.open(CACHE_NAME).then((cache) => {
-                cache.put(event.request, responseToCache).catch(() => {});
-              });
-            }
-            return response;
-          });
+          return fetch(event.request)
+            .then((response) => {
+              if (response && response.status === 200 && (response.type === 'basic' || response.type === 'cors')) {
+                const responseToCache = response.clone();
+                caches.open(CACHE_NAME).then((cache) => {
+                  cache.put(event.request, responseToCache).catch(() => {});
+                });
+              }
+              return response;
+            })
+            .catch(() => {
+              // لا يوجد رد مخزّن ولا اتصال بالشبكة لهذا المورد — أعِد رفض الطلب بهدوء
+              // بدل ترك Promise غير معالج (كان هذا سبب: "Uncaught (in promise) TypeError: Failed to fetch")
+              return new Response('', { status: 504, statusText: 'Offline' });
+            });
         })
       );
     }
