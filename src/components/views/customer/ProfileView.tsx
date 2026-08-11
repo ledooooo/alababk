@@ -3,8 +3,9 @@ import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
 import { Store, Product } from '../../../types/domain';
 import { StoreCard } from '../../store/StoreCard';
 import { ProductCard } from '../../product/ProductCard';
-import { User, Phone, Mail, Camera, ShieldCheck, MapPin, ShoppingBag, LogOut, CheckCircle2, Heart, Store as StoreIcon, Package, Trash2 } from 'lucide-react';
+import { User, Phone, Mail, Camera, ShieldCheck, MapPin, ShoppingBag, LogOut, CheckCircle2, Heart, Store as StoreIcon, Package, Trash2, Bell, BellOff, BellRing } from 'lucide-react';
 import { useToast } from '../../shared/Toast';
+import { isPushSupported, getPushSubscriptionStatus, subscribeToPush, unsubscribeFromPush } from '../../../lib/push';
 
 interface ProfileViewProps {
   onNavigate: (tab: string, param?: string) => void;
@@ -18,6 +19,42 @@ export default function ProfileView({ onNavigate, onLogout }) {
   const [email, setEmail] = useState(currentUser?.email || 'customer@example.com');
   const [avatarUrl, setAvatarUrl] = useState(currentUser?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200');
   const [isSaved, setIsSaved] = useState(false);
+  const { showToast } = useToast();
+
+  // Push notifications state
+  const [pushStatus, setPushStatus] = useState<'unsupported' | 'denied' | 'subscribed' | 'unsubscribed' | 'loading'>('loading');
+
+  useEffect(() => {
+    if (!isPushSupported()) {
+      setPushStatus('unsupported');
+      return;
+    }
+    getPushSubscriptionStatus().then(setPushStatus);
+  }, []);
+
+  const handleTogglePush = async () => {
+    if (pushStatus === 'subscribed') {
+      setPushStatus('loading');
+      const result = await unsubscribeFromPush();
+      if (result.success) {
+        setPushStatus('unsubscribed');
+        showToast({ type: 'success', title: 'تم', message: 'تم إيقاف الإشعارات الفورية' });
+      } else {
+        setPushStatus('subscribed');
+        showToast({ type: 'error', title: 'خطأ', message: result.error || 'تعذر إيقاف الإشعارات' });
+      }
+    } else {
+      setPushStatus('loading');
+      const result = await subscribeToPush();
+      if (result.success) {
+        setPushStatus('subscribed');
+        showToast({ type: 'success', title: 'تم التفعيل', message: 'هتوصلك الإشعارات فورًا حتى لو التطبيق مقفول' });
+      } else {
+        setPushStatus(await getPushSubscriptionStatus());
+        showToast({ type: 'error', title: 'تعذر التفعيل', message: result.error || 'حدث خطأ غير متوقع' });
+      }
+    }
+  };
 
   // Wishlist state
   const [activeWishlistTab, setActiveWishlistTab] = useState<'stores' | 'products'>('stores');
@@ -39,8 +76,6 @@ export default function ProfileView({ onNavigate, onLogout }) {
     });
     return unsubscribe;
   }, []);
-
-  const { showToast } = useToast();
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -287,6 +322,55 @@ export default function ProfileView({ onNavigate, onLogout }) {
           </button>
         </div>
       </form>
+
+      {/* Push Notifications Settings */}
+      {pushStatus !== 'unsupported' && (
+        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-xs">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 ${
+                pushStatus === 'subscribed' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'
+              }`}>
+                {pushStatus === 'subscribed' ? <BellRing className="w-5 h-5" /> : <Bell className="w-5 h-5" />}
+              </div>
+              <div>
+                <h3 className="font-black text-slate-900 text-sm">الإشعارات الفورية</h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {pushStatus === 'denied'
+                    ? 'تم حظر الإشعارات من إعدادات المتصفح — فعّلها من هناك أولًا'
+                    : pushStatus === 'subscribed'
+                    ? 'مفعّلة — هتوصلك الإشعارات حتى لو التطبيق مقفول'
+                    : 'فعّلها عشان توصلك إشعارات الطلبات فورًا حتى لو التطبيق مقفول'}
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={handleTogglePush}
+              disabled={pushStatus === 'loading' || pushStatus === 'denied'}
+              className={`shrink-0 px-4 py-2.5 rounded-xl text-xs font-bold transition-colors disabled:opacity-50 flex items-center gap-1.5 ${
+                pushStatus === 'subscribed'
+                  ? 'bg-rose-50 text-rose-700 hover:bg-rose-100'
+                  : 'bg-emerald-600 text-white hover:bg-emerald-700'
+              }`}
+            >
+              {pushStatus === 'loading' ? (
+                <span>جاري التحميل...</span>
+              ) : pushStatus === 'subscribed' ? (
+                <>
+                  <BellOff className="w-4 h-4" />
+                  <span>إيقاف</span>
+                </>
+              ) : (
+                <>
+                  <Bell className="w-4 h-4" />
+                  <span>تفعيل</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
-};
+}

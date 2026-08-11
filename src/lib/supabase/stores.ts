@@ -31,11 +31,43 @@ export function mapStoreRow(s: any): Store {
   };
 }
 
+/**
+ * ينظّف نص البحث من رموز بها معنى خاص في صياغة فلاتر PostgREST
+ * (الفاصلة والأقواس تكسر تركيب or())، ويهرب رموز ilike الخاصة
+ * (% و _) حتى لا يتحول بحث المستخدم لنمط بحث غير مقصود.
+ */
+function sanitizeSearchTerm(term: string): string {
+  return term
+    .replace(/[,()]/g, ' ')
+    .replace(/[%_]/g, (m) => `\\${m}`)
+    .trim();
+}
+
 export async function fetchSupabaseStores(): Promise<Store[]> {
   const { data, error } = await supabase
     .from('stores')
     .select('*, categories(name)')
     .order('created_at', { ascending: false });
+
+  if (error) throw new Error(translateSupabaseError(error).message);
+  return (data || []).map(mapStoreRow);
+}
+
+/**
+ * بحث حقيقي من السيرفر بـ ilike (بدل تحميل كل المتاجر وفلترتها في المتصفح).
+ * يقتصر على المتاجر المعتمدة والنشطة فقط (نفس ما ترجعه سياسة SELECT العامة).
+ */
+export async function searchSupabaseStores(term: string, limit = 20): Promise<Store[]> {
+  const cleaned = sanitizeSearchTerm(term);
+  if (!cleaned) return [];
+
+  const { data, error } = await supabase
+    .from('stores')
+    .select('*, categories(name)')
+    .eq('is_approved', true)
+    .eq('is_active', true)
+    .or(`name.ilike.%${cleaned}%,description.ilike.%${cleaned}%`)
+    .limit(limit);
 
   if (error) throw new Error(translateSupabaseError(error).message);
   return (data || []).map(mapStoreRow);

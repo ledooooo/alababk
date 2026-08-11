@@ -1,18 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
-import { subscribeSupabase } from '../../../lib/supabase';
+import { subscribeSupabase, fetchSupabaseStores } from '../../../lib/supabase';
 import { Product, Store } from '../../../types/domain';
 import { formatCurrency } from '../../../lib/formatters';
 import { Pagination } from '../../shared/Pagination';
+import { ImageUploadField } from '../../shared/ImageUploadField';
 import { Package, Plus, Edit2, Trash2, Search, Check, X, Image as ImageIcon, AlertCircle, Loader2, Store as StoreIcon } from 'lucide-react';
 import { useToast } from '../../shared/Toast';
 import { useConfirm } from '../../shared/ConfirmDialog';
 
 interface StoreProductsViewProps {
   onNavigate: (tab: string) => void;
+  /**
+   * لما تُستخدم الشاشة من لوحة الأدمن لإدارة منتجات متجر معيّن (بدل متجر
+   * المستخدم الحالي)، نمرّر معرّف المتجر هنا. سياسات RLS بالفعل تسمح
+   * للأدمن بإدارة كل المتاجر/المنتجات (is_admin())، فلا حاجة لأي تغيير
+   * في صلاحيات قاعدة البيانات — فقط تغيير أي متجر تعمل عليه الشاشة.
+   */
+  adminStoreId?: string;
 }
 
-export default function StoreProductsView({ onNavigate }) {
+export default function StoreProductsView({ onNavigate, adminStoreId }: StoreProductsViewProps) {
   const [store, setStore] = useState<Store | null>(null);
   const [loading, setLoading] = useState(true);
   const [products, setProducts] = useState<Product[]>([]);
@@ -32,10 +40,17 @@ export default function StoreProductsView({ onNavigate }) {
 
   const loadData = async () => {
     setLoading(true);
-    const myStore = await StorageRepo.getMyStore();
-    setStore(myStore);
-    if (myStore) {
-      const storeProds = StorageRepo.getProducts(myStore.id);
+    let targetStore: Store | null = null;
+    if (adminStoreId) {
+      // سياق الأدمن: نجيب المتجر المطلوب تحديدًا بدل "متجري أنا"
+      const allStores = await fetchSupabaseStores();
+      targetStore = allStores.find((s) => s.id === adminStoreId) || null;
+    } else {
+      targetStore = await StorageRepo.getMyStore();
+    }
+    setStore(targetStore);
+    if (targetStore) {
+      const storeProds = StorageRepo.getProducts(targetStore.id);
       setProducts(storeProds);
     } else {
       setProducts([]);
@@ -51,7 +66,9 @@ export default function StoreProductsView({ onNavigate }) {
     });
 
     const currentUser = StorageRepo.getCurrentUser();
-    const filter = currentUser ? `owner_id=eq.${currentUser.id}` : undefined;
+    const filter = adminStoreId
+      ? `id=eq.${adminStoreId}`
+      : currentUser ? `owner_id=eq.${currentUser.id}` : undefined;
     const unsubscribeRealtimeStore = subscribeSupabase<Store>(
       'stores',
       () => { loadData(); },
@@ -69,7 +86,7 @@ export default function StoreProductsView({ onNavigate }) {
       unsubscribeRealtimeStore();
       unsubscribeRealtimeProducts();
     };
-  }, []);
+  }, [adminStoreId]);
 
   const handleOpenNew = () => {
     if (!store) return;
@@ -217,6 +234,12 @@ export default function StoreProductsView({ onNavigate }) {
 
   return (
     <div className="space-y-6 dir-rtl pb-16">
+      {adminStoreId && (
+        <div className="bg-indigo-50 border border-indigo-200 text-indigo-800 rounded-xl px-4 py-2.5 text-xs font-bold flex items-center gap-2">
+          <StoreIcon className="w-4 h-4" />
+          <span>وضع إدارة الأدمن — بتدير منتجات متجر: {store.name}</span>
+        </div>
+      )}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
@@ -446,16 +469,13 @@ export default function StoreProductsView({ onNavigate }) {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">رابط صورة المنتج (URL)</label>
-                <input
-                  type="text"
-                  placeholder="https://images.unsplash.com/..."
-                  value={editingProduct.image_url || ''}
-                  onChange={(e) => setEditingProduct({ ...editingProduct, image_url: e.target.value })}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none dir-ltr text-left"
-                />
-              </div>
+              <ImageUploadField
+                label="صورة المنتج"
+                value={editingProduct.image_url || ''}
+                storeId={store?.id || ''}
+                folder="products"
+                onChange={(url) => setEditingProduct({ ...editingProduct, image_url: url })}
+              />
             </div>
 
             <div className="flex gap-2 pt-2">

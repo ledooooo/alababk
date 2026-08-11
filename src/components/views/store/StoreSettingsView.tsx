@@ -5,6 +5,7 @@ import { Store } from '../../../types/domain';
 import { formatCurrency } from '../../../lib/formatters';
 import { Store as StoreIcon, Clock, MapPin, Phone, Save, Check, Loader2, AlertCircle } from 'lucide-react';
 import { useToast } from '../../shared/Toast';
+import { ImageUploadField } from '../../shared/ImageUploadField';
 
 interface StoreSettingsViewProps {
   onNavigate: (tab: string) => void;
@@ -128,6 +129,30 @@ export default function StoreSettingsView({ onNavigate }) {
           <span>{saveError}</span>
         </div>
       )}
+
+      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs space-y-4">
+        <h3 className="font-bold text-slate-900 text-sm border-b border-slate-100 pb-2">
+          صور المتجر
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <ImageUploadField
+            label="شعار المتجر (Logo)"
+            value={store.logo_url || ''}
+            storeId={store.id}
+            folder="logo"
+            onChange={(url) => setStore({ ...store, logo_url: url })}
+            previewClassName="w-20 h-20 rounded-full"
+          />
+          <ImageUploadField
+            label="صورة الغلاف (Banner)"
+            value={store.banner_url || ''}
+            storeId={store.id}
+            folder="banner"
+            onChange={(url) => setStore({ ...store, banner_url: url })}
+            previewClassName="w-32 h-20"
+          />
+        </div>
+      </div>
 
       <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs space-y-4">
         <h3 className="font-bold text-slate-900 text-sm border-b border-slate-100 pb-2">

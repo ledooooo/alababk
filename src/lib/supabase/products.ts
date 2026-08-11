@@ -3,6 +3,50 @@ import { supabase } from './client';
 import { ensureUUID, translateSupabaseError } from './helpers';
 import { Product } from '../../types/domain';
 
+function sanitizeSearchTerm(term: string): string {
+  return term
+    .replace(/[,()]/g, ' ')
+    .replace(/[%_]/g, (m) => `\\${m}`)
+    .trim();
+}
+
+/**
+ * بحث حقيقي من السيرفر بـ ilike على اسم/وصف المنتج، مقتصر على المنتجات
+ * النشطة في متاجر معتمدة ونشطة (زي ما بترجع سياسة SELECT العامة بالظبط).
+ */
+export async function searchSupabaseProducts(term: string, limit = 20): Promise<Product[]> {
+  const cleaned = sanitizeSearchTerm(term);
+  if (!cleaned) return [];
+
+  const { data, error } = await supabase
+    .from('products')
+    .select('*, categories(name), stores!inner(is_approved, is_active, is_vacation_mode)')
+    .eq('is_active', true)
+    .eq('stores.is_approved', true)
+    .eq('stores.is_active', true)
+    .eq('stores.is_vacation_mode', false)
+    .or(`name.ilike.%${cleaned}%,description.ilike.%${cleaned}%`)
+    .limit(limit);
+
+  if (error) throw new Error(translateSupabaseError(error).message);
+
+  return (data as any[]).map((p) => ({
+    id: p.id,
+    store_id: p.store_id,
+    name: p.name,
+    description: p.description || '',
+    price: Number(p.price),
+    original_price: p.old_price != null ? Number(p.old_price) : undefined,
+    category_id: p.category_id || undefined,
+    category_name: p.categories?.name || 'عام',
+    image_url: p.images?.[0] || '',
+    stock: p.stock ?? 0,
+    is_active: p.is_active ?? true,
+    unit: p.attributes?.unit || 'قطعة',
+    created_at: p.created_at || new Date().toISOString(),
+  }));
+}
+
 export async function fetchSupabaseProducts(storeId?: string): Promise<Product[]> {
   try {
     let query = supabase.from('products').select('*, categories(name)');

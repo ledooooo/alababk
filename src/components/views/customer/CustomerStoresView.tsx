@@ -4,11 +4,14 @@ import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
 import { subscribeSupabase } from '../../../lib/supabase';
 import { Store } from '../../../types/domain';
 import { StoreCard } from '../../store/StoreCard';
+import { Pagination } from '../../shared/Pagination';
 import { Search, Filter, Loader2, AlertCircle, RefreshCw, X } from 'lucide-react';
 
 interface CustomerStoresViewProps {
   onSelectStore: (store: Store) => void;
 }
+
+const ITEMS_PER_PAGE = 12;
 
 export default function CustomerStoresView({ onSelectStore }: CustomerStoresViewProps) {
   // ===== HOOKS ===== (جميعها في الأعلى)
@@ -17,6 +20,7 @@ export default function CustomerStoresView({ onSelectStore }: CustomerStoresView
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
   // فلتر التصنيف يُقرأ من ?category= في الرابط (مثلًا لما ييجي من صفحة
   // التصنيفات أو الصفحة الرئيسية) بدل ما يبدأ 'all' دايمًا ويتجاهل اختيار المستخدم
   const [categoryFilter, setCategoryFilter] = useState<string>(searchParams.get('category') || 'all');
@@ -25,6 +29,10 @@ export default function CustomerStoresView({ onSelectStore }: CustomerStoresView
     const fromUrl = searchParams.get('category') || 'all';
     setCategoryFilter(fromUrl);
   }, [searchParams]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, categoryFilter]);
 
   const clearCategoryFilter = () => {
     setCategoryFilter('all');
@@ -78,6 +86,12 @@ export default function CustomerStoresView({ onSelectStore }: CustomerStoresView
     categoryFilter !== 'all'
       ? StorageRepo.getCategories().find((c) => c.id === categoryFilter)?.name
       : null;
+
+  const totalPages = Math.ceil(filteredStores.length / ITEMS_PER_PAGE);
+  const paginatedStores = filteredStores.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
 
   // ===== حالات العرض =====
   if (loading) {
@@ -143,11 +157,21 @@ export default function CustomerStoresView({ onSelectStore }: CustomerStoresView
           <p className="text-slate-500">لا توجد متاجر تطابق بحثك.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {filteredStores.map((store) => (
-            <StoreCard key={store.id} store={store} onSelect={onSelectStore} />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {paginatedStores.map((store) => (
+              <StoreCard key={store.id} store={store} onSelect={onSelectStore} />
+            ))}
+          </div>
+
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={setCurrentPage}
+            totalItems={filteredStores.length}
+            itemsPerPage={ITEMS_PER_PAGE}
+          />
+        </>
       )}
     </div>
   );

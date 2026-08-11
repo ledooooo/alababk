@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { StorageRepo } from '../../../lib/storage';
+import { searchSupabaseStores, searchSupabaseProducts } from '../../../lib/supabase';
 import { Product, Store } from '../../../types/domain';
 import { formatCurrency } from '../../../lib/formatters';
 import { Search, Loader2, AlertCircle, Store as StoreIcon, Package } from 'lucide-react';
@@ -9,66 +10,78 @@ interface SearchViewProps {
   onSelectProduct: (product: Product) => void;
 }
 
-export default function SearchView({ onSelectStore, onSelectProduct }) {
+function mergeById<T extends { id: string }>(cached: T[], serverResults: T[]): T[] {
+  const map = new Map<string, T>();
+  for (const item of cached) map.set(item.id, item);
+  for (const item of serverResults) map.set(item.id, item); // نسخة السيرفر أدق فتستبدل نسخة الكاش لو موجودة
+  return Array.from(map.values());
+}
+
+export default function SearchView({ onSelectStore, onSelectProduct }: SearchViewProps) {
   // ===== HOOKS =====
   const [query, setQuery] = useState('');
   const [stores, setStores] = useState<Store[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [serverLoading, setServerLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'stores' | 'products'>('stores');
+  const requestIdRef = useRef(0);
 
-  const performSearch = async (searchTerm: string) => {
-    if (!searchTerm.trim()) {
+  // نتيجة فورية من البيانات المحمّلة بالفعل في الكاش (بلا انتظار شبكة) —
+  // بتظهر فور الكتابة، وبعدين تتستبدل/تتكمل بنتيجة السيرفر الأدق.
+  useEffect(() => {
+    const term = query.trim().toLowerCase();
+    if (!term) {
       setStores([]);
       setProducts([]);
       return;
     }
-    setLoading(true);
+
+    const cachedStores = StorageRepo.getStores().filter(
+      (s) => s.name.toLowerCase().includes(term) || s.description?.toLowerCase().includes(term)
+    );
+    const cachedProducts = StorageRepo.getProducts().filter(
+      (p) => p.name.toLowerCase().includes(term) || p.description?.toLowerCase().includes(term)
+    );
+    setStores(cachedStores);
+    setProducts(cachedProducts);
+  }, [query]);
+
+  // بحث حقيقي من السيرفر (ilike) بعد توقف قصير عن الكتابة، عشان يلاقي
+  // نتائج مش محمّلة أصلًا في الكاش المحلي (مش كل المتاجر/المنتجات محمّلة دايمًا)
+  const performServerSearch = async (searchTerm: string, reqId: number) => {
+    setServerLoading(true);
     setError(null);
     try {
-      const allStores = await StorageRepo.refreshStores();
-      const allProducts = await StorageRepo.refreshProducts();
-
-      const filteredStores = allStores.filter((s) =>
-        s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        s.description?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-      const filteredProducts = allProducts.filter((p) =>
-        p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.description?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-
-      setStores(filteredStores);
-      setProducts(filteredProducts);
+      const [serverStores, serverProducts] = await Promise.all([
+        searchSupabaseStores(searchTerm),
+        searchSupabaseProducts(searchTerm),
+      ]);
+      if (reqId !== requestIdRef.current) return; // نتيجة بحث قديمة اتلغت
+      setStores((prev) => mergeById(prev, serverStores));
+      setProducts((prev) => mergeById(prev, serverProducts));
     } catch (err: any) {
-      setError(err.message || 'فشل البحث');
+      if (reqId === requestIdRef.current) setError(err.message || 'فشل البحث');
     } finally {
-      setLoading(false);
+      if (reqId === requestIdRef.current) setServerLoading(false);
     }
   };
 
   useEffect(() => {
-    const delay = setTimeout(() => performSearch(query), 300);
+    const term = query.trim();
+    if (!term) return;
+    const reqId = ++requestIdRef.current;
+    const delay = setTimeout(() => performServerSearch(term, reqId), 350);
     return () => clearTimeout(delay);
   }, [query]);
 
   // ===== حالات العرض =====
-  if (loading) {
-    return (
-      <div className="bg-white rounded-2xl p-8 text-center border border-slate-200">
-        <Loader2 className="w-8 h-8 text-emerald-600 animate-spin mx-auto mb-3" />
-        <p className="text-xs font-bold text-slate-600">جاري البحث...</p>
-      </div>
-    );
-  }
-
   if (error) {
     return (
       <div className="bg-white rounded-2xl p-8 text-center border border-slate-200 space-y-4">
         <AlertCircle className="w-12 h-12 text-rose-500 mx-auto" />
         <p className="text-sm text-slate-600">{error}</p>
-        <button onClick={() => performSearch(query)} className="px-5 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold">
+        <button onClick={() => performServerSearch(query, ++requestIdRef.current)} className="px-5 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold">
           إعادة المحاولة
         </button>
       </div>
@@ -84,9 +97,12 @@ export default function SearchView({ onSelectStore, onSelectProduct }) {
           placeholder="ابحث عن متجر، منتج، أو فئة..."
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="w-full pr-12 pl-4 py-3.5 bg-white border border-slate-200 rounded-2xl text-base focus:ring-2 focus:ring-emerald-500 outline-none shadow-xs"
+          className="w-full pr-12 pl-12 py-3.5 bg-white border border-slate-200 rounded-2xl text-base focus:ring-2 focus:ring-emerald-500 outline-none shadow-xs"
           autoFocus
         />
+        {serverLoading && (
+          <Loader2 className="w-4 h-4 text-emerald-500 animate-spin absolute left-4 top-1/2 -translate-y-1/2" />
+        )}
       </div>
 
       {query.trim() && (

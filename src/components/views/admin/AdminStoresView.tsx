@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
 import { subscribeSupabase } from '../../../lib/supabase';
 import { Store } from '../../../types/domain';
 import { formatCurrency, formatPhoneNumber } from '../../../lib/formatters';
 import { Pagination } from '../../shared/Pagination';
-import { Store as StoreIcon, Plus, Edit2, Trash2, Power, Star, Search } from 'lucide-react';
+import { Store as StoreIcon, Plus, Edit2, Trash2, Power, Star, Search, Package } from 'lucide-react';
 import { useToast } from '../../shared/Toast';
 import { useConfirm } from '../../shared/ConfirmDialog';
 
 export default function AdminStoresView() {
+  const navigate = useNavigate();
   const [stores, setStores] = useState<Store[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -302,13 +304,22 @@ export default function AdminStoresView() {
                     </td>
 
                     <td className="p-3.5 text-center">
-                      <button
-                        onClick={() => handleDeleteStore(s.id, s.name)}
-                        className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                        title="حذف المتجر"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center justify-center gap-1">
+                        <button
+                          onClick={() => navigate(`/admin/stores/${s.id}/products`)}
+                          className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                          title="إدارة المنتجات والصور"
+                        >
+                          <Package className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteStore(s.id, s.name)}
+                          className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                          title="حذف المتجر"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
