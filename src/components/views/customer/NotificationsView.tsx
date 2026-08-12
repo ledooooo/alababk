@@ -9,7 +9,6 @@ import {
   Trash2,
   ArrowRight,
   Send,
-  Sparkles,
   Info,
   Check,
   ChevronLeft,
@@ -155,40 +154,6 @@ export default function NotificationsView({ onNavigate }) {
     });
   };
 
-  const handleSendTestPush = () => {
-    const testTitles = [
-      'تخفيضات حصريّة! 🏷️',
-      'الكابتن يستعد للانطلاق 🛵',
-      'تم تحديث حالة طلبك 📦',
-      'خصم 20% على طلبك القادم 🎉'
-    ];
-    const testMsgs = [
-      'احصل على توصيل مجاني عند استخدام كود FREE50 اليوم فقط!',
-      'الكابتن أحمد قريب من موقعك بنحو 3 دقائق.',
-      'قام مطبخ متجر أطياب بتجهيز طلبك وهو جاهز للتسليم.',
-      'استمتع بخصم مميز على جميع حلويات المعادي!'
-    ];
-    const randomIndex = Math.floor(Math.random() * testTitles.length);
-
-    const testNotif: NotificationItem = {
-      id: `notif-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      user_id: currentUser?.id || 'all',
-      title: testTitles[randomIndex] || 'تنبيه جديد',
-      message: testMsgs[randomIndex] || 'لديك إشعار جديد في التطبيق.',
-      type: randomIndex % 2 === 0 ? 'promotion' : 'order_status',
-      is_read: false,
-      created_at: new Date().toISOString(),
-    };
-
-    StorageRepo.saveNotification(testNotif);
-    loadNotifications();
-    showToast({
-      type: 'success',
-      title: 'تم الإرسال',
-      message: 'تم إرسال إشعار اختباري بنجاح',
-    });
-  };
-
   const handleNotificationClick = (item: NotificationItem) => {
     // Mark as read first
     if (!item.is_read) {
@@ -241,15 +206,6 @@ export default function NotificationsView({ onNavigate }) {
             </p>
           </div>
         </div>
-
-        {/* Test Push Notification Trigger */}
-        <button
-          onClick={handleSendTestPush}
-          className="px-4 py-2.5 bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 text-xs font-black rounded-2xl transition-all shadow-md flex items-center gap-2 shrink-0 border border-amber-300/50"
-        >
-          <Sparkles className="w-4 h-4 text-slate-950" />
-          <span>اختبار إرسال إشعار فوري 🔔</span>
-        </button>
       </div>
 
       {/* Control & Filter Bar */}

@@ -2,8 +2,14 @@ import React, { useState } from 'react';
 import { StorageRepo } from '../../../lib/storage';
 import { Coupon } from '../../../types/domain';
 import { formatCurrency } from '../../../lib/formatters';
-import { ShieldCheck, Plus, Trash2, Tag } from 'lucide-react';
+import { ShieldCheck, Plus, Trash2, Tag, Power, Loader2 } from 'lucide-react';
 import { useToast } from '../../shared/Toast';
+
+const todayPlus90 = () => {
+  const d = new Date();
+  d.setDate(d.getDate() + 90);
+  return d.toISOString().slice(0, 10);
+};
 
 export default function AdminCouponsView() {
   const [coupons, setCoupons] = useState<Coupon[]>(StorageRepo.getCoupons());
@@ -11,34 +17,79 @@ export default function AdminCouponsView() {
   const [discountType, setDiscountType] = useState<'percent' | 'fixed'>('percent');
   const [discountValue, setDiscountValue] = useState(10);
   const [minOrder, setMinOrder] = useState(50);
+  const [maxDiscount, setMaxDiscount] = useState<number | ''>('');
+  const [usageLimit, setUsageLimit] = useState<number | ''>('');
+  const [validUntil, setValidUntil] = useState(todayPlus90());
+  const [saving, setSaving] = useState(false);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
   const { showToast } = useToast();
 
-  const handleCreateCoupon = () => {
+  const handleCreateCoupon = async () => {
     if (!code.trim()) {
       showToast({ type: 'error', title: 'خطأ', message: 'ادخل رمز الكوبون أولاً (مثال: JIHAT15)' });
       return;
     }
+    if (discountValue <= 0) {
+      showToast({ type: 'error', title: 'خطأ', message: 'قيمة الخصم يجب أن تكون أكبر من صفر' });
+      return;
+    }
+    if (discountType === 'percent' && discountValue > 100) {
+      showToast({ type: 'error', title: 'خطأ', message: 'نسبة الخصم لا يمكن أن تتجاوز 100%' });
+      return;
+    }
 
     const newC: Coupon = {
-      id: `coup-${Date.now()}`,
+      id: '',
       code: code.trim().toUpperCase(),
       discount_type: discountType,
       discount_value: Number(discountValue),
       min_order_amount: Number(minOrder),
+      max_discount_amount: maxDiscount === '' ? undefined : Number(maxDiscount),
+      usage_limit: usageLimit === '' ? undefined : Number(usageLimit),
       is_active: true,
-      valid_until: '2026-12-31',
+      valid_until: validUntil,
     };
 
-    StorageRepo.saveCoupon(newC);
-    setCoupons(StorageRepo.getCoupons());
-    setCode('');
-    showToast({ type: 'success', title: 'تم', message: 'تم إنشاء الكوبون بنجاح' });
+    setSaving(true);
+    try {
+      await StorageRepo.saveCoupon(newC);
+      setCoupons(StorageRepo.getCoupons());
+      setCode('');
+      setMaxDiscount('');
+      setUsageLimit('');
+      showToast({ type: 'success', title: 'تم', message: 'تم إنشاء الكوبون بنجاح' });
+    } catch (err: any) {
+      showToast({ type: 'error', title: 'فشل الحفظ', message: err.message || 'تعذر إنشاء الكوبون — تأكد إن الرمز غير مستخدم من قبل' });
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleDeleteCoupon = (id: string) => {
-    StorageRepo.deleteCoupon(id);
-    setCoupons(StorageRepo.getCoupons());
-    showToast({ type: 'success', title: 'تم', message: 'تم حذف الكوبون' });
+  const handleDeleteCoupon = async (id: string) => {
+    try {
+      await StorageRepo.deleteCoupon(id);
+      setCoupons(StorageRepo.getCoupons());
+      showToast({ type: 'success', title: 'تم', message: 'تم حذف الكوبون' });
+    } catch (err: any) {
+      showToast({ type: 'error', title: 'فشل الحذف', message: err.message || 'تعذر حذف الكوبون' });
+    }
+  };
+
+  const handleToggleActive = async (coupon: Coupon) => {
+    setTogglingId(coupon.id);
+    try {
+      await StorageRepo.saveCoupon({ ...coupon, is_active: !coupon.is_active });
+      setCoupons(StorageRepo.getCoupons());
+      showToast({
+        type: 'success',
+        title: 'تم',
+        message: coupon.is_active ? 'تم إيقاف الكوبون' : 'تم تفعيل الكوبون',
+      });
+    } catch (err: any) {
+      showToast({ type: 'error', title: 'فشل التحديث', message: err.message || 'تعذر تحديث حالة الكوبون' });
+    } finally {
+      setTogglingId(null);
+    }
   };
 
   return (
@@ -102,14 +153,49 @@ export default function AdminCouponsView() {
               className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none"
             />
           </div>
+
+          {discountType === 'percent' && (
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">أقصى قيمة خصم (ج.م) — اختياري</label>
+              <input
+                type="number"
+                placeholder="بلا حد أقصى"
+                value={maxDiscount}
+                onChange={(e) => setMaxDiscount(e.target.value === '' ? '' : Number(e.target.value))}
+                className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none"
+              />
+            </div>
+          )}
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">أقصى عدد استخدام — اختياري</label>
+            <input
+              type="number"
+              placeholder="بلا حد أقصى"
+              value={usageLimit}
+              onChange={(e) => setUsageLimit(e.target.value === '' ? '' : Number(e.target.value))}
+              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">صالح حتى تاريخ</label>
+            <input
+              type="date"
+              value={validUntil}
+              onChange={(e) => setValidUntil(e.target.value)}
+              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none dir-ltr"
+            />
+          </div>
         </div>
 
         <button
           onClick={handleCreateCoupon}
-          className="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs rounded-xl shadow-md transition-colors flex items-center gap-1.5"
+          disabled={saving}
+          className="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white font-bold text-xs rounded-xl shadow-md transition-colors flex items-center gap-1.5"
         >
-          <Plus className="w-4 h-4" />
-          <span>حفظ وتفعيل الكوبون</span>
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+          <span>{saving ? 'جاري الحفظ...' : 'حفظ وتفعيل الكوبون'}</span>
         </button>
       </div>
 
@@ -128,22 +214,42 @@ export default function AdminCouponsView() {
                 <span className="font-bold text-emerald-700">
                   {c.discount_type === 'percent' ? `%${c.discount_value} خصم` : formatCurrency(c.discount_value)}
                 </span>
+                {!c.is_active && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 bg-slate-100 text-slate-500 rounded-full">موقوف</span>
+                )}
               </div>
               <p className="text-[11px] text-slate-500 mt-1">
-                الحد الأدنى للطلب: {formatCurrency(c.min_order_amount)} • صالحة حتى {c.valid_until}
+                الحد الأدنى للطلب: {formatCurrency(c.min_order_amount)}
+                {c.max_discount_amount ? ` • أقصى خصم: ${formatCurrency(c.max_discount_amount)}` : ''}
+                {' '}• صالحة حتى {c.valid_until}
+              </p>
+              <p className="text-[11px] text-slate-500">
+                الاستخدام: {c.used_count || 0}{c.usage_limit ? ` / ${c.usage_limit}` : ' (بلا حد أقصى)'}
               </p>
             </div>
 
-            <button
-              onClick={() => handleDeleteCoupon(c.id)}
-              className="p-2 text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
-              title="حذف الكوبون"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => handleToggleActive(c)}
+                disabled={togglingId === c.id}
+                className={`p-2 rounded-xl transition-colors disabled:opacity-50 ${
+                  c.is_active ? 'text-emerald-600 hover:bg-emerald-50' : 'text-slate-400 hover:bg-slate-100'
+                }`}
+                title={c.is_active ? 'إيقاف الكوبون' : 'تفعيل الكوبون'}
+              >
+                <Power className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => handleDeleteCoupon(c.id)}
+                className="p-2 text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
+                title="حذف الكوبون"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         ))}
       </div>
     </div>
   );
-};
+}

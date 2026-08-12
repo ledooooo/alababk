@@ -6,6 +6,7 @@ import { ProductCard } from '../../product/ProductCard';
 import { User, Phone, Mail, Camera, ShieldCheck, MapPin, ShoppingBag, LogOut, CheckCircle2, Heart, Store as StoreIcon, Package, Trash2, Bell, BellOff, BellRing } from 'lucide-react';
 import { useToast } from '../../shared/Toast';
 import { isPushSupported, getPushSubscriptionStatus, subscribeToPush, unsubscribeFromPush } from '../../../lib/push';
+import { createSupabaseNotification } from '../../../lib/supabase';
 
 interface ProfileViewProps {
   onNavigate: (tab: string, param?: string) => void;
@@ -53,6 +54,28 @@ export default function ProfileView({ onNavigate, onLogout }) {
         setPushStatus(await getPushSubscriptionStatus());
         showToast({ type: 'error', title: 'تعذر التفعيل', message: result.error || 'حدث خطأ غير متوقع' });
       }
+    }
+  };
+
+  const [sendingTest, setSendingTest] = useState(false);
+  const handleSendTestNotification = async () => {
+    if (!currentUser?.id) return;
+    setSendingTest(true);
+    try {
+      // إشعار حقيقي بمحتوى صادق يمشي في نفس المسار الفعلي (يُحفظ في
+      // notifications ثم الـtrigger يستدعي send-push فعليًا) — مش بيانات
+      // وهمية محلية زي الزرار القديم.
+      await createSupabaseNotification({
+        user_id: currentUser.id,
+        title: 'إشعار تجريبي 🔔',
+        body: 'لو وصلك الإشعار ده على جهازك، يبقى الإشعارات الفورية شغالة تمام عندك.',
+        type: 'system',
+      });
+      showToast({ type: 'success', title: 'تم الإرسال', message: 'راقب جهازك خلال ثوانٍ' });
+    } catch (err: any) {
+      showToast({ type: 'error', title: 'فشل الإرسال', message: err.message || 'تعذر إرسال الإشعار التجريبي' });
+    } finally {
+      setSendingTest(false);
     }
   };
 
@@ -369,6 +392,16 @@ export default function ProfileView({ onNavigate, onLogout }) {
               )}
             </button>
           </div>
+
+          {pushStatus === 'subscribed' && (
+            <button
+              onClick={handleSendTestNotification}
+              disabled={sendingTest}
+              className="mt-4 w-full py-2 border border-slate-200 hover:bg-slate-50 disabled:opacity-50 text-slate-600 font-bold text-[11px] rounded-xl transition-colors"
+            >
+              {sendingTest ? 'جاري الإرسال...' : 'إرسال إشعار تجريبي للتأكد إنه شغال 🔔'}
+            </button>
+          )}
         </div>
       )}
     </div>

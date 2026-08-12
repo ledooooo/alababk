@@ -2,13 +2,28 @@ import React, { useState, useEffect } from 'react';
 import {
   listAllSupabaseNotifications,
   sendBroadcastNotification,
+  sendRoleNotification,
+  createSupabaseNotification,
   fetchNotificationBroadcasts,
+  fetchSupabaseUsers,
   NotificationBroadcast,
 } from '../../../lib/supabase';
-import { NotificationItem } from '../../../types/domain';
+import { NotificationItem, UserProfile, UserRole } from '../../../types/domain';
 import { formatDate } from '../../../lib/formatters';
-import { Bell, Send, CheckCircle2, RefreshCw, Smartphone, Tag, ShoppingBag } from 'lucide-react';
+import { Bell, Send, RefreshCw, Smartphone, Tag, Search, User as UserIcon, X } from 'lucide-react';
 import { useToast } from '../../shared/Toast';
+
+const ROLE_LABELS: Record<UserRole, string> = {
+  customer: 'كل العملاء',
+  store_owner: 'كل أصحاب المتاجر',
+  delivery_agent: 'كل المناديب',
+  admin: 'كل الأدمن',
+  delivery_supervisor: 'كل مشرفي التوصيل',
+  finance_admin: 'كل موظفي المالية',
+  orders_manager: 'كل مديري الطلبات',
+};
+
+type TargetMode = 'all' | UserRole | 'user';
 
 export default function AdminNotificationsView() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -18,6 +33,13 @@ export default function AdminNotificationsView() {
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [type, setType] = useState<'system' | 'promotion' | 'order_status'>('promotion');
+  const [targetMode, setTargetMode] = useState<TargetMode>('all');
+
+  // اختيار مستخدم واحد بالتحديد
+  const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
+  const [userSearch, setUserSearch] = useState('');
+  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
+
   const { showToast } = useToast();
 
   const loadNotifications = async () => {
@@ -46,42 +68,64 @@ export default function AdminNotificationsView() {
     loadNotifications();
   }, []);
 
+  useEffect(() => {
+    if (targetMode === 'user' && allUsers.length === 0) {
+      fetchSupabaseUsers().then(setAllUsers).catch(() => {});
+    }
+  }, [targetMode]);
+
+  const filteredUsers = allUsers.filter((u) => {
+    const term = userSearch.trim().toLowerCase();
+    if (!term) return false;
+    return u.name.toLowerCase().includes(term) || u.phone.includes(term) || u.email.toLowerCase().includes(term);
+  }).slice(0, 8);
+
   const handleSendBroadcast = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !body.trim()) {
-      showToast({
-        type: 'error',
-        title: 'بيانات ناقصة',
-        message: 'يرجى إدخال عنوان ونص الإشعار',
-      });
+      showToast({ type: 'error', title: 'بيانات ناقصة', message: 'يرجى إدخال عنوان ونص الإشعار' });
+      return;
+    }
+    if (targetMode === 'user' && !selectedUser) {
+      showToast({ type: 'error', title: 'اختر مستخدمًا', message: 'يرجى البحث واختيار المستخدم المستهدف' });
       return;
     }
 
     setSending(true);
     try {
-      // بث حقيقي لكل المستخدمين المسجَّلين عبر broadcast_notification_to_all
-      // (RPC واحدة، إدراج دفعة واحدة لكل profile — وليس مستخدمًا وهميًا واحدًا)
-      const recipientsCount = await sendBroadcastNotification({
-        title: title.trim(),
-        body: body.trim(),
-        type: type === 'promotion' ? 'promo' : type,
-      });
+      const finalType = type === 'promotion' ? 'promo' : type;
+      let resultMessage = '';
+
+      if (targetMode === 'all') {
+        const count = await sendBroadcastNotification({ title: title.trim(), body: body.trim(), type: finalType });
+        resultMessage = `تم بث الإشعار فعليًا إلى ${count} مستخدم`;
+      } else if (targetMode === 'user') {
+        await createSupabaseNotification({
+          user_id: selectedUser!.id,
+          title: title.trim(),
+          body: body.trim(),
+          type: finalType,
+        });
+        resultMessage = `تم إرسال الإشعار إلى ${selectedUser!.name}`;
+      } else {
+        const count = await sendRoleNotification({
+          role: targetMode,
+          title: title.trim(),
+          body: body.trim(),
+          type: finalType,
+        });
+        resultMessage = `تم إرسال الإشعار إلى ${count} من (${ROLE_LABELS[targetMode]})`;
+      }
 
       setTitle('');
       setBody('');
-      showToast({
-        type: 'success',
-        title: 'تم الإرسال',
-        message: `تم بث الإشعار فعليًا إلى ${recipientsCount} مستخدم وتخزينه في جدول Supabase Notifications.`,
-      });
+      setSelectedUser(null);
+      setUserSearch('');
+      showToast({ type: 'success', title: 'تم الإرسال', message: resultMessage });
       await loadNotifications();
     } catch (err: any) {
-      console.error('Error broadcasting notification:', err);
-      showToast({
-        type: 'error',
-        title: 'فشل الإرسال',
-        message: err.message || 'تعذر إرسال الإشعار',
-      });
+      console.error('Error sending notification:', err);
+      showToast({ type: 'error', title: 'فشل الإرسال', message: err.message || 'تعذر إرسال الإشعار' });
     } finally {
       setSending(false);
     }
@@ -120,6 +164,67 @@ export default function AdminNotificationsView() {
           </h2>
 
           <form onSubmit={handleSendBroadcast} className="space-y-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">إرسال إلى</label>
+              <select
+                value={targetMode}
+                onChange={(e) => {
+                  setTargetMode(e.target.value as TargetMode);
+                  setSelectedUser(null);
+                  setUserSearch('');
+                }}
+                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:border-indigo-600"
+              >
+                <option value="all">كل المستخدمين</option>
+                {Object.entries(ROLE_LABELS).map(([role, label]) => (
+                  <option key={role} value={role}>{label}</option>
+                ))}
+                <option value="user">مستخدم واحد بالتحديد...</option>
+              </select>
+            </div>
+
+            {targetMode === 'user' && (
+              <div className="space-y-2">
+                {selectedUser ? (
+                  <div className="flex items-center justify-between p-2.5 bg-indigo-50 border border-indigo-200 rounded-xl">
+                    <div className="flex items-center gap-2">
+                      <UserIcon className="w-4 h-4 text-indigo-600" />
+                      <span className="text-xs font-bold text-indigo-900">{selectedUser.name} — {selectedUser.phone}</span>
+                    </div>
+                    <button type="button" onClick={() => setSelectedUser(null)} className="text-indigo-600 hover:text-indigo-900">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
+                    <input
+                      type="text"
+                      placeholder="ابحث بالاسم أو الهاتف أو الإيميل..."
+                      value={userSearch}
+                      onChange={(e) => setUserSearch(e.target.value)}
+                      className="w-full pr-9 pl-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:border-indigo-600"
+                    />
+                    {userSearch && filteredUsers.length > 0 && (
+                      <div className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+                        {filteredUsers.map((u) => (
+                          <button
+                            type="button"
+                            key={u.id}
+                            onClick={() => { setSelectedUser(u); setUserSearch(''); }}
+                            className="w-full text-right px-3 py-2 hover:bg-slate-50 text-xs border-b border-slate-100 last:border-0"
+                          >
+                            <div className="font-bold text-slate-900">{u.name}</div>
+                            <div className="text-slate-500">{u.phone} · {u.role}</div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">نوع الإشعار</label>
               <select
@@ -187,7 +292,10 @@ export default function AdminNotificationsView() {
                     <span className="text-[10px] text-slate-400 font-medium">{formatDate(b.created_at)}</span>
                   </div>
                   <p className="text-xs text-slate-600 font-medium">{b.body}</p>
-                  <p className="text-[10px] text-emerald-600 font-bold">تم الإرسال إلى {b.recipients_count} مستخدم</p>
+                  <p className="text-[10px] text-emerald-600 font-bold">
+                    تم الإرسال إلى {b.recipients_count} مستخدم
+                    {b.target && b.target !== 'all' && ` (${ROLE_LABELS[b.target as UserRole] || b.target})`}
+                  </p>
                 </div>
               </div>
             ))}

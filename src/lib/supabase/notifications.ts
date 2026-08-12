@@ -67,6 +67,7 @@ export interface NotificationBroadcast {
   type: string;
   recipients_count: number;
   sent_by: string | null;
+  target: string;
   created_at: string;
 }
 
@@ -81,6 +82,26 @@ export async function sendBroadcastNotification(params: {
   type: string;
 }): Promise<number> {
   const { data, error } = await supabase.rpc('broadcast_notification_to_all', {
+    p_title: params.title,
+    p_body: params.body,
+    p_type: params.type,
+  });
+  if (error) throw new Error(translateSupabaseError(error).message);
+  return (data as number) ?? 0;
+}
+
+/**
+ * يبث إشعارًا لكل مستخدمي دور معيّن فقط (مثلًا كل أصحاب المتاجر أو كل
+ * المناديب) عبر broadcast_notification_to_role (fix_06_targeted_notifications.sql).
+ */
+export async function sendRoleNotification(params: {
+  role: string;
+  title: string;
+  body: string;
+  type: string;
+}): Promise<number> {
+  const { data, error } = await supabase.rpc('broadcast_notification_to_role', {
+    p_role: params.role,
     p_title: params.title,
     p_body: params.body,
     p_type: params.type,
