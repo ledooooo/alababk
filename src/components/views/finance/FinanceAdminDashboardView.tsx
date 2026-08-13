@@ -87,15 +87,38 @@ export default function FinanceAdminDashboardView() {
       setPayouts(StorageRepo.getCachedPayouts());
     });
 
+    // ديباونس + مرور عبر StorageRepo للطلبات/المتاجر/الدفعات (fetchFinanceSummary
+    // مفيهاش طبقة كاش في StorageRepo فبتفضل مباشرة، لكن برضه بقت مديبونسة)
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedReload = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        Promise.all([
+          StorageRepo.refreshOrders(),
+          StorageRepo.refreshStores(),
+          StorageRepo.refreshPayouts(),
+          fetchFinanceSummary().catch(() => []),
+        ])
+          .then(([freshOrders, freshStores, freshPayouts, summary]) => {
+            setOrders(freshOrders);
+            setStores(freshStores);
+            setPayouts(freshPayouts);
+            if (summary && summary.length > 0) setFinanceSummary(summary);
+          })
+          .catch((err) => console.warn('finance dashboard debounced reload error:', err));
+      }, 1500);
+    };
+
     const unsubRealtimePayouts = subscribeSupabase<Payout>('payouts', () => {
-      loadFinanceDataDirectly(false);
+      debouncedReload();
     });
 
     const unsubRealtimeOrders = subscribeSupabase<Order>('orders', () => {
-      loadFinanceDataDirectly(false);
+      debouncedReload();
     });
 
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       unsubStorage();
       unsubRealtimePayouts();
       unsubRealtimeOrders();

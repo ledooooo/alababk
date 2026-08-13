@@ -70,15 +70,33 @@ export default function DeliverySupervisorDashboardView() {
       setOrders(StorageRepo.getCachedOrders());
     });
 
+    // ديباونس + مرور عبر StorageRepo (بدل fetchSupabaseOrders()/Agents()
+    // المباشرة) عشان أي حدث Realtime لأي طلب/كابتن على مستوى المنصة كلها
+    // ما يعملش fetch كامل فوري وغير محدود لكل الطلبات والكباتن — نفس العلة
+    // اللي كانت في AdminOrdersView.
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedReload = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        Promise.all([StorageRepo.refreshAgents(), StorageRepo.refreshOrders()])
+          .then(([freshAgents, freshOrders]) => {
+            setAgents(freshAgents);
+            setOrders(freshOrders);
+          })
+          .catch((err) => console.warn('supervisor debounced reload error:', err));
+      }, 1500);
+    };
+
     const unsubscribeRealtimeAgents = subscribeSupabase<DeliveryAgent>('delivery_agents', () => {
-      loadDataDirectly(false);
+      debouncedReload();
     });
 
     const unsubscribeRealtimeOrders = subscribeSupabase<Order>('orders', () => {
-      loadDataDirectly(false);
+      debouncedReload();
     });
 
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       unsubscribeStorage();
       unsubscribeRealtimeAgents();
       unsubscribeRealtimeOrders();

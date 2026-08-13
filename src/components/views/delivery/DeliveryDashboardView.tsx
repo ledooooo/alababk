@@ -52,15 +52,34 @@ export default function DeliveryDashboardView({ onNavigate }) {
       setOrders(StorageRepo.getCachedOrders());
     });
 
+    // ديباونس + مرور عبر StorageRepo: الشاشة دي بتفضل مفتوحة طول شِفت
+    // الكابتن، وكانت بتعمل fetch كامل لكل طلبات وكباتن المنصة مع أي حدث
+    // Realtime — حتى لو الحدث ما لوش أي علاقة بالكابتن ده تحديدًا.
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedReload = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        const user = StorageRepo.getCurrentUser();
+        Promise.all([StorageRepo.refreshAgents(), StorageRepo.refreshOrders()])
+          .then(([allAgents, allOrders]) => {
+            const ag = user ? allAgents.find((a) => a.user_id === user.id) || allAgents[0] : allAgents[0];
+            setAgent(ag || null);
+            setOrders(allOrders);
+          })
+          .catch((err) => console.warn('captain dashboard debounced reload error:', err));
+      }, 1500);
+    };
+
     const unsubscribeRealtimeOrders = subscribeSupabase<Order>('orders', () => {
-      loadCaptainDataDirectly(false);
+      debouncedReload();
     });
 
     const unsubscribeRealtimeAgents = subscribeSupabase<DeliveryAgent>('delivery_agents', () => {
-      loadCaptainDataDirectly(false);
+      debouncedReload();
     });
 
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       unsubscribeStorage();
       unsubscribeRealtimeOrders();
       unsubscribeRealtimeAgents();

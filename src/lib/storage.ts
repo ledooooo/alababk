@@ -363,12 +363,15 @@ export const StorageRepo = {
   async refreshNotifications(userId?: string): Promise<NotificationItem[]> {
     if (!shouldTriggerBackgroundRefresh(`notifications:${userId || 'all'}`)) return this.getCachedNotifications();
     const targetUser = userId || this.getCurrentUser()?.id;
-    let list: NotificationItem[];
-    if (targetUser) {
-      list = await fetchSupabaseNotifications(targetUser);
-    } else {
-      list = await listAllSupabaseNotifications();
+    // بدون مستخدم معروف، منعملش استدعاء شبكة خالص (listAllSupabaseNotifications
+    // كانت بتجيب جدول notifications بالكامل بدون فلترة أو حد أقصى — دي كانت
+    // سبب ~800 ألف استدعاء في إحصائيات Supabase. الجلب الكامل المقصود للأدمن
+    // لسه شغّال من خلال نداء listAllSupabaseNotifications() المباشر في
+    // AdminNotificationsView).
+    if (!targetUser) {
+      return this.getCachedNotifications();
     }
+    const list = await fetchSupabaseNotifications(targetUser);
     if (list && list.length > 0) {
       setCached(STORAGE_KEYS.NOTIFICATIONS, list);
       notifyStorageChange('notification', 'refresh', list);

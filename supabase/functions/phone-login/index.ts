@@ -46,6 +46,28 @@ Deno.serve(async (req: Request) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
+    const ipAddress =
+      req.headers.get('x-forwarded-for')?.split(',')[0].trim() ||
+      req.headers.get('cf-connecting-ip') ||
+      null;
+
+    // 0) تحقق من معدل المحاولات قبل أي حاجة — كانت الدالة دي موجودة في
+    // الـschema من الأول لكن محدش كان بينادّيها، وجدول phone_login_attempts
+    // كان دايمًا فاضي لأن محدش كان بيعمل INSERT فيه، فده كان معناه عمليًا
+    // مفيش حد أقصى لمحاولات تخمين كلمة السر خالص.
+    const { data: allowed, error: rateLimitError } = await adminClient.rpc(
+      'check_and_log_phone_login_attempt',
+      { p_phone: phone, p_ip_address: ipAddress, p_max_attempts: 5, p_window_minutes: 15 }
+    );
+    if (rateLimitError) {
+      console.error('check_and_log_phone_login_attempt error:', rateLimitError);
+      // فشل التحقق من الحد الأقصى نفسه لا ينبغي أن يفتح الباب — نرفض بحذر
+      return json({ error: 'تعذر التحقق من بيانات الدخول' }, 500);
+    }
+    if (!allowed) {
+      return json({ error: 'عدد محاولات كبير جدًا. حاول تاني بعد شوية.' }, 429);
+    }
+
     // 1) تحقق من الهاتف/كلمة المرور عبر الدالة الداخلية المقفولة
     const { data: userId, error: verifyError } = await adminClient.rpc(
       'verify_phone_password_internal',
@@ -57,9 +79,23 @@ Deno.serve(async (req: Request) => {
       return json({ error: 'تعذر التحقق من بيانات الدخول' }, 500);
     }
     if (!userId) {
+      // سجّل المحاولة الفاشلة عشان تُحتسب في الحد الأقصى القادم
+      await adminClient.rpc('log_phone_login_attempt', {
+        p_phone: phone,
+        p_ip_address: ipAddress,
+        p_succeeded: false,
+      }).catch((err) => console.error('log_phone_login_attempt (failed) error:', err));
       // لا نميّز بين "رقم غير مسجَّل" و"كلمة مرور خاطئة" لأسباب أمنية
       return json({ error: 'رقم الهاتف أو كلمة المرور غير صحيحة' }, 401);
     }
+
+    // سجّل المحاولة الناجحة أيضًا (بتصفّر عدّاد الحظر منطقيًا لأنها لا
+    // تُحتسب ضمن succeeded = false في الاستعلام)
+    await adminClient.rpc('log_phone_login_attempt', {
+      p_phone: phone,
+      p_ip_address: ipAddress,
+      p_succeeded: true,
+    }).catch((err) => console.error('log_phone_login_attempt (success) error:', err));
 
     // 2) اجلب بريد المستخدم خادميًا فقط (service role) — عمود profiles.email
     // محمي بـRLS (auth.uid() = id) ولا يمكن قراءته من طرف العميل قبل إنشاء

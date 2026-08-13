@@ -65,15 +65,30 @@ export default function OrdersManagerDashboardView() {
       setAgents(StorageRepo.getCachedAgents());
     });
 
+    // ديباونس + مرور عبر StorageRepo بدل fetch مباشر مع كل حدث Realtime
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedReload = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        Promise.all([StorageRepo.refreshOrders(), StorageRepo.refreshAgents()])
+          .then(([fetchedOrders, fetchedAgents]) => {
+            setOrders(fetchedOrders);
+            setAgents(fetchedAgents);
+          })
+          .catch((err) => console.warn('orders manager debounced reload error:', err));
+      }, 1500);
+    };
+
     const unsubscribeRealtimeOrders = subscribeSupabase<Order>('orders', () => {
-      loadDataDirectly(false);
+      debouncedReload();
     });
 
     const unsubscribeRealtimeAgents = subscribeSupabase<DeliveryAgent>('delivery_agents', () => {
-      loadDataDirectly(false);
+      debouncedReload();
     });
 
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       unsubscribeStorage();
       unsubscribeRealtimeOrders();
       unsubscribeRealtimeAgents();
