@@ -21,8 +21,8 @@ export default function AdminStoresApplicationsView() {
     fetchPending();
     StorageRepo.refreshStores();
 
-    const unsubscribeStorage = subscribeToStorageChange(() => {
-      fetchPending();
+    const unsubscribeStorage = subscribeToStorageChange((detail) => {
+      if (detail.entityType === 'store') fetchPending();
     });
 
     const unsubscribeRealtime = subscribeSupabase<Store>('stores', () => {

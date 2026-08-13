@@ -39,8 +39,8 @@ export default function NotificationsView({ onNavigate }) {
     if (currentUser?.id) {
       StorageRepo.refreshNotifications(currentUser.id).catch(() => {});
     }
-    const unsubscribeStorage = subscribeToStorageChange(() => {
-      loadNotifications();
+    const unsubscribeStorage = subscribeToStorageChange((detail) => {
+      if (detail.entityType === 'notification') loadNotifications();
     });
 
     let unsubscribeRealtime: (() => void) | undefined;

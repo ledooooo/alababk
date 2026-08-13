@@ -35,8 +35,8 @@ export default function CustomerAddressesView() {
     syncAddresses();
     StorageRepo.refreshAddresses(currentUser?.id).catch(() => {});
 
-    const unsubscribe = subscribeToStorageChange(() => {
-      syncAddresses();
+    const unsubscribe = subscribeToStorageChange((detail) => {
+      if (detail.entityType === 'address') syncAddresses();
     });
     return unsubscribe;
   }, [currentUser?.id]);

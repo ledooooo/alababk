@@ -61,8 +61,8 @@ export default function StoreProductsView({ onNavigate, adminStoreId }: StorePro
   useEffect(() => {
     loadData();
 
-    const unsubscribeStorage = subscribeToStorageChange(() => {
-      loadData();
+    const unsubscribeStorage = subscribeToStorageChange((detail) => {
+      if (detail.entityType === 'product' || detail.entityType === 'store') loadData();
     });
 
     const currentUser = StorageRepo.getCurrentUser();

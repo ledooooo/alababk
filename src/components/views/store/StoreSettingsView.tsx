@@ -28,8 +28,8 @@ export default function StoreSettingsView({ onNavigate }) {
   useEffect(() => {
     loadData();
 
-    const unsubscribeStorage = subscribeToStorageChange(() => {
-      loadData();
+    const unsubscribeStorage = subscribeToStorageChange((detail) => {
+      if (detail.entityType === 'store') loadData();
     });
 
     const currentUser = StorageRepo.getCurrentUser();

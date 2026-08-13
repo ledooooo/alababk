@@ -32,8 +32,9 @@ export default function AdminDashboardView({ onNavigate }) {
     };
 
     refresh();
-    const unsubscribe = subscribeToStorageChange(() => {
-      refresh();
+    const RELEVANT_TYPES = new Set(['store', 'order', 'agent']);
+    const unsubscribe = subscribeToStorageChange((detail) => {
+      if (RELEVANT_TYPES.has(detail.entityType)) refresh();
     });
     return unsubscribe;
   }, []);

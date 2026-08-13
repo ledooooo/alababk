@@ -20,8 +20,8 @@ export const StoreCard: React.FC<StoreCardProps> = ({ store, onSelect }) => {
   const { addItem } = useCartStore();
 
   useEffect(() => {
-    const unsubscribe = subscribeToStorageChange(() => {
-      setIsWishlisted(StorageRepo.isStoreWishlisted(store.id));
+    const unsubscribe = subscribeToStorageChange((detail) => {
+      if (detail.entityType === 'wishlist') setIsWishlisted(StorageRepo.isStoreWishlisted(store.id));
     });
     return unsubscribe;
   }, [store.id]);

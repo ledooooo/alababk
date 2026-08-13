@@ -37,8 +37,8 @@ export default function LandingView({ onNavigate }) {
     sync();
     StorageRepo.refreshStores();
 
-    const unsubStorage = subscribeToStorageChange(() => {
-      sync();
+    const unsubStorage = subscribeToStorageChange((detail) => {
+      if (detail.entityType === 'store') sync();
     });
 
     const unsubRealtime = subscribeSupabase<StoreType>('stores', () => {

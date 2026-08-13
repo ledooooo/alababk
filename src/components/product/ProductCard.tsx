@@ -25,8 +25,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   );
 
   useEffect(() => {
-    const unsubscribe = subscribeToStorageChange(() => {
-      setIsWishlisted(StorageRepo.isProductWishlisted(product.id));
+    const unsubscribe = subscribeToStorageChange((detail) => {
+      if (detail.entityType === 'wishlist') setIsWishlisted(StorageRepo.isProductWishlisted(product.id));
     });
     return unsubscribe;
   }, [product.id]);

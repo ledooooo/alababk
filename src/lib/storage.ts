@@ -73,15 +73,48 @@ const MY_STORE_CACHE_TTL: number = 30000;
 
 // منع الحلقات اللانهائية: دوال getX() تطلق refreshX() في الخلفية، وrefreshX() تبعث
 // notifyStorageChange التي يسمعها subscribeToStorageChange في مكونات مثل Navbar/ProfileView،
-// فتستدعي getX() مرة أخرى وتكرر الدورة بلا نهاية (orders/profiles/notifications في الـ network log).
-// هذا الـ throttle يمنع إطلاق أكثر من refresh واحد لنفس المصدر خلال فترة قصيرة.
-const _refreshThrottle = new Map<string, number>();
-const REFRESH_THROTTLE_MS = 4000;
+// فتستدعي getX() مرة أخرى وتكرر الدورة (orders/profiles/notifications في الـ network log).
+// الـthrottle ده كان قبل كده Map في الذاكرة، يعني كل تاب مفتوح عنده نسخته الخاصة ومعاه
+// عداده الخاص — ففتح نفس التطبيق في تابين كان بيضاعف عدد الطلبات الفعلية بدل ما يقللها،
+// خصوصًا إن فيه BroadcastChannel بينشر نفس الحدث على كل التابات. دلوقتي بقى الـthrottle
+// state مشترك عبر localStorage عشان كل التابات تتفق على آخر وقت تم فيه fetch فعلي.
+const REFRESH_THROTTLE_MS = 8000;
+const THROTTLE_STORAGE_KEY = 'alababak_refresh_throttle_v1';
+// fallback في حالة عدم توفر localStorage (SSR، خصوصية المتصفح، إلخ)
+const _refreshThrottleMemFallback = new Map<string, number>();
+
+function readThrottleMap(): Record<string, number> {
+  if (typeof window === 'undefined' || !window.localStorage) return {};
+  try {
+    const raw = window.localStorage.getItem(THROTTLE_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeThrottleMap(map: Record<string, number>) {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    window.localStorage.setItem(THROTTLE_STORAGE_KEY, JSON.stringify(map));
+  } catch {
+    // تجاهل أخطاء الحصة/الخصوصية، مفيش ضرر لو ما اتسجّلش
+  }
+}
+
 function shouldTriggerBackgroundRefresh(key: string): boolean {
   const now = Date.now();
-  const last = _refreshThrottle.get(key) || 0;
+  if (typeof window === 'undefined' || !window.localStorage) {
+    const last = _refreshThrottleMemFallback.get(key) || 0;
+    if (now - last < REFRESH_THROTTLE_MS) return false;
+    _refreshThrottleMemFallback.set(key, now);
+    return true;
+  }
+  const map = readThrottleMap();
+  const last = map[key] || 0;
   if (now - last < REFRESH_THROTTLE_MS) return false;
-  _refreshThrottle.set(key, now);
+  map[key] = now;
+  writeThrottleMap(map);
   return true;
 }
 

@@ -31,8 +31,8 @@ export default function AdminPayoutsView() {
     sync();
     StorageRepo.refreshPayouts().then(() => setLoading(false));
 
-    const unsubStorage = subscribeToStorageChange(() => {
-      sync();
+    const unsubStorage = subscribeToStorageChange((detail) => {
+      if (detail.entityType === 'payout') sync();
     });
 
     const unsubRealtime = subscribeSupabase<Payout>('payouts', () => {

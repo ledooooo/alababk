@@ -64,7 +64,8 @@ export default function DeliverySupervisorDashboardView() {
   useEffect(() => {
     loadDataDirectly();
 
-    const unsubscribeStorage = subscribeToStorageChange(() => {
+    const unsubscribeStorage = subscribeToStorageChange((detail) => {
+      if (detail.entityType !== 'agent' && detail.entityType !== 'order') return;
       setAgents(StorageRepo.getCachedAgents());
       setOrders(StorageRepo.getCachedOrders());
     });

@@ -91,8 +91,16 @@ export const Navbar: React.FC<NavbarProps> = ({ currentUser }) => {
     };
 
     checkOrdersAndNotifications();
-    const unsubscribe = subscribeToStorageChange(() => {
-      checkOrdersAndNotifications();
+    // مهم: كان الكولباك ده قبل كده بيتنفذ عند أي تغيير في أي جدول (category, product,
+    // review, coupon, zone, payout...) حتى لو مالوش أي علاقة بالطلبات أو الإشعارات.
+    // ده كان أكبر سبب في تضخيم الحلقة: أي fetch في أي مكان في التطبيق كان بيخلي الـNavbar
+    // (اللي موجود في كل صفحة) يعمل fetch تاني لـnotifications/orders/currentStore.
+    // دلوقتي بيستجيب بس للأنواع اللي فعلاً بتأثر على شكل الـNavbar.
+    const RELEVANT_TYPES = new Set(['notification', 'order', 'store', 'user']);
+    const unsubscribe = subscribeToStorageChange((detail) => {
+      if (RELEVANT_TYPES.has(detail.entityType)) {
+        checkOrdersAndNotifications();
+      }
     });
     return unsubscribe;
   }, []);

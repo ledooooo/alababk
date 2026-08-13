@@ -48,8 +48,9 @@ export default function StoreDashboardView({ onNavigate }) {
   useEffect(() => {
     loadData();
 
-    const unsubscribeStorage = subscribeToStorageChange(() => {
-      loadData();
+    const RELEVANT_TYPES = new Set(['order', 'product', 'store']);
+    const unsubscribeStorage = subscribeToStorageChange((detail) => {
+      if (RELEVANT_TYPES.has(detail.entityType)) loadData();
     });
 
     const currentUser = StorageRepo.getCurrentUser();

@@ -44,8 +44,8 @@ export default function CustomerOrdersView({
     };
 
     fetchOrders();
-    const unsubscribe = subscribeToStorageChange(() => {
-      fetchOrders();
+    const unsubscribe = subscribeToStorageChange((detail) => {
+      if (detail.entityType === 'order') fetchOrders();
     });
     return unsubscribe;
   }, []);

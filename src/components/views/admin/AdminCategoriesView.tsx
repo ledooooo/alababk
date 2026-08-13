@@ -27,8 +27,8 @@ export default function AdminCategoriesView() {
 
   useEffect(() => {
     loadCategories();
-    const unsub = subscribeToStorageChange(() => {
-      loadCategories();
+    const unsub = subscribeToStorageChange((detail) => {
+      if (detail.entityType === 'category') loadCategories();
     });
     return unsub;
   }, []);

@@ -33,8 +33,8 @@ export default function AdminStoresView() {
     refresh();
     StorageRepo.refreshStores();
 
-    const unsubscribeStorage = subscribeToStorageChange(() => {
-      refresh();
+    const unsubscribeStorage = subscribeToStorageChange((detail) => {
+      if (detail.entityType === 'store') refresh();
     });
 
     const unsubscribeRealtime = subscribeSupabase<Store>('stores', () => {

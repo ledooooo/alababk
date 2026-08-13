@@ -22,8 +22,8 @@ export default function AdminCustomersView() {
   }, [query, roleFilter]);
 
   useEffect(() => {
-    const unsubscribe = subscribeToStorageChange(() => {
-      setUsers(StorageRepo.getUsers());
+    const unsubscribe = subscribeToStorageChange((detail) => {
+      if (detail.entityType === 'user') setUsers(StorageRepo.getUsers());
     });
     return unsubscribe;
   }, []);

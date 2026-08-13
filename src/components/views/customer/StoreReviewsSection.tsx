@@ -32,8 +32,8 @@ export default function StoreReviewsSection({ store }) {
       StorageRepo.refreshReviews(store.id);
     }
 
-    const unsubscribeStorage = subscribeToStorageChange(() => {
-      loadReviews();
+    const unsubscribeStorage = subscribeToStorageChange((detail) => {
+      if (detail.entityType === 'review') loadReviews();
     });
 
     const unsubscribeRealtime = subscribeSupabase<Review>(

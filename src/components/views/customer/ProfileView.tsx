@@ -94,8 +94,8 @@ export default function ProfileView({ onNavigate, onLogout }) {
     };
 
     updateWishlists();
-    const unsubscribe = subscribeToStorageChange(() => {
-      updateWishlists();
+    const unsubscribe = subscribeToStorageChange((detail) => {
+      if (detail.entityType === 'wishlist') updateWishlists();
     });
     return unsubscribe;
   }, []);

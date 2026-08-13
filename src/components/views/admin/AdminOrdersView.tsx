@@ -41,8 +41,8 @@ export default function AdminOrdersView() {
   useEffect(() => {
     loadOrdersDirectly();
 
-    const unsubscribeStorage = subscribeToStorageChange(() => {
-      setOrders(StorageRepo.getCachedOrders());
+    const unsubscribeStorage = subscribeToStorageChange((detail) => {
+      if (detail.entityType === 'order') setOrders(StorageRepo.getCachedOrders());
     });
 
     const unsubscribeRealtime = subscribeSupabase<Order>('orders', () => {

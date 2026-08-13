@@ -73,8 +73,8 @@ export default function StoreOrdersView({ onNavigate }) {
   useEffect(() => {
     loadData();
 
-    const unsubscribeStorage = subscribeToStorageChange(() => {
-      loadData();
+    const unsubscribeStorage = subscribeToStorageChange((detail) => {
+      if (detail.entityType === 'order' || detail.entityType === 'store') loadData();
     });
 
     const currentUser = StorageRepo.getCurrentUser();

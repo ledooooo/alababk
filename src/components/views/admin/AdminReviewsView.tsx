@@ -27,8 +27,8 @@ export default function AdminReviewsView() {
 
   useEffect(() => {
     loadReviews();
-    const unsubscribe = subscribeToStorageChange(() => {
-      setReviews(StorageRepo.getReviews());
+    const unsubscribe = subscribeToStorageChange((detail) => {
+      if (detail.entityType === 'review') setReviews(StorageRepo.getReviews());
     });
     return unsubscribe;
   }, []);

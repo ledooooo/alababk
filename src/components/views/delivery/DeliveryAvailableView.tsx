@@ -27,8 +27,8 @@ export default function DeliveryAvailableView({ onOrderClaimed }) {
     fetchAvailable();
     StorageRepo.refreshOrders();
 
-    const unsubscribeStorage = subscribeToStorageChange(() => {
-      fetchAvailable();
+    const unsubscribeStorage = subscribeToStorageChange((detail) => {
+      if (detail.entityType === 'order') fetchAvailable();
     });
 
     const unsubscribeRealtime = subscribeSupabase<Order>('orders', () => {

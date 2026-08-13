@@ -79,7 +79,9 @@ export default function FinanceAdminDashboardView() {
   useEffect(() => {
     loadFinanceDataDirectly();
 
-    const unsubStorage = subscribeToStorageChange(() => {
+    const RELEVANT_TYPES = new Set(['order', 'store', 'payout']);
+    const unsubStorage = subscribeToStorageChange((detail) => {
+      if (!RELEVANT_TYPES.has(detail.entityType)) return;
       setOrders(StorageRepo.getCachedOrders());
       setStores(StorageRepo.getCachedStores());
       setPayouts(StorageRepo.getCachedPayouts());

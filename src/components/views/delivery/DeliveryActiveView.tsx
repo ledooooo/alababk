@@ -27,8 +27,8 @@ export default function DeliveryActiveView({ onTripCompleted }) {
     };
 
     fetchActive();
-    const unsubscribe = subscribeToStorageChange(() => {
-      fetchActive();
+    const unsubscribe = subscribeToStorageChange((detail) => {
+      if (detail.entityType === 'order') fetchActive();
     });
     return unsubscribe;
   }, [agent]);

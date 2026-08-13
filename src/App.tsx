@@ -216,7 +216,8 @@ function ProtectedRoute({ children, allowedRoles, redirectTo = '/auth' }: Protec
     };
     checkAuth();
 
-    const unsubscribe = subscribeToStorageChange(() => {
+    const unsubscribe = subscribeToStorageChange((detail) => {
+      if (detail.entityType !== 'user') return;
       const u = StorageRepo.getCurrentUser();
       setUser(u);
     });

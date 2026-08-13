@@ -18,8 +18,8 @@ export default function AdminAgentsView() {
     refresh();
     StorageRepo.refreshAgents();
 
-    const unsubscribeStorage = subscribeToStorageChange(() => {
-      refresh();
+    const unsubscribeStorage = subscribeToStorageChange((detail) => {
+      if (detail.entityType === 'agent') refresh();
     });
 
     const unsubscribeRealtime = subscribeSupabase<DeliveryAgent>('delivery_agents', () => {

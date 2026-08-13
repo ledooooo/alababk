@@ -33,8 +33,8 @@ export default function StoreReviewsView() {
       StorageRepo.refreshReviews(currentStore.id);
     }
 
-    const unsubStorage = subscribeToStorageChange(() => {
-      sync();
+    const unsubStorage = subscribeToStorageChange((detail) => {
+      if (detail.entityType === 'review') sync();
     });
 
     const unsubRealtime = subscribeSupabase<Review>(

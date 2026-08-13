@@ -21,8 +21,9 @@ export default function CategoriesBrowseView({ onNavigate }) {
     syncProds();
     StorageRepo.refreshProducts();
 
-    const unsubStorage = subscribeToStorageChange(() => {
-      syncProds();
+    const RELEVANT_TYPES = new Set(['product', 'store', 'category']);
+    const unsubStorage = subscribeToStorageChange((detail) => {
+      if (RELEVANT_TYPES.has(detail.entityType)) syncProds();
     });
 
     const unsubRealtime = subscribeSupabase<Product>('products', () => {

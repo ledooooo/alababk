@@ -71,8 +71,9 @@ export default function CustomerStoreDetailView({
       StorageRepo.refreshStores();
     }
 
-    const unsubscribeStorage = subscribeToStorageChange(() => {
-      syncData();
+    const RELEVANT_TYPES = new Set(['product', 'store', 'wishlist']);
+    const unsubscribeStorage = subscribeToStorageChange((detail) => {
+      if (RELEVANT_TYPES.has(detail.entityType)) syncData();
     });
 
     const unsubscribeRealtimeProducts = subscribeSupabase<Product>(

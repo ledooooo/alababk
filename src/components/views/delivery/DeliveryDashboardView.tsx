@@ -44,7 +44,8 @@ export default function DeliveryDashboardView({ onNavigate }) {
   useEffect(() => {
     loadCaptainDataDirectly();
 
-    const unsubscribeStorage = subscribeToStorageChange(() => {
+    const unsubscribeStorage = subscribeToStorageChange((detail) => {
+      if (detail.entityType !== 'agent' && detail.entityType !== 'order') return;
       const user = StorageRepo.getCurrentUser();
       const ag = user ? StorageRepo.getAgentByUserId(user.id) || StorageRepo.getAgents()[0] : null;
       setAgent(ag || null);

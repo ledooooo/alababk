@@ -59,7 +59,8 @@ export default function OrdersManagerDashboardView() {
   useEffect(() => {
     loadDataDirectly();
 
-    const unsubscribeStorage = subscribeToStorageChange(() => {
+    const unsubscribeStorage = subscribeToStorageChange((detail) => {
+      if (detail.entityType !== 'order' && detail.entityType !== 'agent') return;
       setOrders(StorageRepo.getCachedOrders());
       setAgents(StorageRepo.getCachedAgents());
     });
