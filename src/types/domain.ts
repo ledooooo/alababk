@@ -294,6 +294,8 @@ export interface Coupon {
   max_discount_amount?: number;
   usage_limit?: number;
   used_count?: number;
+  /** أقصى عدد مرات يقدر عميل واحد يستخدم الكود ده (undefined = بلا حد) */
+  max_uses_per_user?: number;
   is_active: boolean;
   expires_at?: string;
   valid_until?: string;

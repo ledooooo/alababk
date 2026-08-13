@@ -3,7 +3,8 @@ import { StorageRepo } from '../../../lib/storage';
 import { updateSupabaseOrderLocation } from '../../../lib/supabase';
 import { Order } from '../../../types/domain';
 import { formatCurrency, formatDateArabic } from '../../../lib/formatters';
-import { Loader2, MapPin, Truck, Clock, CheckCircle2, Navigation, AlertCircle } from 'lucide-react';
+import { Loader2, MapPin, Truck, Clock, CheckCircle2, Navigation, AlertCircle, MessageCircle } from 'lucide-react';
+import OrderChatPanel from '../../shared/OrderChatPanel';
 
 interface DeliveryActiveOrdersViewProps {
   onNavigate: (tab: string) => void;
@@ -16,6 +17,7 @@ export default function DeliveryActiveOrdersView({ onNavigate }) {
   const [locationWatchId, setLocationWatchId] = useState<number | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [lastLocation, setLastLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [chatOrderId, setChatOrderId] = useState<string | null>(null);
 
   const loadOrders = async () => {
     try {
@@ -178,6 +180,14 @@ export default function DeliveryActiveOrdersView({ onNavigate }) {
               </div>
             </div>
 
+            <button
+              onClick={() => setChatOrderId(order.id)}
+              className="w-full flex items-center justify-center gap-1.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs font-bold transition-colors"
+            >
+              <MessageCircle className="w-3.5 h-3.5" />
+              <span>تواصل مع العميل</span>
+            </button>
+
             <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100">
               {order.status === 'assigned' && (
                 <button
@@ -210,6 +220,20 @@ export default function DeliveryActiveOrdersView({ onNavigate }) {
           </div>
         ))
       )}
+
+      {chatOrderId && (() => {
+        const chatOrder = orders.find((o) => o.id === chatOrderId);
+        if (!chatOrder) return null;
+        return (
+          <OrderChatPanel
+            orderId={chatOrder.id}
+            recipientId={chatOrder.customer_id}
+            recipientName={chatOrder.customer_name || 'العميل'}
+            recipientRole="العميل"
+            onClose={() => setChatOrderId(null)}
+          />
+        );
+      })()}
     </div>
   );
 };

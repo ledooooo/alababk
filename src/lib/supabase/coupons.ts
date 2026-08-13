@@ -15,6 +15,7 @@ export async function fetchSupabaseCoupons(): Promise<Coupon[]> {
     max_discount_amount: c.max_discount ? Number(c.max_discount) : undefined,
     usage_limit: c.max_uses || undefined,
     used_count: c.used_count || 0,
+    max_uses_per_user: c.max_uses_per_user || undefined,
     is_active: c.is_active ?? true,
     valid_until: c.valid_until,
   }));
@@ -29,6 +30,7 @@ export async function saveSupabaseCoupon(coupon: Partial<Coupon>): Promise<void>
     min_order_amount: coupon.min_order_amount || 0,
     max_discount: coupon.max_discount_amount,
     max_uses: coupon.usage_limit,
+    max_uses_per_user: coupon.max_uses_per_user ?? null,
     is_active: coupon.is_active ?? true,
     valid_until: coupon.valid_until,
     updated_at: new Date().toISOString(),

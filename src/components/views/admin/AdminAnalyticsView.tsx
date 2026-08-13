@@ -1,7 +1,7 @@
 import React from 'react';
 import { StorageRepo } from '../../../lib/storage';
 import { formatCurrency } from '../../../lib/formatters';
-import { BarChart3, TrendingUp, Store, ShoppingBag, Users, Truck, ArrowUpRight, Award, DollarSign } from 'lucide-react';
+import { BarChart3, TrendingUp, TrendingDown, Store, ShoppingBag, Users, Truck, ArrowUpRight, ArrowDownRight, Award, DollarSign } from 'lucide-react';
 
 export default function AdminAnalyticsView() {
   const stores = StorageRepo.getStores();
@@ -10,9 +10,63 @@ export default function AdminAnalyticsView() {
   const agents = StorageRepo.getAgents();
 
   const totalGMV = orders.reduce((acc, o) => acc + o.total, 0);
-  const platformRevenue = orders.reduce((acc, o) => acc + o.subtotal * 0.10, 0); // 10% commission
+
+  // صافي أرباح المنصة = مجموع commission_amount الحقيقي المخزَّن لكل طلب
+  // وقت إنشائه (بنفس نسبة عمولة المتجر وقتها بالضبط). لو طلب قديم لسبب ما
+  // من غير commission_amount محفوظة، نرجع لحساب تقريبي بنسبة المتجر
+  // الحالية بدل الافتراض الخاطئ إن كل المتاجر عمولتهم 10% ثابتة.
+  const platformRevenue = orders.reduce((acc, o) => {
+    if (o.commission_amount != null) return acc + o.commission_amount;
+    const store = stores.find((s) => s.id === o.store_id);
+    const rate = store?.commission_rate ?? 15;
+    return acc + (o.subtotal * rate) / 100;
+  }, 0);
+
   const completedOrders = orders.filter((o) => o.status === 'delivered');
   const completionRate = orders.length > 0 ? Math.round((completedOrders.length / orders.length) * 100) : 100;
+
+  // نمو GMV هذا الشهر مقابل الشهر اللي فات — محسوب فعليًا من created_at
+  // بدل رقم ثابت وهمي كان مكتوب في الكود.
+  const now = new Date();
+  const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+
+  const currentMonthGMV = orders
+    .filter((o) => new Date(o.created_at) >= currentMonthStart)
+    .reduce((acc, o) => acc + o.total, 0);
+  const prevMonthGMV = orders
+    .filter((o) => {
+      const d = new Date(o.created_at);
+      return d >= prevMonthStart && d < currentMonthStart;
+    })
+    .reduce((acc, o) => acc + o.total, 0);
+
+  const hasGrowthData = prevMonthGMV > 0;
+  const growthPct = hasGrowthData ? Math.round(((currentMonthGMV - prevMonthGMV) / prevMonthGMV) * 1000) / 10 : null;
+
+  // أعلى المتاجر مبيعاً — مرتّبة فعليًا حسب إجمالي المبيعات، مش ترتيب عشوائي
+  const storesWithSales = stores
+    .map((store) => {
+      const storeOrders = orders.filter((o) => o.store_id === store.id);
+      const storeSales = storeOrders.reduce((acc, o) => acc + o.subtotal, 0);
+      return { store, storeSales, ordersCount: storeOrders.length };
+    })
+    .sort((a, b) => b.storeSales - a.storeSales)
+    .slice(0, 4);
+
+  // أفضل الكباتن — مرتّبين فعليًا حسب التقييم (وعدد الرحلات كمعيار ثانٍ
+  // لمن لا يوجد لهم تقييم بعد)، مش أول 4 عناصر بترتيب عشوائي
+  const agentsRanked = [...agents]
+    .map((agent) => ({
+      agent,
+      tripsCount: orders.filter((o) => o.delivery_agent_id === agent.id).length,
+    }))
+    .sort((a, b) => {
+      const ratingDiff = (b.agent.rating ?? 0) - (a.agent.rating ?? 0);
+      if (ratingDiff !== 0) return ratingDiff;
+      return b.tripsCount - a.tripsCount;
+    })
+    .slice(0, 4);
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 dir-rtl pb-16">
@@ -37,10 +91,14 @@ export default function AdminAnalyticsView() {
             <TrendingUp className="w-4 h-4" />
           </div>
           <p className="text-2xl font-black text-slate-900">{formatCurrency(totalGMV)}</p>
-          <div className="flex items-center gap-1 text-[10px] font-bold text-emerald-600">
-            <ArrowUpRight className="w-3.5 h-3.5" />
-            <span>+18.4% نمو هذا الشهر</span>
-          </div>
+          {growthPct !== null ? (
+            <div className={`flex items-center gap-1 text-[10px] font-bold ${growthPct >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+              {growthPct >= 0 ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
+              <span>{growthPct >= 0 ? '+' : ''}{growthPct}% مقارنة بالشهر الماضي</span>
+            </div>
+          ) : (
+            <p className="text-[10px] font-bold text-slate-400">لا توجد بيانات كافية من الشهر الماضي للمقارنة</p>
+          )}
         </div>
 
         <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs space-y-2">
@@ -50,7 +108,7 @@ export default function AdminAnalyticsView() {
           </div>
           <p className="text-2xl font-black text-purple-700">{formatCurrency(platformRevenue)}</p>
           <div className="flex items-center gap-1 text-[10px] font-bold text-purple-600">
-            <span>من واقع عمولة 10% على الطلبات</span>
+            <span>حسب نسبة عمولة كل متجر الفعلية</span>
           </div>
         </div>
 
@@ -87,30 +145,28 @@ export default function AdminAnalyticsView() {
           </h2>
 
           <div className="space-y-3">
-            {stores.slice(0, 4).map((store, idx) => {
-              const storeOrders = orders.filter((o) => o.store_id === store.id);
-              const storeSales = storeOrders.reduce((acc, o) => acc + o.subtotal, 0);
-
-              return (
-                <div key={store.id} className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-3">
-                    <span className="w-6 h-6 rounded-lg bg-purple-100 text-purple-800 font-black flex items-center justify-center text-xs">
-                      #{idx + 1}
-                    </span>
-                    <img src={store.logo_url} alt={store.name} className="w-10 h-10 rounded-xl object-cover" />
-                    <div>
-                      <h3 className="font-extrabold text-slate-900">{store.name}</h3>
-                      <p className="text-[10px] text-slate-500">{store.category_name}</p>
-                    </div>
-                  </div>
-
-                  <div className="text-left font-bold">
-                    <span className="text-emerald-700 text-sm font-black">{formatCurrency(storeSales)}</span>
-                    <p className="text-[10px] text-slate-400">{storeOrders.length} طلبات</p>
+            {storesWithSales.length === 0 && (
+              <p className="text-xs text-slate-400 text-center py-4">لا توجد بيانات مبيعات بعد</p>
+            )}
+            {storesWithSales.map(({ store, storeSales, ordersCount }, idx) => (
+              <div key={store.id} className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-3">
+                  <span className="w-6 h-6 rounded-lg bg-purple-100 text-purple-800 font-black flex items-center justify-center text-xs">
+                    #{idx + 1}
+                  </span>
+                  <img src={store.logo_url} alt={store.name} className="w-10 h-10 rounded-xl object-cover" />
+                  <div>
+                    <h3 className="font-extrabold text-slate-900">{store.name}</h3>
+                    <p className="text-[10px] text-slate-500">{store.category_name}</p>
                   </div>
                 </div>
-              );
-            })}
+
+                <div className="text-left font-bold">
+                  <span className="text-emerald-700 text-sm font-black">{formatCurrency(storeSales)}</span>
+                  <p className="text-[10px] text-slate-400">{ordersCount} طلبات</p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -122,31 +178,31 @@ export default function AdminAnalyticsView() {
           </h2>
 
           <div className="space-y-3">
-            {agents.slice(0, 4).map((agent, idx) => {
-              const agentOrders = orders.filter((o) => o.delivery_agent_id === agent.id);
-
-              return (
-                <div key={agent.id} className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-3">
-                    <span className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-800 font-black flex items-center justify-center text-xs">
-                      #{idx + 1}
-                    </span>
-                    <div>
-                      <h3 className="font-extrabold text-slate-900">{agent.name}</h3>
-                      <p className="text-[10px] text-slate-500">{agent.phone}</p>
-                    </div>
-                  </div>
-
-                  <div className="text-left font-bold">
-                    <span className="text-slate-900 text-xs font-black">{agentOrders.length} رحلة توصيل</span>
-                    <p className="text-[10px] text-amber-500">⭐ {agent.rating ? agent.rating.toFixed(1) : 'جديد'} / 5.0</p>
+            {agentsRanked.length === 0 && (
+              <p className="text-xs text-slate-400 text-center py-4">لا يوجد كباتن مسجّلين بعد</p>
+            )}
+            {agentsRanked.map(({ agent, tripsCount }, idx) => (
+              <div key={agent.id} className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-3">
+                  <span className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-800 font-black flex items-center justify-center text-xs">
+                    #{idx + 1}
+                  </span>
+                  <div>
+                    <h3 className="font-extrabold text-slate-900">{agent.name}</h3>
+                    <p className="text-[10px] text-slate-500">{agent.phone}</p>
                   </div>
                 </div>
-              );
-            })}
+
+                <div className="text-left font-bold">
+                  <span className="text-slate-900 text-xs font-black">{tripsCount} رحلة توصيل</span>
+                  <p className="text-[10px] text-amber-500">⭐ {agent.rating ? agent.rating.toFixed(1) : 'جديد'} / 5.0</p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>
     </div>
   );
-};
+}
+

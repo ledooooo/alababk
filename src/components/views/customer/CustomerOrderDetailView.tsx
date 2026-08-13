@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
-import { fetchOrderStatusHistory, subscribeSupabase } from '../../../lib/supabase';
+import { fetchOrderStatusHistory, subscribeSupabase, fetchChatRecipients, ChatRecipients } from '../../../lib/supabase';
 import { Order, OrderStatus, OrderStatusHistoryItem } from '../../../types/domain';
 import { formatCurrency, formatDateArabic, formatPhoneNumber } from '../../../lib/formatters';
 import { ORDER_STATUS_LABELS, getOrderStatusConfig } from '../../../lib/constants';
-import { ArrowLeft, MapPin, Phone, Clock, Truck, CheckCircle2, XCircle, AlertCircle, Loader2, Store, Package, CreditCard, Calendar, User, RefreshCw } from 'lucide-react';
+import { ArrowLeft, MapPin, Phone, Clock, Truck, CheckCircle2, XCircle, AlertCircle, Loader2, Store, Package, CreditCard, Calendar, User, RefreshCw, MessageCircle } from 'lucide-react';
 import { useToast } from '../../shared/Toast';
 import { useConfirm } from '../../shared/ConfirmDialog';
+import OrderChatPanel from '../../shared/OrderChatPanel';
 
 
 interface CustomerOrderDetailViewProps {
@@ -24,6 +25,8 @@ export default function CustomerOrderDetailView({ orderId, onBack }) {
   const [cancelReason, setCancelReason] = useState('');
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [chatRecipients, setChatRecipients] = useState<ChatRecipients | null>(null);
+  const [openChatWith, setOpenChatWith] = useState<'store' | 'agent' | null>(null);
 
   // ===== دوال التحميل =====
   const loadOrder = async () => {
@@ -87,6 +90,14 @@ export default function CustomerOrderDetailView({ orderId, onBack }) {
       unsubRealtime();
       unsubStorage();
     };
+  }, [orderId]);
+
+  // جلب هويات أطراف الشات (صاحب المتجر/المندوب) مرة واحدة عند توفّر الطلب
+  useEffect(() => {
+    if (!orderId) return;
+    fetchChatRecipients(orderId)
+      .then(setChatRecipients)
+      .catch(() => setChatRecipients(null));
   }, [orderId]);
 
   // ===== دوال الإلغاء =====
@@ -212,13 +223,35 @@ export default function CustomerOrderDetailView({ orderId, onBack }) {
         </div>
       </div>
 
+      {/* التواصل مع المتجر */}
+      {chatRecipients?.storeOwnerId && (
+        <button
+          onClick={() => setOpenChatWith('store')}
+          className="w-full flex items-center justify-center gap-2 py-3 bg-white border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50 rounded-2xl text-sm font-bold text-slate-700 transition-colors shadow-xs"
+        >
+          <MessageCircle className="w-4.5 h-4.5 text-emerald-600" />
+          <span>تواصل مع {chatRecipients.storeName || 'المتجر'}</span>
+        </button>
+      )}
+
       {/* المندوب والتتبع (فقط قراءة، لا كتابة) */}
       {order.delivery_agent_id && (
         <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs space-y-3">
-          <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-            <Truck className="w-5 h-5 text-orange-600" />
-            <span>تفاصيل مندوب التوصيل</span>
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+              <Truck className="w-5 h-5 text-orange-600" />
+              <span>تفاصيل مندوب التوصيل</span>
+            </h3>
+            {chatRecipients?.agentUserId && (
+              <button
+                onClick={() => setOpenChatWith('agent')}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl text-[11px] font-bold transition-colors"
+              >
+                <MessageCircle className="w-3.5 h-3.5" />
+                <span>تواصل</span>
+              </button>
+            )}
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
             <div>
               <span className="text-slate-500">الاسم:</span>
@@ -235,6 +268,7 @@ export default function CustomerOrderDetailView({ orderId, onBack }) {
               <span className="font-bold text-slate-800 mr-1">{order.delivery_agent_vehicle || '—'}</span>
             </div>
           </div>
+
           {/* موقع المندوب الحقيقي (قراءة فقط) */}
           {order.delivery_agent_lat && order.delivery_agent_lng ? (
             <div className="bg-blue-50 rounded-xl p-3 border border-blue-100 text-xs flex items-center gap-2">
@@ -408,6 +442,26 @@ export default function CustomerOrderDetailView({ orderId, onBack }) {
           </div>
         </div>
       )}
+
+      {/* شات الطلب */}
+      {openChatWith === 'store' && chatRecipients?.storeOwnerId && (
+        <OrderChatPanel
+          orderId={orderId}
+          recipientId={chatRecipients.storeOwnerId}
+          recipientName={chatRecipients.storeName || 'المتجر'}
+          recipientRole="المتجر"
+          onClose={() => setOpenChatWith(null)}
+        />
+      )}
+      {openChatWith === 'agent' && chatRecipients?.agentUserId && (
+        <OrderChatPanel
+          orderId={orderId}
+          recipientId={chatRecipients.agentUserId}
+          recipientName={chatRecipients.agentName || order.delivery_agent_name || 'مندوب التوصيل'}
+          recipientRole="مندوب التوصيل"
+          onClose={() => setOpenChatWith(null)}
+        />
+      )}
     </div>
   );
-};
+}

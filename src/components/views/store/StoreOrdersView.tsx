@@ -5,6 +5,7 @@ import { Order, OrderStatus, Store } from '../../../types/domain';
 import { formatCurrency, formatDateArabic, formatPhoneNumber } from '../../../lib/formatters';
 import { ORDER_STATUS_LABELS, getOrderStatusConfig } from '../../../lib/constants';
 import { Pagination } from '../../shared/Pagination';
+import OrderChatPanel from '../../shared/OrderChatPanel';
 import {
   ShoppingBag,
   Clock,
@@ -19,7 +20,8 @@ import {
   AlertCircle,
   RefreshCw,
   Loader2,
-  Store as StoreIcon
+  Store as StoreIcon,
+  MessageCircle
 } from 'lucide-react';
 import { useToast } from '../../shared/Toast';
 import { useConfirm } from '../../shared/ConfirmDialog';
@@ -39,6 +41,7 @@ export default function StoreOrdersView({ onNavigate }) {
   const [rejectingOrderId, setRejectingOrderId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('بعض المنتجات غير متوفرة بالمخزون حالياً');
   const [currentPage, setCurrentPage] = useState(1);
+  const [chatOrderId, setChatOrderId] = useState<string | null>(null);
   const ITEMS_PER_PAGE = 5;
   const { showToast } = useToast();
   const { showConfirm } = useConfirm();
@@ -327,6 +330,13 @@ export default function StoreOrdersView({ onNavigate }) {
                       <Phone className="w-3.5 h-3.5" />
                       <span>{formatPhoneNumber(order.customer_phone)}</span>
                     </a>
+                    <button
+                      onClick={() => setChatOrderId(order.id)}
+                      className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold px-3 py-1.5 rounded-xl flex items-center gap-1 transition-colors"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" />
+                      <span>تواصل</span>
+                    </button>
                   </div>
                 </div>
 
@@ -461,6 +471,20 @@ export default function StoreOrdersView({ onNavigate }) {
           </div>
         </div>
       )}
+
+      {chatOrderId && (() => {
+        const chatOrder = orders.find((o) => o.id === chatOrderId);
+        if (!chatOrder) return null;
+        return (
+          <OrderChatPanel
+            orderId={chatOrder.id}
+            recipientId={chatOrder.customer_id}
+            recipientName={chatOrder.customer_name || 'العميل'}
+            recipientRole="العميل"
+            onClose={() => setChatOrderId(null)}
+          />
+        );
+      })()}
     </div>
   );
 };

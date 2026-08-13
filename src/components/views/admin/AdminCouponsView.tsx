@@ -19,6 +19,10 @@ export default function AdminCouponsView() {
   const [minOrder, setMinOrder] = useState(50);
   const [maxDiscount, setMaxDiscount] = useState<number | ''>('');
   const [usageLimit, setUsageLimit] = useState<number | ''>('');
+  // القيمة الافتراضية 1 لأن الاتفاقية المعتادة لكوبونات زي "أول طلب" إن
+  // كل عميل يستخدمها مرة واحدة بس — والأدمن يقدر يمسحها لو عايز الكوبون
+  // بلا حد شخصي (حملات عامة قابلة للتكرار).
+  const [maxUsesPerUser, setMaxUsesPerUser] = useState<number | ''>(1);
   const [validUntil, setValidUntil] = useState(todayPlus90());
   const [saving, setSaving] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
@@ -46,6 +50,7 @@ export default function AdminCouponsView() {
       min_order_amount: Number(minOrder),
       max_discount_amount: maxDiscount === '' ? undefined : Number(maxDiscount),
       usage_limit: usageLimit === '' ? undefined : Number(usageLimit),
+      max_uses_per_user: maxUsesPerUser === '' ? undefined : Number(maxUsesPerUser),
       is_active: true,
       valid_until: validUntil,
     };
@@ -57,6 +62,7 @@ export default function AdminCouponsView() {
       setCode('');
       setMaxDiscount('');
       setUsageLimit('');
+      setMaxUsesPerUser(1);
       showToast({ type: 'success', title: 'تم', message: 'تم إنشاء الكوبون بنجاح' });
     } catch (err: any) {
       showToast({ type: 'error', title: 'فشل الحفظ', message: err.message || 'تعذر إنشاء الكوبون — تأكد إن الرمز غير مستخدم من قبل' });
@@ -179,6 +185,19 @@ export default function AdminCouponsView() {
           </div>
 
           <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">أقصى عدد استخدام لكل عميل — اختياري</label>
+            <input
+              type="number"
+              min={1}
+              placeholder="بلا حد لكل عميل"
+              value={maxUsesPerUser}
+              onChange={(e) => setMaxUsesPerUser(e.target.value === '' ? '' : Number(e.target.value))}
+              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none"
+            />
+            <p className="text-[10px] text-slate-400 mt-1">اسيبه فاضي لو الكوبون ممكن يتكرر مرات لا نهائية لنفس العميل (مش الحالة الشائعة)</p>
+          </div>
+
+          <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">صالح حتى تاريخ</label>
             <input
               type="date"
@@ -225,6 +244,7 @@ export default function AdminCouponsView() {
               </p>
               <p className="text-[11px] text-slate-500">
                 الاستخدام: {c.used_count || 0}{c.usage_limit ? ` / ${c.usage_limit}` : ' (بلا حد أقصى)'}
+                {c.max_uses_per_user ? ` • بحد أقصى ${c.max_uses_per_user} لكل عميل` : ''}
               </p>
             </div>
 

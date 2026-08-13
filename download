@@ -1,6 +1,0 @@
-# Supabase Credentials for Ala Babak ("على بابك")
-VITE_SUPABASE_URL="https://agfqhrbtfkvfinmljvcb.supabase.co"
-VITE_SUPABASE_ANON_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFnZnFocmJ0Zmt2ZmlubWxqdmNiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU0MDkyNzksImV4cCI6MjEwMDk4NTI3OX0.-MZFhZuT5rhhtEbSMsGAExxePF9jd4IrpzxzX-A79kc"
-
-# مفتاح VAPID العام لتفعيل إشعارات Web Push
-VITE_VAPID_PUBLIC_KEY="BNpVGQywb2A5wi5Jw7GH2pt2-hvJRZ4t8USDLa-krHI_IQTcqjOc1pZAZX_tWS5_8weAHrv23MwxqwKrl_DbMc4"
