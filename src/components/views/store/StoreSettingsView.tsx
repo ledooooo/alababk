@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
-import { subscribeSupabase } from '../../../lib/supabase';
+import { subscribeSupabase, mapStoreRow } from '../../../lib/supabase';
 import { Store } from '../../../types/domain';
 import { formatCurrency } from '../../../lib/formatters';
 import { Store as StoreIcon, Clock, MapPin, Phone, Save, Check, Loader2, AlertCircle } from 'lucide-react';
@@ -34,9 +34,24 @@ export default function StoreSettingsView({ onNavigate }) {
 
     const currentUser = StorageRepo.getCurrentUser();
     const filter = currentUser ? `owner_id=eq.${currentUser.id}` : undefined;
+    // نطبّق صف التحديث الجاي من Realtime مباشرة (payload.new) بدل ما نعمل
+    // fetch كامل تاني — الصف بالفعل معانا في الحدث نفسه، فمفيش داعي لجولة
+    // شبكة إضافية على كل تحديث. هي شاشة "متجر واحد" بسيطة فمفيش تعقيد
+    // فلترة/دمج زي شاشات القوائم.
     const unsubscribeRealtimeStore = subscribeSupabase<Store>(
       'stores',
-      () => { loadData(); },
+      (payload) => {
+        if (payload.eventType === 'DELETE' || !payload.new) return;
+        setStore((prev) => {
+          const updated = mapStoreRow(payload.new);
+          // نحافظ على category_name القديم لو موجود (Realtime payload خام
+          // بلا join على categories، فمفيش داعي نفقد الاسم المعروض فجأة)
+          if (prev?.category_name && !updated.category_name) {
+            updated.category_name = prev.category_name;
+          }
+          return updated;
+        });
+      },
       filter
     );
 

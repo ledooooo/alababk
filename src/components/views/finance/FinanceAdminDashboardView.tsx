@@ -429,6 +429,7 @@ export default function FinanceAdminDashboardView() {
                 <div key={store.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 space-y-3">
                   <div className="flex items-center gap-3">
                     <img
+                      loading="lazy"
                       src={store.logo_url || 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?auto=format&fit=crop&q=80&w=200'}
                       alt={store.name}
                       className="w-10 h-10 rounded-xl object-cover border border-slate-200 shrink-0"

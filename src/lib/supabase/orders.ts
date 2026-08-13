@@ -204,7 +204,11 @@ export async function fetchSupabaseOrders(filters?: {
   delivery_agent_id?: string;
   status?: string;
   is_unassigned?: boolean;
+  limit?: number;
 }): Promise<Order[]> {
+  // سقف افتراضي آمن يمنع نمو الاستعلام بلا حدود مع نمو المنصة، مع إبقاء
+  // إمكانية تمرير حد أعلى/أقل صراحة عند الحاجة (limit صراحة بيتجاوز الافتراضي).
+  const effectiveLimit = filters?.limit ?? 500;
   try {
     // 1. جلب الطلبات مع order_items فقط (لا علاقات أخرى)
     let query = supabase
@@ -220,7 +224,9 @@ export async function fetchSupabaseOrders(filters?: {
     if (filters?.status) query = query.eq('status', filters.status);
     if (filters?.is_unassigned) query = query.is('delivery_agent_id', null);
 
-    const { data: ordersData, error: ordersError } = await query.order('placed_at', { ascending: false, nullsFirst: false });
+    const { data: ordersData, error: ordersError } = await query
+      .order('placed_at', { ascending: false, nullsFirst: false })
+      .limit(effectiveLimit);
 
     if (ordersError) {
       // محاولة ثانية بدون order_items (في حال فشل العلاقة)
@@ -231,7 +237,9 @@ export async function fetchSupabaseOrders(filters?: {
       if (filters?.status) fallbackQuery.eq('status', filters.status);
       if (filters?.is_unassigned) fallbackQuery.is('delivery_agent_id', null);
 
-      const fallbackRes = await fallbackQuery.order('placed_at', { ascending: false, nullsFirst: false });
+      const fallbackRes = await fallbackQuery
+        .order('placed_at', { ascending: false, nullsFirst: false })
+        .limit(effectiveLimit);
       if (fallbackRes.error) throw fallbackRes.error;
 
       // جلب order_items بشكل منفصل

@@ -56,8 +56,10 @@ export default function StoreOrdersView({ onNavigate }) {
     setStore(myStore);
     if (myStore) {
       try {
-        const allOrders = await fetchSupabaseOrders();
-        const storeOrders = allOrders.filter((o) => o.store_id === myStore.id);
+        // كانت هنا بتجيب طلبات كل المنصة (fetchSupabaseOrders() بلا فلتر)
+        // وتفلتر في المتصفح — دلوقتي بنستخدم فلتر store_id الجاهز والمُختبر
+        // أصلًا في الدالة نفسها، فالسيرفر يرجّع بس طلبات المتجر ده.
+        const storeOrders = await fetchSupabaseOrders({ store_id: myStore.id });
         setOrders(storeOrders);
         setError(null);
       } catch (err: any) {
@@ -71,7 +73,26 @@ export default function StoreOrdersView({ onNavigate }) {
   };
 
   useEffect(() => {
-    loadData();
+    let storeId: string | null = null;
+    let unsubscribeRealtimeOrders: (() => void) | null = null;
+
+    const init = async () => {
+      const myStore = await StorageRepo.getMyStore();
+      storeId = myStore?.id || null;
+      await loadData();
+
+      // الاشتراك في تغييرات طلبات هذا المتجر تحديدًا بس، بعد ما بقى الـ
+      // storeId معروف فعليًا — الكود القديم كان بيحاول يستخدم قيمة store
+      // من الـstate جوه effect بـdependency array فاضية، فكانت دايمًا null
+      // (stale closure) والفلتر ما كانش بيتطبّق فعليًا خالص.
+      unsubscribeRealtimeOrders = subscribeSupabase<Order>(
+        'orders',
+        () => { loadData(); },
+        storeId ? `store_id=eq.${storeId}` : undefined
+      );
+    };
+
+    init();
 
     const unsubscribeStorage = subscribeToStorageChange((detail) => {
       if (detail.entityType === 'order' || detail.entityType === 'store') loadData();
@@ -85,16 +106,10 @@ export default function StoreOrdersView({ onNavigate }) {
       filter
     );
 
-    const unsubscribeRealtimeOrders = subscribeSupabase<Order>(
-      'orders',
-      () => { loadData(); },
-      store ? `store_id=eq.${store.id}` : undefined
-    );
-
     return () => {
       unsubscribeStorage();
       unsubscribeRealtimeStore();
-      unsubscribeRealtimeOrders();
+      unsubscribeRealtimeOrders?.();
     };
   }, []);
 
@@ -348,6 +363,7 @@ export default function StoreOrdersView({ onNavigate }) {
                       <div key={item.id} className="py-2 flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <img
+                            loading="lazy"
                             src={item.product_image || undefined}
                             alt={item.product_name}
                             className="w-10 h-10 object-cover rounded-md border border-slate-200"

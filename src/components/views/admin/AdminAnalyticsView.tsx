@@ -154,7 +154,7 @@ export default function AdminAnalyticsView() {
                   <span className="w-6 h-6 rounded-lg bg-purple-100 text-purple-800 font-black flex items-center justify-center text-xs">
                     #{idx + 1}
                   </span>
-                  <img src={store.logo_url} alt={store.name} className="w-10 h-10 rounded-xl object-cover" />
+                  <img src={store.logo_url} alt={store.name} loading="lazy" className="w-10 h-10 rounded-xl object-cover" />
                   <div>
                     <h3 className="font-extrabold text-slate-900">{store.name}</h3>
                     <p className="text-[10px] text-slate-500">{store.category_name}</p>

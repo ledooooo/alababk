@@ -112,6 +112,7 @@ export default function AdminStoresApplicationsView() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-3">
                   <img
+                    loading="lazy"
                     src={store.logo_url}
                     alt={store.name}
                     className="w-14 h-14 object-cover rounded-2xl border border-slate-200 shrink-0"

@@ -317,6 +317,7 @@ export default function CustomerOrderDetailView({ orderId, onBack }) {
             <div key={item.id} className="py-3 flex items-center justify-between text-sm">
               <div className="flex items-center gap-3">
                 <img
+                  loading="lazy"
                   src={item.product_image || undefined}
                   alt={item.product_name}
                   className="w-12 h-12 object-cover rounded-lg border border-slate-200"

@@ -3,8 +3,12 @@ import { supabase } from './client';
 import { isValidUUID, translateSupabaseError } from './helpers';
 import { UserProfile, UserRole } from '../../types/domain';
 
-export async function fetchSupabaseUsers(): Promise<UserProfile[]> {
-  const { data, error } = await supabase.from('profiles').select('*');
+export async function fetchSupabaseUsers(limit = 1000): Promise<UserProfile[]> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(limit);
   if (error) throw new Error(translateSupabaseError(error).message);
   return (data || []).map((u: any) => ({
     id: u.id,

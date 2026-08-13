@@ -3,10 +3,10 @@ import { supabase } from './client';
 import { ensureUUID, translateSupabaseError } from './helpers';
 import { Review } from '../../types/domain';
 
-export async function fetchSupabaseReviews(storeId?: string): Promise<Review[]> {
+export async function fetchSupabaseReviews(storeId?: string, limit = 500): Promise<Review[]> {
   let query = supabase.from('reviews').select('*, profiles(full_name)');
   if (storeId) query = query.eq('store_id', storeId);
-  const { data, error } = await query;
+  const { data, error } = await query.order('created_at', { ascending: false }).limit(limit);
 
   if (error) throw new Error(translateSupabaseError(error).message);
   return (data || []).map((r: any) => ({

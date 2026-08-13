@@ -60,7 +60,7 @@ export function ImageUploadField({
       <div className="flex items-center gap-3">
         <div className={`${previewClassName} shrink-0 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-center overflow-hidden`}>
           {value && !imgError ? (
-            <img src={value} alt={label} className="w-full h-full object-cover" onError={() => setImgError(true)} />
+            <img src={value} alt={label} loading="lazy" className="w-full h-full object-cover" onError={() => setImgError(true)} />
           ) : (
             <ImageOff className="w-5 h-5 text-slate-300" />
           )}

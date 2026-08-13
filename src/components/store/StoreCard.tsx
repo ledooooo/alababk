@@ -41,6 +41,7 @@ export const StoreCard: React.FC<StoreCardProps> = ({ store, onSelect }) => {
       <div className="relative h-32 bg-slate-100 overflow-hidden">
         {store.banner_url ? (
           <img
+            loading="lazy"
             src={store.banner_url}
             alt={store.name}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
@@ -92,6 +93,7 @@ export const StoreCard: React.FC<StoreCardProps> = ({ store, onSelect }) => {
         {/* Logo Avatar Overlay */}
         <div className="absolute -top-7 right-4 w-14 h-14 bg-white rounded-xl shadow-md border-2 border-white overflow-hidden p-0.5">
           <img
+            loading="lazy"
             src={store.logo_url}
             alt={store.name}
             className="w-full h-full object-cover rounded-lg"

@@ -198,6 +198,7 @@ export default function LandingView({ onNavigate }) {
             >
               <div className="relative h-32 bg-slate-100 overflow-hidden">
                 <img
+                  loading="lazy"
                   src={store.banner_url || store.logo_url}
                   alt={store.name}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"

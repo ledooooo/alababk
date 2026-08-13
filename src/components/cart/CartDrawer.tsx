@@ -91,6 +91,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                     className="flex gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100 hover:border-slate-200 transition-colors"
                   >
                     <img
+                      loading="lazy"
                       src={item.product.image_url}
                       alt={item.product.name}
                       className="w-16 h-16 object-cover rounded-lg shrink-0 border border-slate-200"

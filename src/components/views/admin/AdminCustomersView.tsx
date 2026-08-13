@@ -242,6 +242,7 @@ export default function AdminCustomersView() {
                       <td className="p-4">
                         <div className="flex items-center gap-3">
                           <img
+                            loading="lazy"
                             src={user.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200'}
                             alt={user.name || user.full_name || 'مستخدم'}
                             className="w-10 h-10 rounded-xl object-cover border border-slate-200 shrink-0"
@@ -353,6 +354,7 @@ export default function AdminCustomersView() {
 
             <div className="flex items-center gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
               <img
+                loading="lazy"
                 src={selectedProfile.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200'}
                 alt={selectedProfile.name}
                 className="w-16 h-16 rounded-2xl object-cover border border-slate-200"

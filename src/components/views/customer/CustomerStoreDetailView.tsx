@@ -186,6 +186,7 @@ export default function CustomerStoreDetailView({
         <div className="relative h-44 sm:h-56 bg-slate-900 overflow-hidden">
           {store.banner_url ? (
             <img
+              loading="lazy"
               src={store.banner_url}
               alt={store.name}
               className="w-full h-full object-cover"
@@ -201,6 +202,7 @@ export default function CustomerStoreDetailView({
           {/* Logo Avatar */}
           <div className="absolute -top-12 right-6 w-20 h-20 bg-white rounded-2xl shadow-xl border-4 border-white overflow-hidden p-1">
             <img
+              loading="lazy"
               src={store.logo_url}
               alt={store.name}
               className="w-full h-full object-cover rounded-xl"

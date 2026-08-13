@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
-import { subscribeSupabase, fetchSupabaseStores } from '../../../lib/supabase';
+import { subscribeSupabase, fetchStoreById } from '../../../lib/supabase';
 import { Product, Store } from '../../../types/domain';
 import { formatCurrency } from '../../../lib/formatters';
 import { Pagination } from '../../shared/Pagination';
@@ -42,9 +42,9 @@ export default function StoreProductsView({ onNavigate, adminStoreId }: StorePro
     setLoading(true);
     let targetStore: Store | null = null;
     if (adminStoreId) {
-      // سياق الأدمن: نجيب المتجر المطلوب تحديدًا بدل "متجري أنا"
-      const allStores = await fetchSupabaseStores();
-      targetStore = allStores.find((s) => s.id === adminStoreId) || null;
+      // كانت هنا بتجيب كل المتاجر (fetchSupabaseStores()) عشان تلاقي واحد
+      // بس بالفلترة في المتصفح — دلوقتي استعلام مباشر بمعرّف المتجر.
+      targetStore = await fetchStoreById(adminStoreId);
     } else {
       targetStore = await StorageRepo.getMyStore();
     }
@@ -300,6 +300,7 @@ export default function StoreProductsView({ onNavigate, adminStoreId }: StorePro
                     <td className="p-3.5">
                       <div className="flex items-center gap-3">
                         <img
+                          loading="lazy"
                           src={p.image_url}
                           alt={p.name}
                           className="w-12 h-12 object-cover rounded-xl border border-slate-200 shrink-0"

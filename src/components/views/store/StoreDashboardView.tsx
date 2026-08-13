@@ -139,6 +139,7 @@ export default function StoreDashboardView({ onNavigate }) {
       <div className="bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white rounded-3xl p-6 sm:p-8 shadow-xl border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <img
+            loading="lazy"
             src={store.logo_url}
             alt={store.name}
             className="w-16 h-16 object-cover rounded-2xl border-2 border-white/20 shadow-lg"

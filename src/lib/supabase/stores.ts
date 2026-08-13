@@ -86,6 +86,21 @@ export async function fetchMyStore(): Promise<Store | null> {
   return data ? mapStoreRow(data) : null;
 }
 
+/**
+ * جلب متجر واحد بمعرّفه مباشرة (بدل تحميل كل المتاجر والفلترة في
+ * المتصفح) — تُستخدم في وضع إدارة الأدمن لمتجر معيّن.
+ */
+export async function fetchStoreById(storeId: string): Promise<Store | null> {
+  const { data, error } = await supabase
+    .from('stores')
+    .select('*, categories(name)')
+    .eq('id', storeId)
+    .maybeSingle();
+
+  if (error) throw new Error(translateSupabaseError(error).message);
+  return data ? mapStoreRow(data) : null;
+}
+
 export interface SaveStoreOptions {
   isSelf?: boolean;
 }

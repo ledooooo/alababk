@@ -121,6 +121,7 @@ export default function ProfileView({ onNavigate, onLogout }) {
       <div className="bg-gradient-to-r from-purple-900 to-indigo-900 text-white rounded-3xl p-6 sm:p-8 flex flex-col sm:flex-row items-center gap-6 shadow-md">
         <div className="relative">
           <img
+            loading="lazy"
             src={avatarUrl}
             alt={fullName}
             className="w-20 h-20 rounded-2xl object-cover border-2 border-white/30 shadow-md"

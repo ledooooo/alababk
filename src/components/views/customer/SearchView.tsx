@@ -136,7 +136,7 @@ export default function SearchView({ onSelectStore, onSelectProduct }: SearchVie
                   onClick={() => onSelectStore(store)}
                   className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs hover:shadow-md transition-all cursor-pointer flex items-center gap-3"
                 >
-                  <img src={store.logo_url} alt={store.name} className="w-12 h-12 object-cover rounded-xl" />
+                  <img src={store.logo_url} alt={store.name} loading="lazy" className="w-12 h-12 object-cover rounded-xl" />
                   <div>
                     <h4 className="font-bold text-slate-900">{store.name}</h4>
                     <p className="text-xs text-slate-500">{store.address}</p>
@@ -155,7 +155,7 @@ export default function SearchView({ onSelectStore, onSelectProduct }: SearchVie
                   onClick={() => onSelectProduct(product)}
                   className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs hover:shadow-md transition-all cursor-pointer"
                 >
-                  <img src={product.image_url} alt={product.name} className="w-full h-32 object-cover rounded-xl mb-2" />
+                  <img src={product.image_url} alt={product.name} loading="lazy" className="w-full h-32 object-cover rounded-xl mb-2" />
                   <h4 className="font-bold text-slate-900 text-sm truncate">{product.name}</h4>
                   <p className="text-emerald-700 font-bold">{formatCurrency(product.price)}</p>
                 </div>

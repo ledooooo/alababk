@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
-import { fetchSupabaseOrders, subscribeSupabase } from '../../../lib/supabase';
+import { subscribeSupabase } from '../../../lib/supabase';
 import { Order, OrderStatus } from '../../../types/domain';
 import { formatCurrency, formatDateArabic, formatPhoneNumber } from '../../../lib/formatters';
 import { ORDER_STATUS_LABELS, getOrderStatusConfig } from '../../../lib/constants';
@@ -26,7 +26,12 @@ export default function AdminOrdersView() {
   const loadOrdersDirectly = async (showBadge = true) => {
     if (showBadge) setIsRefreshing(true);
     try {
-      const freshOrders = await fetchSupabaseOrders();
+      // كانت هنا بتنادي fetchSupabaseOrders() مباشرة، متجاوزة الـthrottle
+      // الموجود في StorageRepo.refreshOrders() بالكامل — أي حدث Realtime
+      // كان بيعمل fetch فوري وغير محدود لكل طلبات المنصة. دلوقتي بنمر
+      // عبر StorageRepo عشان نستفيد من الـthrottle (20 ثانية) واكتشاف
+      // "مفيش تغيير فعلي" اللي بيمنع إشعارات فاضية.
+      const freshOrders = await StorageRepo.refreshOrders();
       setOrders(freshOrders);
       setError(null);
     } catch (err: any) {
@@ -45,13 +50,20 @@ export default function AdminOrdersView() {
       if (detail.entityType === 'order') setOrders(StorageRepo.getCachedOrders());
     });
 
+    // ديباونس بسيط: لو جاية دفعة أحداث قريبة من بعض (زي بث حالة لعدة
+    // طلبات مرة واحدة)، نعمل fetch واحد بس بعد ما الأحداث تهدأ، بدل fetch
+    // منفصل لكل حدث — الأدمن أصلًا محتاج يشوف كل الطلبات فعليًا (مش
+    // فلترة خاطئة)، لكن معدل التحديث هو المشكلة اللي كانت هنا.
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
     const unsubscribeRealtime = subscribeSupabase<Order>('orders', () => {
-      loadOrdersDirectly(false);
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => loadOrdersDirectly(false), 1500);
     });
 
     return () => {
       unsubscribeStorage();
       unsubscribeRealtime();
+      if (debounceTimer) clearTimeout(debounceTimer);
     };
   }, []);
 
