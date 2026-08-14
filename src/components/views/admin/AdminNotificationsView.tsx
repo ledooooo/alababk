@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   listAllSupabaseNotifications,
   sendBroadcastNotification,
@@ -6,12 +6,15 @@ import {
   createSupabaseNotification,
   fetchNotificationBroadcasts,
   fetchSupabaseUsers,
+  deleteSupabaseNotification,
   NotificationBroadcast,
 } from '../../../lib/supabase';
 import { NotificationItem, UserProfile, UserRole } from '../../../types/domain';
 import { formatDate } from '../../../lib/formatters';
-import { Bell, Send, RefreshCw, Smartphone, Tag, Search, User as UserIcon, X } from 'lucide-react';
+import { Bell, Send, RefreshCw, Smartphone, Tag, Search, User as UserIcon, X, Trash2 } from 'lucide-react';
+import { Pagination } from '../../shared/Pagination';
 import { useToast } from '../../shared/Toast';
+import { useConfirm } from '../../shared/ConfirmDialog';
 
 const ROLE_LABELS: Record<UserRole, string> = {
   customer: 'كل العملاء',
@@ -40,7 +43,14 @@ export default function AdminNotificationsView() {
   const [userSearch, setUserSearch] = useState('');
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
 
+  // فلترة/بحث وحذف سجل الإشعارات المرسلة لكل المستخدمين
+  const [historySearch, setHistorySearch] = useState('');
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [historyPage, setHistoryPage] = useState(1);
+  const HISTORY_PER_PAGE = 8;
+
   const { showToast } = useToast();
+  const { showConfirm } = useConfirm();
 
   const loadNotifications = async () => {
     setLoading(true);
@@ -73,6 +83,49 @@ export default function AdminNotificationsView() {
       fetchSupabaseUsers().then(setAllUsers).catch(() => {});
     }
   }, [targetMode]);
+
+  const filteredHistory = useMemo(() => {
+    const term = historySearch.trim().toLowerCase();
+    if (!term) return notifications;
+    return notifications.filter(
+      (n) =>
+        n.title.toLowerCase().includes(term) ||
+        (n.message || '').toLowerCase().includes(term) ||
+        n.type.toLowerCase().includes(term) ||
+        (n.user_id || '').toLowerCase().includes(term)
+    );
+  }, [notifications, historySearch]);
+
+  const historyTotalPages = Math.max(1, Math.ceil(filteredHistory.length / HISTORY_PER_PAGE));
+  const paginatedHistory = filteredHistory.slice(
+    (historyPage - 1) * HISTORY_PER_PAGE,
+    historyPage * HISTORY_PER_PAGE
+  );
+
+  useEffect(() => {
+    setHistoryPage(1);
+  }, [historySearch]);
+
+  const handleDeleteNotification = (n: NotificationItem) => {
+    showConfirm({
+      title: 'تأكيد الحذف',
+      message: `هل تريد حذف الإشعار "${n.title}" نهائياً من سجل هذا المستخدم؟`,
+      variant: 'danger',
+      confirmLabel: 'حذف',
+      onConfirm: async () => {
+        setDeletingId(n.id);
+        try {
+          await deleteSupabaseNotification(n.id);
+          setNotifications((prev) => prev.filter((x) => x.id !== n.id));
+          showToast({ type: 'success', title: 'تم الحذف', message: 'تم حذف الإشعار بنجاح' });
+        } catch (err: any) {
+          showToast({ type: 'error', title: 'فشل الحذف', message: err.message || 'تعذر حذف الإشعار' });
+        } finally {
+          setDeletingId(null);
+        }
+      },
+    });
+  };
 
   const filteredUsers = allUsers.filter((u) => {
     const term = userSearch.trim().toLowerCase();
@@ -301,25 +354,59 @@ export default function AdminNotificationsView() {
             ))}
           </div>
 
-          <h2 className="font-extrabold text-slate-900 text-base pt-2 border-t border-slate-100">
-            آخر الإشعارات لكل المستخدمين ({notifications.length})
-          </h2>
-          <div className="space-y-3 max-h-96 overflow-y-auto">
-            {notifications.map((n) => (
+          <div className="flex items-center justify-between gap-3 pt-2 border-t border-slate-100">
+            <h2 className="font-extrabold text-slate-900 text-base">
+              آخر الإشعارات لكل المستخدمين ({filteredHistory.length})
+            </h2>
+          </div>
+
+          <div className="relative">
+            <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
+            <input
+              type="text"
+              placeholder="ابحث بالعنوان أو النص أو النوع أو معرف المستخدم..."
+              value={historySearch}
+              onChange={(e) => setHistorySearch(e.target.value)}
+              className="w-full pr-9 pl-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:border-indigo-600"
+            />
+          </div>
+
+          <div className="space-y-3">
+            {paginatedHistory.length === 0 && (
+              <p className="text-xs text-slate-500 text-center py-6">لا توجد إشعارات مطابقة.</p>
+            )}
+            {paginatedHistory.map((n) => (
               <div key={n.id} className="p-4 bg-slate-50 border border-slate-200/80 rounded-xl flex items-start gap-3">
                 <div className="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center shrink-0">
                   {n.type === 'promotion' || n.type === 'promo' ? <Tag className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
                 </div>
-                <div className="flex-1 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-extrabold text-slate-900 text-xs">{n.title}</h3>
-                    <span className="text-[10px] text-slate-400 font-medium">{formatDate(n.created_at)}</span>
+                <div className="flex-1 space-y-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="font-extrabold text-slate-900 text-xs truncate">{n.title}</h3>
+                    <span className="text-[10px] text-slate-400 font-medium shrink-0">{formatDate(n.created_at)}</span>
                   </div>
                   <p className="text-xs text-slate-600 font-medium">{n.message}</p>
+                  <p className="text-[10px] text-slate-400 font-mono">مستخدم: {n.user_id?.slice(0, 8)}</p>
                 </div>
+                <button
+                  onClick={() => handleDeleteNotification(n)}
+                  disabled={deletingId === n.id}
+                  className="p-2 text-rose-600 hover:bg-rose-100 rounded-xl transition-colors disabled:opacity-50 shrink-0"
+                  title="حذف الإشعار"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
             ))}
           </div>
+
+          <Pagination
+            currentPage={historyPage}
+            totalPages={historyTotalPages}
+            onPageChange={setHistoryPage}
+            totalItems={filteredHistory.length}
+            itemsPerPage={HISTORY_PER_PAGE}
+          />
         </div>
       </div>
     </div>

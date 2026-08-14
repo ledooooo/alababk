@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { StorageRepo } from '../../../lib/storage';
 import { Coupon } from '../../../types/domain';
 import { formatCurrency } from '../../../lib/formatters';
-import { ShieldCheck, Plus, Trash2, Tag, Power, Loader2 } from 'lucide-react';
+import { ShieldCheck, Plus, Trash2, Tag, Power, Loader2, Edit2, X, Save } from 'lucide-react';
 import { useToast } from '../../shared/Toast';
 
 const todayPlus90 = () => {
@@ -26,6 +26,8 @@ export default function AdminCouponsView() {
   const [validUntil, setValidUntil] = useState(todayPlus90());
   const [saving, setSaving] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [editingCoupon, setEditingCoupon] = useState<Coupon | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
   const { showToast } = useToast();
 
   const handleCreateCoupon = async () => {
@@ -78,6 +80,30 @@ export default function AdminCouponsView() {
       showToast({ type: 'success', title: 'تم', message: 'تم حذف الكوبون' });
     } catch (err: any) {
       showToast({ type: 'error', title: 'فشل الحذف', message: err.message || 'تعذر حذف الكوبون' });
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingCoupon) return;
+    if (!editingCoupon.code.trim()) {
+      showToast({ type: 'error', title: 'خطأ', message: 'رمز الكوبون لا يمكن أن يكون فارغاً' });
+      return;
+    }
+    if (editingCoupon.discount_value <= 0) {
+      showToast({ type: 'error', title: 'خطأ', message: 'قيمة الخصم يجب أن تكون أكبر من صفر' });
+      return;
+    }
+    setEditSaving(true);
+    try {
+      const updated: Coupon = { ...editingCoupon, code: editingCoupon.code.trim().toUpperCase() };
+      await StorageRepo.saveCoupon(updated);
+      setCoupons(StorageRepo.getCoupons());
+      setEditingCoupon(null);
+      showToast({ type: 'success', title: 'تم', message: 'تم تحديث بيانات الكوبون بنجاح' });
+    } catch (err: any) {
+      showToast({ type: 'error', title: 'فشل التحديث', message: err.message || 'تعذر تحديث الكوبون' });
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -250,6 +276,13 @@ export default function AdminCouponsView() {
 
             <div className="flex items-center gap-1">
               <button
+                onClick={() => setEditingCoupon(c)}
+                className="p-2 text-blue-600 hover:bg-blue-50 rounded-xl transition-colors"
+                title="تعديل الكوبون"
+              >
+                <Edit2 className="w-4 h-4" />
+              </button>
+              <button
                 onClick={() => handleToggleActive(c)}
                 disabled={togglingId === c.id}
                 className={`p-2 rounded-xl transition-colors disabled:opacity-50 ${
@@ -270,6 +303,143 @@ export default function AdminCouponsView() {
           </div>
         ))}
       </div>
+
+      {editingCoupon && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-50 flex items-center justify-center p-4 dir-rtl">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 space-y-4 border border-slate-200 shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-black text-slate-900">تعديل بيانات الكوبون</h3>
+              <button onClick={() => setEditingCoupon(null)} className="p-1 text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">رمز الكوبون</label>
+                <input
+                  type="text"
+                  value={editingCoupon.code}
+                  onChange={(e) => setEditingCoupon({ ...editingCoupon, code: e.target.value })}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold uppercase focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">نوع الخصم</label>
+                <select
+                  value={editingCoupon.discount_type}
+                  onChange={(e) => setEditingCoupon({ ...editingCoupon, discount_type: e.target.value as 'percent' | 'fixed' })}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                >
+                  <option value="percent">نسبة مئوية (%)</option>
+                  <option value="fixed">مبلغ ثابت (ج.م)</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">قيمة الخصم</label>
+                <input
+                  type="number"
+                  value={editingCoupon.discount_value}
+                  onChange={(e) => setEditingCoupon({ ...editingCoupon, discount_value: Number(e.target.value) })}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-emerald-700 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">الحد الأدنى للطلب (ج.م)</label>
+                <input
+                  type="number"
+                  value={editingCoupon.min_order_amount}
+                  onChange={(e) => setEditingCoupon({ ...editingCoupon, min_order_amount: Number(e.target.value) })}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">أقصى قيمة خصم — اختياري</label>
+                <input
+                  type="number"
+                  placeholder="بلا حد أقصى"
+                  value={editingCoupon.max_discount_amount ?? ''}
+                  onChange={(e) =>
+                    setEditingCoupon({
+                      ...editingCoupon,
+                      max_discount_amount: e.target.value === '' ? undefined : Number(e.target.value),
+                    })
+                  }
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">أقصى عدد استخدام — اختياري</label>
+                <input
+                  type="number"
+                  placeholder="بلا حد أقصى"
+                  value={editingCoupon.usage_limit ?? ''}
+                  onChange={(e) =>
+                    setEditingCoupon({
+                      ...editingCoupon,
+                      usage_limit: e.target.value === '' ? undefined : Number(e.target.value),
+                    })
+                  }
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">أقصى استخدام لكل عميل — اختياري</label>
+                <input
+                  type="number"
+                  min={1}
+                  placeholder="بلا حد لكل عميل"
+                  value={editingCoupon.max_uses_per_user ?? ''}
+                  onChange={(e) =>
+                    setEditingCoupon({
+                      ...editingCoupon,
+                      max_uses_per_user: e.target.value === '' ? undefined : Number(e.target.value),
+                    })
+                  }
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">صالح حتى تاريخ</label>
+                <input
+                  type="date"
+                  value={(editingCoupon.valid_until || '').slice(0, 10)}
+                  onChange={(e) => setEditingCoupon({ ...editingCoupon, valid_until: e.target.value })}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none dir-ltr"
+                />
+              </div>
+            </div>
+
+            <p className="text-[10px] text-slate-400">
+              عدد مرات الاستخدام الحالي: {editingCoupon.used_count || 0} (لا يمكن تعديله يدوياً، يتحدث تلقائياً مع كل طلب)
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                onClick={() => setEditingCoupon(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold"
+              >
+                إلغاء
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                disabled={editSaving}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white rounded-xl text-xs font-bold flex items-center gap-1.5"
+              >
+                {editSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                <span>{editSaving ? 'جاري الحفظ...' : 'حفظ التعديلات'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
