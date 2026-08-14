@@ -62,6 +62,31 @@ export default function StoreSettingsView({ onNavigate }) {
   }, []);
 
   const { showToast } = useToast();
+  const [isTogglingVacation, setIsTogglingVacation] = useState(false);
+
+  const handleToggleVacation = async () => {
+    if (!store) return;
+    const nextValue = !store.is_vacation_mode;
+    setIsTogglingVacation(true);
+    try {
+      // تحديث فوري ومستقل عن باقي نموذج الإعدادات (زي أي تطبيق توصيل كبير:
+      // "إغلاق مؤقت" لازم يكون سويتش لحظي، مش حقل مدفون جوه فورم كبير
+      // محتاج ضغط "حفظ" الرئيسي).
+      await StorageRepo.saveStore({ ...store, is_vacation_mode: nextValue });
+      setStore((prev) => (prev ? { ...prev, is_vacation_mode: nextValue } : prev));
+      showToast({
+        type: 'success',
+        title: nextValue ? 'تم تفعيل وضع الإجازة' : 'تم إلغاء وضع الإجازة',
+        message: nextValue
+          ? 'محلك هيظهر مغلقًا مؤقتًا للعملاء لحد ما تلغي وضع الإجازة'
+          : 'محلك رجع يستقبل طلبات جديدة',
+      });
+    } catch (err: any) {
+      showToast({ type: 'error', title: 'فشل التحديث', message: err.message || 'تعذر تغيير وضع الإجازة' });
+    } finally {
+      setIsTogglingVacation(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!store) return;
@@ -144,6 +169,41 @@ export default function StoreSettingsView({ onNavigate }) {
           <span>{saveError}</span>
         </div>
       )}
+
+      {/* وضع الإجازة — إغلاق مؤقت فوري، بدون الحاجة لتواصل مع الأدمن */}
+      <div
+        className={`rounded-2xl p-5 border shadow-xs flex items-center justify-between gap-4 transition-colors ${
+          store?.is_vacation_mode ? 'bg-amber-50 border-amber-200' : 'bg-white border-slate-200'
+        }`}
+      >
+        <div>
+          <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+            <span>وضع الإجازة (إغلاق مؤقت)</span>
+            {store?.is_vacation_mode && (
+              <span className="px-2 py-0.5 bg-amber-200 text-amber-900 rounded-full text-[10px] font-bold">مُفعّل حاليًا</span>
+            )}
+          </h3>
+          <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+            فعّل الوضع ده لو هتقفل المحل لفترة قصيرة (إجازة، صيانة...). المحل هيظهر
+            مغلقًا مؤقتًا للعملاء فورًا، وترجّعه أي وقت من غير ما تحتاج تتواصل مع الإدارة.
+          </p>
+        </div>
+        <button
+          onClick={handleToggleVacation}
+          disabled={isTogglingVacation || !store}
+          role="switch"
+          aria-checked={!!store?.is_vacation_mode}
+          className={`relative shrink-0 w-14 h-8 rounded-full transition-colors disabled:opacity-50 ${
+            store?.is_vacation_mode ? 'bg-amber-500' : 'bg-slate-300'
+          }`}
+        >
+          <span
+            className={`absolute top-1 w-6 h-6 bg-white rounded-full shadow-md transition-transform ${
+              store?.is_vacation_mode ? 'translate-x-1' : 'translate-x-7'
+            }`}
+          />
+        </button>
+      </div>
 
       <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs space-y-4">
         <h3 className="font-bold text-slate-900 text-sm border-b border-slate-100 pb-2">

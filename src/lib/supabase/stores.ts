@@ -21,6 +21,7 @@ export function mapStoreRow(s: any): Store {
     phone: s.phone || '',
     is_approved: s.is_approved ?? false,
     is_open: s.is_active ?? false,
+    is_vacation_mode: s.is_vacation_mode ?? false,
     rating: s.rating_avg != null ? Number(s.rating_avg) : null,
     reviews_count: s.rating_count ? Number(s.rating_count) : 0,
     commission_rate: Number(s.commission_pct ?? 15),
@@ -135,6 +136,16 @@ export async function saveSupabaseStore(store: Partial<Store>, options: SaveStor
 
   if (store.is_approved !== undefined && !options.isSelf) {
     payload.is_approved = store.is_approved;
+  }
+  // is_active محجوز للأدمن فقط (نفس قيد protect_store_admin_fields في الداتابيز:
+  // صاحب المتجر ممنوع يفعّل/يوقف محله بشكل دائم بنفسه، لازم يستخدم is_vacation_mode).
+  if (store.is_open !== undefined && !options.isSelf) {
+    payload.is_active = store.is_open;
+  }
+  // على عكس is_active، وضع الإجازة مسموح لصاحب المتجر نفسه يغيّره وقت ما يحب
+  // (الـtrigger في الداتابيز مش بيقيّد العمود ده خالص).
+  if (store.is_vacation_mode !== undefined) {
+    payload.is_vacation_mode = store.is_vacation_mode;
   }
   if (store.commission_rate !== undefined && !options.isSelf) {
     payload.commission_pct = store.commission_rate;

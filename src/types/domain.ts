@@ -128,6 +128,9 @@ export interface Store {
   phone?: string | null;
   is_approved: boolean;
   is_open: boolean;
+  /** وضع الإجازة — إغلاق مؤقت اختياري يقدر صاحب المتجر يفعّله/يلغيه بنفسه
+   * بدون الحاجة لتدخل الأدمن (بعكس is_open/is_active اللي محجوز للأدمن فقط). */
+  is_vacation_mode?: boolean;
   rating?: number | null;
   reviews_count?: number | null;
   commission_rate: number; // e.g. 10 (%)

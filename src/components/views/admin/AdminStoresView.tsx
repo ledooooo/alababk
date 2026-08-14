@@ -302,6 +302,14 @@ export default function AdminStoresView() {
                       >
                         {s.is_open ? 'مفتوح' : 'مغلق'}
                       </button>
+                      {s.is_vacation_mode && (
+                        <span
+                          title="صاحب المتجر فعّل وضع الإجازة بنفسه (إغلاق مؤقت)"
+                          className="block mt-1 px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full text-[10px] font-bold text-center"
+                        >
+                          🏖️ إجازة
+                        </span>
+                      )}
                     </td>
 
                     <td className="p-3.5 text-center">
