@@ -700,6 +700,75 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                   </div>
                   <ChevronLeft className="w-4 h-4 opacity-60" />
                 </button>
+
+                <p className="text-[10px] font-black text-slate-300 px-3 pt-2 uppercase tracking-wider">إدارة المحتوى</p>
+
+                <button
+                  onClick={() => onNavigate('/admin/categories')}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                    isActive('/admin/categories') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <LayoutGrid className="w-4 h-4" />
+                    <span>التصنيفات</span>
+                  </div>
+                  <ChevronLeft className="w-4 h-4 opacity-60" />
+                </button>
+
+                <button
+                  onClick={() => onNavigate('/admin/reviews')}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                    isActive('/admin/reviews') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Star className="w-4 h-4" />
+                    <span>التقييمات</span>
+                  </div>
+                  <ChevronLeft className="w-4 h-4 opacity-60" />
+                </button>
+
+                <button
+                  onClick={() => onNavigate('/admin/notifications')}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                    isActive('/admin/notifications') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Bell className="w-4 h-4" />
+                    <span>الإشعارات الجماعية</span>
+                  </div>
+                  <ChevronLeft className="w-4 h-4 opacity-60" />
+                </button>
+
+                <p className="text-[10px] font-black text-slate-300 px-3 pt-2 uppercase tracking-wider">النظام</p>
+
+                <button
+                  onClick={() => onNavigate('/admin/activity')}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                    isActive('/admin/activity') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <ShieldCheck className="w-4 h-4" />
+                    <span>سجل النشاطات</span>
+                  </div>
+                  <ChevronLeft className="w-4 h-4 opacity-60" />
+                </button>
+
+                <button
+                  onClick={() => onNavigate('/admin/settings')}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                    isActive('/admin/settings') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Settings className="w-4 h-4" />
+                    <span>إعدادات المنصة</span>
+                  </div>
+                  <ChevronLeft className="w-4 h-4 opacity-60" />
+                </button>
               </div>
             )}
 
