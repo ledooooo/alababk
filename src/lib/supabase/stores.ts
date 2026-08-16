@@ -156,7 +156,15 @@ export async function saveSupabaseStore(store: Partial<Store>, options: SaveStor
   if (!existing.data) {
     payload.is_approved = false;
     const { data, error } = await supabase.from('stores').insert([payload]).select('*, categories(name)').single();
-    if (error) throw new Error(translateSupabaseError(error).message);
+    if (error) {
+      // قيد stores_owner_id_unique (انظر fix_10) هو خط الدفاع الأخير ضد
+      // امتلاك أكتر من متجر — نديله رسالة عربية واضحة بدل رسالة قاعدة
+      // بيانات تقنية مبهمة لو الفحص الأولي في الواجهة فشل أو اتخطّى.
+      if ((error as any).code === '23505' && (error as any).message?.includes('stores_owner_id_unique')) {
+        throw new Error('لديك بالفعل متجر مسجل على هذا الحساب — لا يمكن إنشاء أكثر من متجر واحد لكل مستخدم.');
+      }
+      throw new Error(translateSupabaseError(error).message);
+    }
     result = data;
   } else {
     const { data, error } = await supabase.from('stores').update(payload).eq('id', validStoreId).select('*, categories(name)').single();

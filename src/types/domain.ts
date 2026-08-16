@@ -146,6 +146,7 @@ export interface Store {
 export interface Product {
   id: string;
   store_id: string;
+  store_name?: string;
   name: string;
   description: string;
   price: number;
@@ -155,6 +156,8 @@ export interface Product {
   image_url: string;
   stock: number;
   is_active: boolean;
+  /** يحدّده الأدمن/صاحب المتجر: هل يجوز طلب استرجاع لهذا المنتج (انظر request_refund في fix_08) */
+  is_returnable: boolean;
   unit: string; // e.g. "كجم", "قطعة", "علبة", "لتر"
   created_at: string;
 }

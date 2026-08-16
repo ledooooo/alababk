@@ -54,12 +54,22 @@ export default function ApplyStoreView({ onNavigate }) {
       return;
     }
 
-    const existingStore = await StorageRepo.getMyStore();
-    if (existingStore) {
-      const msg = 'لديك بالفعل متجر مسجل (حتى لو قيد المراجعة). يمكنك تعديله من لوحة التحكم.';
-      setSubmitError(msg);
-      showToast({ type: 'error', title: 'متجر موجود مسبقاً', message: msg });
-      return;
+    // كانت هذه الخطوة تعتمد على StorageRepo.getMyStore() اللي بتبلع أي
+    // خطأ شبكة/استعلام وترجّع null (fail-open) — يعني أي عطل عابر كان
+    // بيسمح بتسجيل متجر تاني عن طريق الخطأ. هنا بنتعامل مع الفشل بحذر
+    // (fail-closed): لو الفحص نفسه فشل، منمنعش التقديم لكن بنوضح للمستخدم
+    // إنه لو عنده متجر بالفعل، النظام هيرفض التسجيل عند الحفظ (قيد فعلي
+    // على قاعدة البيانات نفسها الآن — انظر fix_10)، مش مجرد فحص جافاسكريبت.
+    try {
+      const existingStore = await StorageRepo.getMyStore();
+      if (existingStore) {
+        const msg = 'لديك بالفعل متجر مسجل (حتى لو قيد المراجعة). يمكنك تعديله من لوحة التحكم.';
+        setSubmitError(msg);
+        showToast({ type: 'error', title: 'متجر موجود مسبقاً', message: msg });
+        return;
+      }
+    } catch (checkErr) {
+      console.warn('getMyStore check failed, relying on DB-level unique constraint:', checkErr);
     }
 
     const newStore: Partial<Store> = {

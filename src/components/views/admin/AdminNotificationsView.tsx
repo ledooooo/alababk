@@ -5,6 +5,7 @@ import {
   sendRoleNotification,
   createSupabaseNotification,
   fetchNotificationBroadcasts,
+  deleteNotificationBroadcast,
   fetchSupabaseUsers,
   deleteSupabaseNotification,
   NotificationBroadcast,
@@ -48,6 +49,13 @@ export default function AdminNotificationsView() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [historyPage, setHistoryPage] = useState(1);
   const HISTORY_PER_PAGE = 8;
+
+  // فلترة/بحث وحذف سجل حملات البث نفسها (التحكم الكامل في الحملات
+  // المعروضة، مش بس عرضها)
+  const [broadcastSearch, setBroadcastSearch] = useState('');
+  const [deletingBroadcastId, setDeletingBroadcastId] = useState<string | null>(null);
+  const [broadcastPage, setBroadcastPage] = useState(1);
+  const BROADCASTS_PER_PAGE = 5;
 
   const { showToast } = useToast();
   const { showConfirm } = useConfirm();
@@ -105,6 +113,48 @@ export default function AdminNotificationsView() {
   useEffect(() => {
     setHistoryPage(1);
   }, [historySearch]);
+
+  const filteredBroadcasts = useMemo(() => {
+    const term = broadcastSearch.trim().toLowerCase();
+    if (!term) return broadcasts;
+    return broadcasts.filter(
+      (b) =>
+        b.title.toLowerCase().includes(term) ||
+        (b.body || '').toLowerCase().includes(term) ||
+        b.target.toLowerCase().includes(term)
+    );
+  }, [broadcasts, broadcastSearch]);
+
+  const broadcastTotalPages = Math.max(1, Math.ceil(filteredBroadcasts.length / BROADCASTS_PER_PAGE));
+  const paginatedBroadcasts = filteredBroadcasts.slice(
+    (broadcastPage - 1) * BROADCASTS_PER_PAGE,
+    broadcastPage * BROADCASTS_PER_PAGE
+  );
+
+  useEffect(() => {
+    setBroadcastPage(1);
+  }, [broadcastSearch]);
+
+  const handleDeleteBroadcast = (b: NotificationBroadcast) => {
+    showConfirm({
+      title: 'تأكيد حذف سجل الحملة',
+      message: `هل تريد حذف سجل حملة "${b.title}" من التاريخ؟ ملحوظة: هذا لا يحذف الإشعارات التي وصلت بالفعل للمستخدمين، فقط سجل الحملة نفسه.`,
+      variant: 'danger',
+      confirmLabel: 'حذف السجل',
+      onConfirm: async () => {
+        setDeletingBroadcastId(b.id);
+        try {
+          await deleteNotificationBroadcast(b.id);
+          setBroadcasts((prev) => prev.filter((x) => x.id !== b.id));
+          showToast({ type: 'success', title: 'تم الحذف', message: 'تم حذف سجل الحملة بنجاح' });
+        } catch (err: any) {
+          showToast({ type: 'error', title: 'فشل الحذف', message: err.message || 'تعذر حذف سجل الحملة' });
+        } finally {
+          setDeletingBroadcastId(null);
+        }
+      },
+    });
+  };
 
   const handleDeleteNotification = (n: NotificationItem) => {
     showConfirm({
@@ -328,21 +378,36 @@ export default function AdminNotificationsView() {
 
         {/* Sent Notifications History */}
         <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 space-y-4">
-          <h2 className="font-extrabold text-slate-900 text-base">سجل الحملات المُرسَلة ({broadcasts.length})</h2>
+          <h2 className="font-extrabold text-slate-900 text-base">سجل الحملات المُرسَلة ({filteredBroadcasts.length})</h2>
+
+          {broadcasts.length > 0 && (
+            <div className="relative">
+              <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
+              <input
+                type="text"
+                placeholder="ابحث في الحملات بالعنوان أو النص أو الفئة المستهدفة..."
+                value={broadcastSearch}
+                onChange={(e) => setBroadcastSearch(e.target.value)}
+                className="w-full pr-9 pl-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:border-indigo-600"
+              />
+            </div>
+          )}
 
           <div className="space-y-3">
-            {broadcasts.length === 0 && (
-              <p className="text-xs text-slate-500 text-center py-6">لا توجد حملات بث جماعي بعد.</p>
+            {filteredBroadcasts.length === 0 && (
+              <p className="text-xs text-slate-500 text-center py-6">
+                {broadcasts.length === 0 ? 'لا توجد حملات بث جماعي بعد.' : 'لا توجد حملات مطابقة للبحث.'}
+              </p>
             )}
-            {broadcasts.map((b) => (
+            {paginatedBroadcasts.map((b) => (
               <div key={b.id} className="p-4 bg-slate-50 border border-slate-200/80 rounded-xl flex items-start gap-3">
                 <div className="w-9 h-9 rounded-xl bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center shrink-0">
                   {b.type === 'promo' ? <Tag className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
                 </div>
-                <div className="flex-1 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-extrabold text-slate-900 text-xs">{b.title}</h3>
-                    <span className="text-[10px] text-slate-400 font-medium">{formatDate(b.created_at)}</span>
+                <div className="flex-1 space-y-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="font-extrabold text-slate-900 text-xs truncate">{b.title}</h3>
+                    <span className="text-[10px] text-slate-400 font-medium shrink-0">{formatDate(b.created_at)}</span>
                   </div>
                   <p className="text-xs text-slate-600 font-medium">{b.body}</p>
                   <p className="text-[10px] text-emerald-600 font-bold">
@@ -350,9 +415,27 @@ export default function AdminNotificationsView() {
                     {b.target && b.target !== 'all' && ` (${ROLE_LABELS[b.target as UserRole] || b.target})`}
                   </p>
                 </div>
+                <button
+                  onClick={() => handleDeleteBroadcast(b)}
+                  disabled={deletingBroadcastId === b.id}
+                  className="p-2 text-rose-600 hover:bg-rose-100 rounded-xl transition-colors disabled:opacity-50 shrink-0"
+                  title="حذف سجل الحملة"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
               </div>
             ))}
           </div>
+
+          {broadcasts.length > 0 && (
+            <Pagination
+              currentPage={broadcastPage}
+              totalPages={broadcastTotalPages}
+              onPageChange={setBroadcastPage}
+              totalItems={filteredBroadcasts.length}
+              itemsPerPage={BROADCASTS_PER_PAGE}
+            />
+          )}
 
           <div className="flex items-center justify-between gap-3 pt-2 border-t border-slate-100">
             <h2 className="font-extrabold text-slate-900 text-base">

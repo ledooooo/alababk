@@ -113,17 +113,26 @@ export default function StoreOrdersView({ onNavigate }) {
     };
   }, []);
 
-  const handleAcceptOrder = (orderId: string, prepTimeMinutes = 20) => {
-    StorageRepo.updateOrderStatus(
-      orderId,
-      'preparing',
-      `تم قبول الطلب وجاري التحضير بالمحل (الوقت المتوقع: ${prepTimeMinutes} دقيقة)`
-    );
-    showToast({
-      type: 'success',
-      title: 'تم القبول',
-      message: 'تم قبول الطلب وبدء التحضير',
-    });
+  const [processingOrderId, setProcessingOrderId] = useState<string | null>(null);
+
+  const handleAcceptOrder = async (orderId: string, prepTimeMinutes = 20) => {
+    setProcessingOrderId(orderId);
+    try {
+      await StorageRepo.updateOrderStatus(
+        orderId,
+        'preparing',
+        `تم قبول الطلب وجاري التحضير بالمحل (الوقت المتوقع: ${prepTimeMinutes} دقيقة)`
+      );
+      showToast({ type: 'success', title: 'تم القبول', message: 'تم قبول الطلب وبدء التحضير' });
+    } catch (err: any) {
+      showToast({
+        type: 'error',
+        title: 'تعذّر قبول الطلب',
+        message: err.message || 'حدث خطأ أثناء محاولة قبول الطلب، حاول مرة أخرى',
+      });
+    } finally {
+      setProcessingOrderId(null);
+    }
   };
 
   const handleRejectOrder = (orderId: string) => {
@@ -132,33 +141,43 @@ export default function StoreOrdersView({ onNavigate }) {
       message: `هل أنت متأكد من رفض هذا الطلب؟ السبب: ${rejectReason}`,
       variant: 'danger',
       confirmLabel: 'رفض الطلب',
-      onConfirm: () => {
-        StorageRepo.updateOrderStatus(
-          orderId,
-          'rejected',
-          `اعتذر المتجر عن الطلب: ${rejectReason}`
-        );
-        setRejectingOrderId(null);
-        showToast({
-          type: 'success',
-          title: 'تم الرفض',
-          message: 'تم رفض الطلب بنجاح',
-        });
+      onConfirm: async () => {
+        setProcessingOrderId(orderId);
+        try {
+          await StorageRepo.updateOrderStatus(orderId, 'rejected', `اعتذر المتجر عن الطلب: ${rejectReason}`);
+          setRejectingOrderId(null);
+          showToast({ type: 'success', title: 'تم الرفض', message: 'تم رفض الطلب بنجاح' });
+        } catch (err: any) {
+          showToast({
+            type: 'error',
+            title: 'تعذّر رفض الطلب',
+            message: err.message || 'حدث خطأ أثناء محاولة رفض الطلب، حاول مرة أخرى',
+          });
+        } finally {
+          setProcessingOrderId(null);
+        }
       },
     });
   };
 
-  const handleMarkReady = (orderId: string) => {
-    StorageRepo.updateOrderStatus(
-      orderId,
-      'ready',
-      'تم تجهيز الطلب بالكامل وهو جاهز لاستلام مندوب التوصيل الكابتن'
-    );
-    showToast({
-      type: 'success',
-      title: 'تم التجهيز',
-      message: 'تم تجهيز الطلب وجاهز للاستلام',
-    });
+  const handleMarkReady = async (orderId: string) => {
+    setProcessingOrderId(orderId);
+    try {
+      await StorageRepo.updateOrderStatus(
+        orderId,
+        'ready',
+        'تم تجهيز الطلب بالكامل وهو جاهز لاستلام مندوب التوصيل الكابتن'
+      );
+      showToast({ type: 'success', title: 'تم التجهيز', message: 'تم تجهيز الطلب وجاهز للاستلام' });
+    } catch (err: any) {
+      showToast({
+        type: 'error',
+        title: 'تعذّر التحديث',
+        message: err.message || 'حدث خطأ أثناء تحديث حالة الطلب، حاول مرة أخرى',
+      });
+    } finally {
+      setProcessingOrderId(null);
+    }
   };
 
   const filteredOrders = orders.filter((o) => {
@@ -406,15 +425,17 @@ export default function StoreOrdersView({ onNavigate }) {
                       <>
                         <button
                           onClick={() => handleAcceptOrder(order.id, 20)}
-                          className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl shadow-md transition-colors flex items-center gap-1.5"
+                          disabled={processingOrderId === order.id}
+                          className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold text-xs rounded-xl shadow-md transition-colors flex items-center gap-1.5"
                         >
                           <CheckCircle2 className="w-4 h-4" />
-                          <span>قبول وبدء التحضير (20 دقيقة)</span>
+                          <span>{processingOrderId === order.id ? 'جاري القبول...' : 'قبول وبدء التحضير (20 دقيقة)'}</span>
                         </button>
 
                         <button
                           onClick={() => setRejectingOrderId(order.id)}
-                          className="px-3.5 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-xl border border-rose-200 transition-colors flex items-center gap-1"
+                          disabled={processingOrderId === order.id}
+                          className="px-3.5 py-2.5 bg-rose-50 hover:bg-rose-100 disabled:opacity-60 text-rose-700 font-bold text-xs rounded-xl border border-rose-200 transition-colors flex items-center gap-1"
                         >
                           <XCircle className="w-4 h-4" />
                           <span>اعتذار / رفض</span>
@@ -425,10 +446,11 @@ export default function StoreOrdersView({ onNavigate }) {
                     {['accepted', 'preparing'].includes(order.status) && (
                       <button
                         onClick={() => handleMarkReady(order.id)}
-                        className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl shadow-md transition-colors flex items-center gap-1.5"
+                        disabled={processingOrderId === order.id}
+                        className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-bold text-xs rounded-xl shadow-md transition-colors flex items-center gap-1.5"
                       >
                         <ChefHat className="w-4 h-4" />
-                        <span>تم تجهيز الطلب - جاهز لاستلام المندوب</span>
+                        <span>{processingOrderId === order.id ? 'جاري التحديث...' : 'تم تجهيز الطلب - جاهز لاستلام المندوب'}</span>
                       </button>
                     )}
 
@@ -473,13 +495,15 @@ export default function StoreOrdersView({ onNavigate }) {
             <div className="flex gap-2 pt-2">
               <button
                 onClick={() => handleRejectOrder(rejectingOrderId)}
-                className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-md transition-colors"
+                disabled={processingOrderId === rejectingOrderId}
+                className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white font-bold text-xs rounded-xl shadow-md transition-colors"
               >
-                تأكيد بضغط رفض الطلب
+                {processingOrderId === rejectingOrderId ? 'جاري الرفض...' : 'تأكيد بضغط رفض الطلب'}
               </button>
               <button
                 onClick={() => setRejectingOrderId(null)}
-                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-colors"
+                disabled={processingOrderId === rejectingOrderId}
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 disabled:opacity-60 text-slate-700 font-bold text-xs rounded-xl transition-colors"
               >
                 إلغاء
               </button>

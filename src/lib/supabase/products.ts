@@ -66,12 +66,46 @@ export async function fetchSupabaseProducts(storeId?: string): Promise<Product[]
       image_url: p.images?.[0] || '',
       stock: p.stock ?? 0,
       is_active: p.is_active ?? true,
+      is_returnable: p.is_returnable ?? false,
       unit: p.attributes?.unit || 'قطعة',
       created_at: p.created_at || new Date().toISOString(),
     }));
   } catch (err) {
     throw new Error(translateSupabaseError(err).message);
   }
+}
+
+/**
+ * كل منتجات المنصة عبر كل المتاجر، مع اسم المتجر — تُستخدم في لوحة
+ * الأدمن (AdminProductsView) لإدارة المنتجات على مستوى المنصة كلها،
+ * بخلاف fetchSupabaseProducts(storeId) اللي بترجع منتجات متجر واحد بس.
+ */
+export async function fetchAllSupabaseProductsWithStore(limit = 1000): Promise<Product[]> {
+  const { data, error } = await supabase
+    .from('products')
+    .select('*, categories(name), stores(name)')
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (error) throw new Error(translateSupabaseError(error).message);
+
+  return (data as any[]).map((p) => ({
+    id: p.id,
+    store_id: p.store_id,
+    store_name: p.stores?.name || 'متجر محذوف',
+    name: p.name,
+    description: p.description || '',
+    price: Number(p.price),
+    original_price: p.old_price != null ? Number(p.old_price) : undefined,
+    category_id: p.category_id || undefined,
+    category_name: p.categories?.name || 'عام',
+    image_url: p.images?.[0] || '',
+    stock: p.stock ?? 0,
+    is_active: p.is_active ?? true,
+    is_returnable: p.is_returnable ?? false,
+    unit: p.attributes?.unit || 'قطعة',
+    created_at: p.created_at || new Date().toISOString(),
+  }));
 }
 
 export async function saveSupabaseProduct(product: Partial<Product>): Promise<Product> {
@@ -92,16 +126,18 @@ export async function saveSupabaseProduct(product: Partial<Product>): Promise<Pr
     stock: product.stock ?? 0,
     images: product.image_url ? [product.image_url] : [],
     is_active: product.is_active ?? true,
+    is_returnable: product.is_returnable ?? false,
     updated_at: new Date().toISOString(),
   };
 
-  const { data, error } = await supabase.from('products').upsert(payload, { onConflict: 'id' }).select('*, categories(name)').single();
+  const { data, error } = await supabase.from('products').upsert(payload, { onConflict: 'id' }).select('*, categories(name), stores(name)').single();
   if (error) throw new Error(translateSupabaseError(error).message);
 
   const p = data as any;
   return {
     id: p.id,
     store_id: p.store_id,
+    store_name: p.stores?.name || product.store_name,
     name: p.name,
     description: p.description || '',
     price: Number(p.price),
@@ -111,6 +147,7 @@ export async function saveSupabaseProduct(product: Partial<Product>): Promise<Pr
     image_url: p.images?.[0] || '',
     stock: p.stock ?? 0,
     is_active: p.is_active ?? true,
+    is_returnable: p.is_returnable ?? false,
     unit: product.unit || 'قطعة',
     created_at: p.created_at || new Date().toISOString(),
   };

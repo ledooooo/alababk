@@ -59,6 +59,7 @@ const DeliveryNotificationsView = lazy(() => import('./components/views/delivery
 const AdminDashboardView = lazy(() => import('./components/views/admin/AdminDashboardView'));
 const AdminStoresApplicationsView = lazy(() => import('./components/views/admin/AdminStoresApplicationsView'));
 const AdminStoresView = lazy(() => import('./components/views/admin/AdminStoresView'));
+const AdminProductsView = lazy(() => import('./components/views/admin/AdminProductsView'));
 const AdminAgentsView = lazy(() => import('./components/views/admin/AdminAgentsView'));
 const AdminOrdersView = lazy(() => import('./components/views/admin/AdminOrdersView'));
 const AdminZonesView = lazy(() => import('./components/views/admin/AdminZonesView'));
@@ -143,6 +144,7 @@ const TAB_TO_PATH: Record<string, string> = {
   'admin-analytics': '/admin/analytics',
   'admin-stores-applications': '/admin/stores-applications',
   'admin-stores': '/admin/stores',
+  'admin-products': '/admin/products',
   'admin-agents': '/admin/agents',
   'admin-customers': '/admin/customers',
   'admin-orders': '/admin/orders',
@@ -604,6 +606,7 @@ export default function App() {
               <Route path="/admin/stores-applications" element={<ProtectedRoute allowedRoles={['admin']}><AdminStoresApplicationsView /></ProtectedRoute>} />
               <Route path="/admin/stores" element={<ProtectedRoute allowedRoles={['admin']}><AdminStoresView /></ProtectedRoute>} />
               <Route path="/admin/stores/:storeId/products" element={<ProtectedRoute allowedRoles={['admin']}><AdminStoreProductsRoute /></ProtectedRoute>} />
+              <Route path="/admin/products" element={<ProtectedRoute allowedRoles={['admin']}><AdminProductsView /></ProtectedRoute>} />
               <Route path="/admin/agents" element={<ProtectedRoute allowedRoles={['admin']}><AdminAgentsView /></ProtectedRoute>} />
               <Route path="/admin/customers" element={<ProtectedRoute allowedRoles={['admin']}><AdminCustomersView /></ProtectedRoute>} />
               <Route path="/admin/orders" element={<ProtectedRoute allowedRoles={['admin']}><AdminOrdersView /></ProtectedRoute>} />

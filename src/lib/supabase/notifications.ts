@@ -120,6 +120,21 @@ export async function fetchNotificationBroadcasts(): Promise<NotificationBroadca
   return (data || []) as NotificationBroadcast[];
 }
 
+/**
+ * يحذف سجل حملة بث جماعي من notification_broadcasts (السجل التاريخي
+ * فقط — لا يحذف الإشعارات الفردية اللي وصلت للمستخدمين، دول منفصلين
+ * عمدًا). مقصور على is_admin() فقط عبر RLS (انظر fix_09).
+ */
+export async function deleteNotificationBroadcast(id: string): Promise<void> {
+  const { data, error } = await supabase
+    .from('notification_broadcasts')
+    .delete()
+    .eq('id', ensureUUID(id))
+    .select();
+  if (error) throw new Error(translateSupabaseError(error).message);
+  if (!data || data.length === 0) throw new Error('لم يتم حذف سجل الحملة (غير موجود أو غير مصرَّح)');
+}
+
 export async function markSupabaseNotificationRead(id: string): Promise<void> {
   const { data, error } = await supabase
     .from('notifications')

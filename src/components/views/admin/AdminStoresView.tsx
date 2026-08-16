@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
-import { subscribeSupabase } from '../../../lib/supabase';
-import { Store } from '../../../types/domain';
+import { subscribeSupabase, fetchSupabaseUsers } from '../../../lib/supabase';
+import { Store, UserProfile, Category } from '../../../types/domain';
 import { formatCurrency, formatPhoneNumber } from '../../../lib/formatters';
 import { Pagination } from '../../shared/Pagination';
-import { Store as StoreIcon, Plus, Edit2, Trash2, Power, Star, Search, Package } from 'lucide-react';
+import { Store as StoreIcon, Plus, Edit2, Trash2, Power, Star, Search, Package, User as UserIcon, X } from 'lucide-react';
 import { useToast } from '../../shared/Toast';
 import { useConfirm } from '../../shared/ConfirmDialog';
 
@@ -21,7 +21,16 @@ export default function AdminStoresView() {
   const [newStoreName, setNewStoreName] = useState('');
   const [newStorePhone, setNewStorePhone] = useState('');
   const [newStoreAddress, setNewStoreAddress] = useState('');
-  const [newStoreCategory, setNewStoreCategory] = useState('بقالة وسوبرماركت');
+  const [newStoreCategoryId, setNewStoreCategoryId] = useState('');
+  const [categories, setCategories] = useState<Category[]>([]);
+
+  // اختيار مالك حقيقي للمتجر (مستخدم مسجَّل بالفعل) — بدل owner_id وهمي
+  // كان بيخلي إنشاء المتجر يفشل دايمًا (مُعرّف مالك المتجر مفقود أو غير
+  // صالح)، وبعد إضافة قيد stores_owner_id_unique (fix_10) كمان لازم
+  // يبقى المالك مستخدم حقيقي مالوش متجر تاني أصلًا.
+  const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
+  const [ownerSearch, setOwnerSearch] = useState('');
+  const [selectedOwner, setSelectedOwner] = useState<UserProfile | null>(null);
   const { showToast } = useToast();
   const { showConfirm } = useConfirm();
 
@@ -46,6 +55,24 @@ export default function AdminStoresView() {
       unsubscribeRealtime();
     };
   }, []);
+
+  useEffect(() => {
+    setCategories(StorageRepo.getCategories());
+  }, []);
+
+  // نحمّل المستخدمين فقط لما نفتح مودال إنشاء متجر جديد فعليًا — لا داعي
+  // لتحميلها مسبقًا لكل زيارة لهذه الشاشة
+  useEffect(() => {
+    if (isAddModalOpen && allUsers.length === 0) {
+      fetchSupabaseUsers().then(setAllUsers).catch(() => {});
+    }
+  }, [isAddModalOpen]);
+
+  const filteredOwnerCandidates = allUsers.filter((u) => {
+    const term = ownerSearch.trim().toLowerCase();
+    if (!term) return false;
+    return u.name.toLowerCase().includes(term) || u.phone.includes(term) || u.email.toLowerCase().includes(term);
+  }).slice(0, 8);
 
   const filteredStores = stores.filter(
     (s) =>
@@ -123,35 +150,46 @@ export default function AdminStoresView() {
   const handleCreateStore = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newStoreName.trim()) {
+      showToast({ type: 'error', title: 'بيانات ناقصة', message: 'يرجى إدخال اسم المتجر' });
+      return;
+    }
+    if (!selectedOwner) {
+      showToast({ type: 'error', title: 'بيانات ناقصة', message: 'يرجى اختيار صاحب المتجر (مستخدم مسجَّل بالفعل)' });
+      return;
+    }
+    // فحص محلي سريع (الفحص الحقيقي والنهائي هو قيد stores_owner_id_unique
+    // على قاعدة البيانات نفسها — fix_10 — لكن الفحص هنا بيدي رسالة واضحة
+    // فورًا بدل انتظار رفض الخادم)
+    const ownerAlreadyHasStore = stores.some((s) => s.owner_id === selectedOwner.id);
+    if (ownerAlreadyHasStore) {
       showToast({
         type: 'error',
-        title: 'بيانات ناقصة',
-        message: 'يرجى إدخال اسم المتجر',
+        title: 'المستخدم عنده متجر بالفعل',
+        message: `"${selectedOwner.name}" مسجَّل كصاحب متجر آخر بالفعل — مستخدم واحد لا يملك أكثر من متجر.`,
       });
+      return;
+    }
+    if (!newStoreCategoryId) {
+      showToast({ type: 'error', title: 'بيانات ناقصة', message: 'يرجى اختيار القسم الرئيسي' });
       return;
     }
 
     const newStore: Store = {
-      id: `store-${Date.now()}`,
+      id: crypto.randomUUID(),
       name: newStoreName,
-      slug: newStoreName.toLowerCase().replace(/\s+/g, '-'),
-      owner_id: `owner-${Date.now()}`,
-      category_id: 'cat-1',
-      category_name: newStoreCategory,
+      slug: newStoreName.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now().toString(36),
+      owner_id: selectedOwner.id,
+      category_id: newStoreCategoryId,
       description: 'متجر مسجل في منصة على بابك',
-      logo_url: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=300',
-      address: newStoreAddress || 'القاهرة، مصر',
-      lat: 30.0444,
-      lng: 31.2357,
-      phone: newStorePhone || '01000000000',
+      // مفيش شعار افتراضي وهمي هنا عمدًا — صاحب المتجر أو الأدمن يرفع
+      // شعار حقيقي لاحقًا من StoreSettingsView (فيه ImageUploadField فعلي).
+      logo_url: '',
+      address: newStoreAddress || undefined,
+      phone: newStorePhone || undefined,
       is_approved: true,
       is_open: true,
-      rating: 5.0,
-      reviews_count: 0,
       commission_rate: 15,
       min_order_amount: 0,
-      delivery_fee: 15,
-      opening_hours: { everyday: { open: '08:00', close: '23:00' } },
       created_at: new Date().toISOString(),
     };
 
@@ -161,6 +199,9 @@ export default function AdminStoresView() {
       setNewStoreName('');
       setNewStorePhone('');
       setNewStoreAddress('');
+      setNewStoreCategoryId('');
+      setSelectedOwner(null);
+      setOwnerSearch('');
       showToast({
         type: 'success',
         title: 'تم الإنشاء',
@@ -353,6 +394,52 @@ export default function AdminStoresView() {
             <h3 className="text-base font-black text-slate-900">إضافة متجر جديد لقاعدة بيانات Supabase</h3>
             <form onSubmit={handleCreateStore} className="space-y-3">
               <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">صاحب المتجر (مستخدم مسجَّل بالفعل)</label>
+                {selectedOwner ? (
+                  <div className="flex items-center justify-between p-2.5 bg-indigo-50 border border-indigo-200 rounded-xl">
+                    <div className="flex items-center gap-2">
+                      <UserIcon className="w-4 h-4 text-indigo-600" />
+                      <span className="text-xs font-bold text-indigo-900">{selectedOwner.name} — {selectedOwner.phone}</span>
+                    </div>
+                    <button type="button" onClick={() => setSelectedOwner(null)} className="text-indigo-600 hover:text-indigo-900">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <Search className="w-4 h-4 text-slate-400 absolute right-3 top-3" />
+                    <input
+                      type="text"
+                      placeholder="ابحث بالاسم أو الهاتف أو الإيميل..."
+                      value={ownerSearch}
+                      onChange={(e) => setOwnerSearch(e.target.value)}
+                      className="w-full pr-9 pl-3 p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs"
+                    />
+                    {ownerSearch && filteredOwnerCandidates.length > 0 && (
+                      <div className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg max-h-40 overflow-y-auto">
+                        {filteredOwnerCandidates.map((u) => (
+                          <button
+                            type="button"
+                            key={u.id}
+                            onClick={() => { setSelectedOwner(u); setOwnerSearch(''); }}
+                            className="w-full text-right px-3 py-2 hover:bg-slate-50 text-xs border-b border-slate-100 last:border-0"
+                          >
+                            <div className="font-bold text-slate-900">{u.name}</div>
+                            <div className="text-slate-500">{u.phone} · {u.role}</div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    {ownerSearch && filteredOwnerCandidates.length === 0 && (
+                      <p className="text-[10px] text-slate-400 mt-1">
+                        مفيش مستخدم مطابق. المالك لازم يكون سجّل حساب في التطبيق الأول.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">اسم المتجر</label>
                 <input
                   type="text"
@@ -367,15 +454,14 @@ export default function AdminStoresView() {
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">القسم الرئيسي</label>
                 <select
-                  value={newStoreCategory}
-                  onChange={(e) => setNewStoreCategory(e.target.value)}
+                  value={newStoreCategoryId}
+                  onChange={(e) => setNewStoreCategoryId(e.target.value)}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold"
                 >
-                  <option value="بقالة وسوبرماركت">بقالة وسوبرماركت</option>
-                  <option value="لحوم ودواجن">لحوم ودواجن</option>
-                  <option value="مخبوزات وحلويات">مخبوزات وحلويات</option>
-                  <option value="صيدلية">صيدلية</option>
-                  <option value="خضروات وفواكه">خضروات وفواكه</option>
+                  <option value="">اختر القسم...</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
                 </select>
               </div>
 

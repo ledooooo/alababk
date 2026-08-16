@@ -127,10 +127,12 @@ export default function StoreProductsView({ onNavigate, adminStoreId }: StorePro
       description: editingProduct.description || '',
       price: Number(editingProduct.price),
       original_price: editingProduct.original_price ? Number(editingProduct.original_price) : undefined,
+      category_id: editingProduct.category_id,
       category_name: editingProduct.category_name || 'عام',
       image_url: editingProduct.image_url || 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=400',
       stock: Number(editingProduct.stock || 10),
       is_active: editingProduct.is_active ?? true,
+      is_returnable: editingProduct.is_returnable ?? false,
       unit: editingProduct.unit || 'قطعة',
       created_at: editingProduct.created_at || new Date().toISOString(),
     };
