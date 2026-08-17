@@ -42,6 +42,8 @@ export async function searchSupabaseProducts(term: string, limit = 20): Promise<
     image_url: p.images?.[0] || '',
     stock: p.stock ?? 0,
     is_active: p.is_active ?? true,
+    is_returnable: p.is_returnable ?? false,
+    min_order_quantity: p.min_order_quantity ?? 1,
     unit: p.attributes?.unit || 'قطعة',
     created_at: p.created_at || new Date().toISOString(),
   }));
@@ -67,6 +69,7 @@ export async function fetchSupabaseProducts(storeId?: string): Promise<Product[]
       stock: p.stock ?? 0,
       is_active: p.is_active ?? true,
       is_returnable: p.is_returnable ?? false,
+      min_order_quantity: p.min_order_quantity ?? 1,
       unit: p.attributes?.unit || 'قطعة',
       created_at: p.created_at || new Date().toISOString(),
     }));
@@ -103,6 +106,7 @@ export async function fetchAllSupabaseProductsWithStore(limit = 1000): Promise<P
     stock: p.stock ?? 0,
     is_active: p.is_active ?? true,
     is_returnable: p.is_returnable ?? false,
+    min_order_quantity: p.min_order_quantity ?? 1,
     unit: p.attributes?.unit || 'قطعة',
     created_at: p.created_at || new Date().toISOString(),
   }));
@@ -127,6 +131,7 @@ export async function saveSupabaseProduct(product: Partial<Product>): Promise<Pr
     images: product.image_url ? [product.image_url] : [],
     is_active: product.is_active ?? true,
     is_returnable: product.is_returnable ?? false,
+    min_order_quantity: product.min_order_quantity && product.min_order_quantity >= 1 ? Math.floor(product.min_order_quantity) : 1,
     updated_at: new Date().toISOString(),
   };
 
@@ -148,6 +153,7 @@ export async function saveSupabaseProduct(product: Partial<Product>): Promise<Pr
     stock: p.stock ?? 0,
     is_active: p.is_active ?? true,
     is_returnable: p.is_returnable ?? false,
+    min_order_quantity: p.min_order_quantity ?? 1,
     unit: product.unit || 'قطعة',
     created_at: p.created_at || new Date().toISOString(),
   };

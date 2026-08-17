@@ -4,6 +4,7 @@ import { formatCurrency } from '../../lib/formatters';
 import { StorageRepo, subscribeToStorageChange } from '../../lib/storage';
 // المسار الصحيح لـ cart-store
 import { useCartStore } from '../../stores/cart-store';
+import { getStoreOpenStatus } from '../../lib/store-hours';
 import { Star, MapPin, Clock, Truck, ShoppingBag, Heart } from 'lucide-react';
 
 interface StoreCardProps {
@@ -15,6 +16,7 @@ export const StoreCard: React.FC<StoreCardProps> = ({ store, onSelect }) => {
   const [isWishlisted, setIsWishlisted] = useState<boolean>(
     StorageRepo.isStoreWishlisted(store.id)
   );
+  const openStatus = getStoreOpenStatus(store);
 
   // استخدام cart-store إذا لزم الأمر
   const { addItem } = useCartStore();
@@ -55,14 +57,17 @@ export const StoreCard: React.FC<StoreCardProps> = ({ store, onSelect }) => {
 
         {/* Status Badge */}
         <div className="absolute top-3 right-3 z-10">
-          {store.is_open ? (
+          {openStatus.isOpen ? (
             <span className="bg-emerald-500/90 backdrop-blur-md text-white text-[11px] font-bold px-2.5 py-1 rounded-full shadow-sm flex items-center gap-1">
               <span className="w-1.5 h-1.5 bg-white rounded-full animate-ping" />
               مفتوح للطلبات
             </span>
           ) : (
-            <span className="bg-rose-500/90 backdrop-blur-md text-white text-[11px] font-bold px-2.5 py-1 rounded-full shadow-sm">
-              مغلق مؤقتاً
+            <span
+              className="bg-rose-500/90 backdrop-blur-md text-white text-[11px] font-bold px-2.5 py-1 rounded-full shadow-sm"
+              title={openStatus.label}
+            >
+              مغلق الآن
             </span>
           )}
         </div>

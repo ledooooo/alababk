@@ -973,10 +973,15 @@ export const StorageRepo = {
   },
 
   getCurrentAgent(): DeliveryAgent | null {
+    // كانت هذه الدالة بترجع agents[0] (أول مندوب في القائمة كلها) لو
+    // المستخدم الحالي مش موجود كمندوب، سواء لسه مفيش مستخدم مسجَّل دخوله
+    // أصلًا أو لسه سجل المندوب بتاعه ما اتحمّلش في الكاش. ده كان بيخلي
+    // أي شاشة تعتمد على الدالة دي (استلام الطلبات، الأرباح، البروفايل)
+    // ممكن تعرض/تتصرف باسم مندوب تاني تمامًا غير المستخدم الفعلي —
+    // مشكلة هوية خطيرة، مش مجرد بيانات وهمية للعرض.
     const user = this.getCurrentUser();
-    const agents = this.getAgents();
-    if (!user) return agents[0] || null;
-    return this.getAgentByUserId(user.id) || agents[0] || null;
+    if (!user) return null;
+    return this.getAgentByUserId(user.id);
   },
 
   // --- REVIEWS ---

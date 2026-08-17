@@ -12,7 +12,12 @@ interface DeliveryAvailableViewProps {
 
 export default function DeliveryAvailableView({ onOrderClaimed }) {
   const currentUser = StorageRepo.getCurrentUser();
-  const agent = StorageRepo.getAgentByUserId(currentUser?.id || 'usr-agent-1') || StorageRepo.getAgents()[0];
+  // كانت هنا بتستخدم StorageRepo.getAgentByUserId(currentUser?.id || 'usr-agent-1')
+  // ثم StorageRepo.getAgents()[0] كـfallback — يعني لو سجل المندوب بتاع
+  // المستخدم الحالي لسه ما اتحمّلش، كان ممكن يستلم الطلب باسم مندوب
+  // تاني تمامًا (أول واحد في القائمة). getCurrentAgent() دلوقتي بترجع
+  // null بأمان بدل هوية مزيّفة (انظر التعديل في storage.ts).
+  const agent = StorageRepo.getCurrentAgent();
   const [availableOrders, setAvailableOrders] = useState<Order[]>([]);
 
   useEffect(() => {
@@ -50,13 +55,18 @@ export default function DeliveryAvailableView({ onOrderClaimed }) {
     }
 
     try {
+      // كانت هنا بتستخدم إحداثيات القاهرة الافتراضية (30.0450, 31.2370)
+      // لو موقع المندوب الحي لسه ما وصلش — يعني العميل يشوف "الكابتن"
+      // في مكان وهمي وسط القاهرة بدل ما يظهر إن الموقع لسه غير متاح.
+      // دلوقتي بنبعت null بصراحة، والموقع الحقيقي هيتحدّث تلقائيًا أول
+      // ما DeliveryActiveOrdersView تبدأ تتابع GPS الجهاز (watchPosition).
       await StorageRepo.updateOrderStatus(order.id, 'assigned', `تم تعيين الكابتن ${agent.name} للتوصيل`, {
         delivery_agent_id: agent.id,
         delivery_agent_name: agent.name,
         delivery_agent_phone: agent.phone,
         delivery_agent_vehicle: agent.vehicle_type,
-        delivery_agent_lat: agent.current_lat || 30.0450,
-        delivery_agent_lng: agent.current_lng || 31.2370,
+        delivery_agent_lat: agent.current_lat ?? null,
+        delivery_agent_lng: agent.current_lng ?? null,
       });
       showToast({ type: 'success', title: 'تم', message: 'تم استلام الطلب بنجاح' });
       onOrderClaimed(order.id);

@@ -1,7 +1,26 @@
 // src/lib/supabase/stores.ts
 import { supabase } from './client';
 import { ensureUUID, isValidUUID, extractCoordinates, translateSupabaseError } from './helpers';
-import { Store } from '../../types/domain';
+import { Store, StoreWorkingHours, getDefaultWorkingHours, WEEK_DAYS } from '../../types/domain';
+
+/**
+ * working_hours jsonb ممكن يكون فاضي ({}) على المتاجر القديمة (القيمة
+ * الافتراضية في الـschema)، أو بالشكل الجديد الكامل (is_24_7 + schedule)،
+ * فبنتحقق من الشكل قبل الاستخدام بدل الافتراض إنه دايمًا سليم.
+ */
+function parseWorkingHours(raw: any): StoreWorkingHours {
+  if (raw && typeof raw === 'object' && 'schedule' in raw && raw.schedule) {
+    const defaults = getDefaultWorkingHours();
+    return {
+      is_24_7: !!raw.is_24_7,
+      schedule: WEEK_DAYS.reduce((acc, day) => {
+        acc[day] = raw.schedule[day] || defaults.schedule[day];
+        return acc;
+      }, {} as StoreWorkingHours['schedule']),
+    };
+  }
+  return getDefaultWorkingHours();
+}
 
 export function mapStoreRow(s: any): Store {
   const coords = extractCoordinates(s.location || s);
@@ -27,7 +46,7 @@ export function mapStoreRow(s: any): Store {
     commission_rate: Number(s.commission_pct ?? 15),
     min_order_amount: Number(s.min_order_amount ?? 0),
     delivery_fee: 0, // لا يوجد عمود ثابت لهذا في الـschema؛ القيمة الفعلية تُحسب وقت الطلب حسب المنطقة
-    opening_hours: s.working_hours || { everyday: { open: '08:00', close: '23:00' } },
+    opening_hours: parseWorkingHours(s.working_hours),
     created_at: s.created_at || new Date().toISOString(),
   };
 }
@@ -131,6 +150,9 @@ export async function saveSupabaseStore(store: Partial<Store>, options: SaveStor
     logo_url: store.logo_url ?? null,
     cover_url: store.banner_url ?? null,
     min_order_amount: store.min_order_amount ?? 0,
+    // كانت working_hours مفقودة تمامًا من هذا الـpayload — أي تعديل
+    // لمواعيد العمل من الواجهة كان بيضيع تمامًا وميتخزّنش أبدًا.
+    working_hours: store.opening_hours ?? undefined,
     updated_at: new Date().toISOString(),
   };
 

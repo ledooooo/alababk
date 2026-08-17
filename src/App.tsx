@@ -416,6 +416,12 @@ function StoreSettingsRoute() {
   return <StoreSettingsView onNavigate={(tab) => navigate(mapTabToPath(tab))} />;
 }
 
+function AdminStoreSettingsRoute() {
+  const navigate = useNavigate();
+  const { storeId } = useParams<{ storeId: string }>();
+  return <StoreSettingsView adminStoreId={storeId!} onNavigate={(tab) => navigate(mapTabToPath(tab))} />;
+}
+
 // ===== Delivery agent wrappers =====
 function DeliveryDashboardRoute() {
   const navigate = useNavigate();
@@ -606,6 +612,7 @@ export default function App() {
               <Route path="/admin/stores-applications" element={<ProtectedRoute allowedRoles={['admin']}><AdminStoresApplicationsView /></ProtectedRoute>} />
               <Route path="/admin/stores" element={<ProtectedRoute allowedRoles={['admin']}><AdminStoresView /></ProtectedRoute>} />
               <Route path="/admin/stores/:storeId/products" element={<ProtectedRoute allowedRoles={['admin']}><AdminStoreProductsRoute /></ProtectedRoute>} />
+              <Route path="/admin/stores/:storeId/settings" element={<ProtectedRoute allowedRoles={['admin']}><AdminStoreSettingsRoute /></ProtectedRoute>} />
               <Route path="/admin/products" element={<ProtectedRoute allowedRoles={['admin']}><AdminProductsView /></ProtectedRoute>} />
               <Route path="/admin/agents" element={<ProtectedRoute allowedRoles={['admin']}><AdminAgentsView /></ProtectedRoute>} />
               <Route path="/admin/customers" element={<ProtectedRoute allowedRoles={['admin']}><AdminCustomersView /></ProtectedRoute>} />

@@ -102,6 +102,8 @@ export default function StoreProductsView({ onNavigate, adminStoreId }: StorePro
       image_url: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=400',
       stock: 20,
       is_active: true,
+      is_returnable: false,
+      min_order_quantity: 1,
       unit: 'قطعة',
     });
     setIsModalOpen(true);
@@ -133,6 +135,7 @@ export default function StoreProductsView({ onNavigate, adminStoreId }: StorePro
       stock: Number(editingProduct.stock || 10),
       is_active: editingProduct.is_active ?? true,
       is_returnable: editingProduct.is_returnable ?? false,
+      min_order_quantity: editingProduct.min_order_quantity && editingProduct.min_order_quantity >= 1 ? editingProduct.min_order_quantity : 1,
       unit: editingProduct.unit || 'قطعة',
       created_at: editingProduct.created_at || new Date().toISOString(),
     };
@@ -438,7 +441,7 @@ export default function StoreProductsView({ onNavigate, adminStoreId }: StorePro
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">وحدة القياس</label>
                   <input
@@ -456,6 +459,17 @@ export default function StoreProductsView({ onNavigate, adminStoreId }: StorePro
                     type="number"
                     value={editingProduct.stock ?? 20}
                     onChange={(e) => setEditingProduct({ ...editingProduct, stock: Number(e.target.value) })}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">أقل كمية للطلب</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={editingProduct.min_order_quantity ?? 1}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, min_order_quantity: Math.max(1, Number(e.target.value)) })}
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>

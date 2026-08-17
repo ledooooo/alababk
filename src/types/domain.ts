@@ -110,6 +110,47 @@ export interface Category {
   sort_order: number;
 }
 
+export const WEEK_DAYS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
+export type WeekDay = typeof WEEK_DAYS[number];
+
+export const WEEK_DAY_LABELS_AR: Record<WeekDay, string> = {
+  sun: 'الأحد',
+  mon: 'الإثنين',
+  tue: 'الثلاثاء',
+  wed: 'الأربعاء',
+  thu: 'الخميس',
+  fri: 'الجمعة',
+  sat: 'السبت',
+};
+
+export interface DaySchedule {
+  open: string; // "HH:mm" مثل "09:00"
+  close: string; // "HH:mm" مثل "23:00"
+  closed: boolean; // يوم عطلة كامل
+}
+
+export interface StoreWorkingHours {
+  /** المتجر يعمل 24 ساعة يوميًا بلا انقطاع — لو true، الجدول اليومي (schedule) يُتجاهل تمامًا */
+  is_24_7: boolean;
+  schedule: Record<WeekDay, DaySchedule>;
+}
+
+export function getDefaultWorkingHours(): StoreWorkingHours {
+  const defaultDay: DaySchedule = { open: '09:00', close: '23:00', closed: false };
+  return {
+    is_24_7: false,
+    schedule: {
+      sun: { ...defaultDay },
+      mon: { ...defaultDay },
+      tue: { ...defaultDay },
+      wed: { ...defaultDay },
+      thu: { ...defaultDay },
+      fri: { ...defaultDay },
+      sat: { ...defaultDay },
+    },
+  };
+}
+
 export interface Store {
   id: string;
   name: string;
@@ -139,7 +180,7 @@ export interface Store {
   // تُحسَب ديناميكيًا حسب منطقة العميل عبر calculate_delivery_fee/quote_order_secure.
   // هذا الحقل اختياري ويُستخدم فقط كقيمة عرض تقريبية (تبدأ من...) عند توفرها.
   delivery_fee?: number;
-  opening_hours?: { [key: string]: { open: string; close: string; closed?: boolean } };
+  opening_hours?: StoreWorkingHours;
   created_at: string;
 }
 
@@ -158,6 +199,8 @@ export interface Product {
   is_active: boolean;
   /** يحدّده الأدمن/صاحب المتجر: هل يجوز طلب استرجاع لهذا المنتج (انظر request_refund في fix_08) */
   is_returnable: boolean;
+  /** أقل كمية يجوز طلبها من هذا المنتج في نفس الطلب (افتراضي 1) */
+  min_order_quantity: number;
   unit: string; // e.g. "كجم", "قطعة", "علبة", "لتر"
   created_at: string;
 }

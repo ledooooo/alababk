@@ -210,6 +210,11 @@ export const useCartStore = create<CartState>()((set, get) => ({
       return { success: false, requiresConfirm: true };
     }
 
+    // لو المنتج له حد أدنى للكمية، نضمن إن أول إضافة للعربة توافقه —
+    // بدل ما نسمح بإضافة كمية أقل من المسموح بيها للمنتج ده.
+    const minQty = product.min_order_quantity && product.min_order_quantity > 1 ? product.min_order_quantity : 1;
+    const effectiveQuantity = Math.max(quantity, minQty);
+
     const existingIndex = items.findIndex((i: CartLineItem) => i.product.id === product.id);
     const updatedItems = [...items];
     const existingItem = updatedItems[existingIndex];
@@ -217,11 +222,11 @@ export const useCartStore = create<CartState>()((set, get) => ({
     if (existingIndex >= 0 && existingItem) {
       updatedItems[existingIndex] = {
         ...existingItem,
-        quantity: existingItem.quantity + quantity,
+        quantity: existingItem.quantity + effectiveQuantity,
         notes: notes || existingItem.notes,
       };
     } else {
-      updatedItems.push({ product, quantity, notes });
+      updatedItems.push({ product, quantity: effectiveQuantity, notes });
     }
 
     const newStoreId = product.store_id;

@@ -8,6 +8,8 @@ import StoreReviewsSection  from './StoreReviewsSection';
 import StoreCategoryFilterBar from './StoreCategoryFilterBar';
 import { Pagination } from '../../shared/Pagination';
 import { formatCurrency } from '../../../lib/formatters';
+import { getStoreOpenStatus } from '../../../lib/store-hours';
+import { WEEK_DAYS, WEEK_DAY_LABELS_AR } from '../../../types/domain';
 import {
   ArrowRight,
   Star,
@@ -229,16 +231,19 @@ export default function CustomerStoreDetailView({
                   <span>{isWishlisted ? 'في المفضلة' : 'إضافة للمفضلة'}</span>
                 </button>
 
-                {store.is_open ? (
-                  <span className="bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 bg-emerald-600 rounded-full animate-ping" />
-                    مفتوح للطلبات
-                  </span>
-                ) : (
-                  <span className="bg-rose-100 text-rose-800 border border-rose-200 text-xs font-bold px-2.5 py-0.5 rounded-full">
-                    مغلق مؤقتاً
-                  </span>
-                )}
+                {(() => {
+                  const openStatus = getStoreOpenStatus(store);
+                  return openStatus.isOpen ? (
+                    <span className="bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 bg-emerald-600 rounded-full animate-ping" />
+                      {openStatus.label}
+                    </span>
+                  ) : (
+                    <span className="bg-rose-100 text-rose-800 border border-rose-200 text-xs font-bold px-2.5 py-0.5 rounded-full">
+                      {openStatus.label}
+                    </span>
+                  );
+                })()}
               </div>
 
               <p className="text-slate-600 text-xs mt-1 max-w-2xl leading-relaxed">
@@ -255,6 +260,33 @@ export default function CustomerStoreDetailView({
                   {store.phone}
                 </span>
               </div>
+
+              {/* مواعيد العمل الكاملة */}
+              {store.opening_hours && (
+                <details className="mt-2 text-xs">
+                  <summary className="cursor-pointer text-slate-500 font-medium flex items-center gap-1 w-fit">
+                    <Clock className="w-3.5 h-3.5" />
+                    عرض مواعيد العمل الكاملة
+                  </summary>
+                  <div className="mt-2 bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-1 max-w-xs">
+                    {store.opening_hours.is_24_7 ? (
+                      <p className="font-bold text-emerald-700">يعمل المتجر على مدار الساعة كل يوم</p>
+                    ) : (
+                      WEEK_DAYS.map((day) => {
+                        const d = store.opening_hours!.schedule[day];
+                        return (
+                          <div key={day} className="flex items-center justify-between text-slate-600">
+                            <span className="font-bold">{WEEK_DAY_LABELS_AR[day]}</span>
+                            <span className={d.closed ? 'text-rose-600 font-bold' : ''}>
+                              {d.closed ? 'عطلة' : `${d.open} - ${d.close}`}
+                            </span>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </details>
+              )}
             </div>
 
             {/* Metrics Chips */}

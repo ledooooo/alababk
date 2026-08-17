@@ -473,7 +473,7 @@ export default function AdminProductsView() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">السعر (ج.م)</label>
                 <input
@@ -492,6 +492,16 @@ export default function AdminProductsView() {
                   min="0"
                   value={editingProduct.stock}
                   onChange={(e) => setEditingProduct({ ...editingProduct, stock: Number(e.target.value) })}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">أقل كمية للطلب</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={editingProduct.min_order_quantity ?? 1}
+                  onChange={(e) => setEditingProduct({ ...editingProduct, min_order_quantity: Math.max(1, Number(e.target.value)) })}
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                 />
               </div>

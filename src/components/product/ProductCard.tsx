@@ -108,6 +108,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         <p className="text-[11px] text-slate-500 mt-1 line-clamp-1">
           {product.description || `وحدة القياس: ${product.unit}`}
         </p>
+
+        {product.min_order_quantity > 1 && (
+          <p className="text-[10px] text-amber-700 bg-amber-50 border border-amber-100 rounded-md px-1.5 py-0.5 mt-1 inline-block font-bold">
+            الحد الأدنى للطلب: {product.min_order_quantity} {product.unit}
+          </p>
+        )}
       </div>
 
       {/* Price & Cart Actions */}
@@ -132,8 +138,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             <div className="flex items-center border border-emerald-600 rounded-lg bg-emerald-50 text-emerald-800 font-bold text-xs shadow-xs">
               <button
                 onClick={handleDecrement}
-                className="p-1.5 hover:bg-emerald-100 rounded-r-md transition-colors"
-                title="تقليل الكمية"
+                disabled={currentQuantity <= (product.min_order_quantity || 1)}
+                title={
+                  currentQuantity <= (product.min_order_quantity || 1)
+                    ? `أقل كمية للطلب: ${product.min_order_quantity || 1}`
+                    : 'تقليل الكمية'
+                }
+                className="p-1.5 hover:bg-emerald-100 disabled:opacity-30 disabled:hover:bg-transparent rounded-r-md transition-colors"
               >
                 <Minus className="w-3.5 h-3.5 text-emerald-800" />
               </button>

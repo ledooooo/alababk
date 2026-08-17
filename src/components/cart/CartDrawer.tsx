@@ -110,7 +110,13 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                         <div className="flex items-center border border-slate-300 rounded-lg bg-white">
                           <button
                             onClick={() => updateQuantity(item.product.id, item.quantity - 1)}
-                            className="p-1 hover:bg-slate-100 text-slate-600 rounded-r-lg transition-colors"
+                            disabled={item.quantity <= (item.product.min_order_quantity || 1)}
+                            title={
+                              item.quantity <= (item.product.min_order_quantity || 1)
+                                ? `أقل كمية للطلب من هذا المنتج: ${item.product.min_order_quantity || 1}`
+                                : undefined
+                            }
+                            className="p-1 hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent text-slate-600 rounded-r-lg transition-colors"
                           >
                             <Minus className="w-3.5 h-3.5" />
                           </button>

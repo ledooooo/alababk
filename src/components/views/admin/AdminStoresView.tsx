@@ -5,7 +5,7 @@ import { subscribeSupabase, fetchSupabaseUsers } from '../../../lib/supabase';
 import { Store, UserProfile, Category } from '../../../types/domain';
 import { formatCurrency, formatPhoneNumber } from '../../../lib/formatters';
 import { Pagination } from '../../shared/Pagination';
-import { Store as StoreIcon, Plus, Edit2, Trash2, Power, Star, Search, Package, User as UserIcon, X } from 'lucide-react';
+import { Store as StoreIcon, Plus, Edit2, Trash2, Power, Star, Search, Package, User as UserIcon, X, Clock } from 'lucide-react';
 import { useToast } from '../../shared/Toast';
 import { useConfirm } from '../../shared/ConfirmDialog';
 
@@ -361,6 +361,13 @@ export default function AdminStoresView() {
                           title="إدارة المنتجات والصور"
                         >
                           <Package className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => navigate(`/admin/stores/${s.id}/settings`)}
+                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="إعدادات المتجر (مواعيد العمل، الحد الأدنى للطلب)"
+                        >
+                          <Clock className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => handleDeleteStore(s.id, s.name)}
