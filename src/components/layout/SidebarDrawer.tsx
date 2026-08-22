@@ -12,6 +12,7 @@ import {
   LayoutGrid,
   Bell,
   Package,
+  QrCode,
   Star,
   DollarSign,
   TrendingUp,
@@ -619,6 +620,19 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                   <div className="flex items-center gap-2.5">
                     <Package className="w-4 h-4" />
                     <span>المنتجات (كل المتاجر)</span>
+                  </div>
+                  <ChevronLeft className="w-4 h-4 opacity-60" />
+                </button>
+
+                <button
+                  onClick={() => onNavigate('/admin/store-qr-codes')}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                    isActive('/admin/store-qr-codes') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <QrCode className="w-4 h-4" />
+                    <span>أكواد QR للمتاجر</span>
                   </div>
                   <ChevronLeft className="w-4 h-4 opacity-60" />
                 </button>
