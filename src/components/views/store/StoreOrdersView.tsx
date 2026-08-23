@@ -118,18 +118,10 @@ export default function StoreOrdersView({ onNavigate }) {
   const handleAcceptOrder = async (orderId: string, prepTimeMinutes = 20) => {
     setProcessingOrderId(orderId);
     try {
-      // trigger_validate_order_status_transition في قاعدة البيانات بيمنع
-      // القفز المباشر من 'pending' لـ'preparing' (مسموح بس pending→accepted
-      // أو accepted→preparing، خطوة واحدة في كل مرة) — ورفضه بيرجع كود
-      // 42501 اللي بيتترجم في الواجهة لرسالة "صلاحية غير كافية" المُضلِّلة،
-      // رغم إن المشكلة مش صلاحيات أصلًا. الزرار لسه "قبول وبدء التحضير"
-      // بضغطة واحدة من ناحية المستخدم، بس بقى بيعدّي فعليًا عبر 'accepted'
-      // كخطوة وسيطة إجبارية تحترم آلة الحالة في القاعدة.
-      await StorageRepo.updateOrderStatus(orderId, 'accepted', 'تم قبول الطلب من المتجر');
       await StorageRepo.updateOrderStatus(
         orderId,
         'preparing',
-        `جاري تحضير الطلب بالمحل (الوقت المتوقع: ${prepTimeMinutes} دقيقة)`
+        `تم قبول الطلب وجاري التحضير بالمحل (الوقت المتوقع: ${prepTimeMinutes} دقيقة)`
       );
       showToast({ type: 'success', title: 'تم القبول', message: 'تم قبول الطلب وبدء التحضير' });
     } catch (err: any) {
@@ -168,17 +160,9 @@ export default function StoreOrdersView({ onNavigate }) {
     });
   };
 
-  const handleMarkReady = async (orderId: string, currentStatus: string) => {
+  const handleMarkReady = async (orderId: string) => {
     setProcessingOrderId(orderId);
     try {
-      // آلة الحالة في القاعدة بترفض accepted→ready مباشرة (يجب المرور
-      // بـ'preparing' أولًا)، لكن زرار "تم تجهيز الطلب" ظاهر لحالتي
-      // 'accepted' و'preparing' معًا في نفس الوقت. لو الطلب لسه في حالة
-      // 'accepted' (نادر بعد إصلاح handleAcceptOrder، لكن ممكن يحصل مع
-      // طلبات قديمة)، نعدّي بـ'preparing' كخطوة وسيطة تلقائية أولًا.
-      if (currentStatus === 'accepted') {
-        await StorageRepo.updateOrderStatus(orderId, 'preparing', 'جاري تحضير الطلب بالمحل');
-      }
       await StorageRepo.updateOrderStatus(
         orderId,
         'ready',
@@ -461,7 +445,7 @@ export default function StoreOrdersView({ onNavigate }) {
 
                     {['accepted', 'preparing'].includes(order.status) && (
                       <button
-                        onClick={() => handleMarkReady(order.id, order.status)}
+                        onClick={() => handleMarkReady(order.id)}
                         disabled={processingOrderId === order.id}
                         className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-bold text-xs rounded-xl shadow-md transition-colors flex items-center gap-1.5"
                       >
