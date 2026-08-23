@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { StorageRepo, subscribeToStorageChange } from '../../lib/storage';
 import { subscribeToNotifications, supabase } from '../../lib/supabase';
 import { useCartStore } from '../../stores/cart-store';
 import { SidebarDrawer } from './SidebarDrawer';
 import { UserProfile, Order, DeliveryZone } from '../../types/domain';
+import { playNotificationSound, unlockNotificationAudio } from '../../lib/notificationSound';
 import {
   ShoppingBag,
   MapPin,
@@ -26,6 +27,37 @@ export const Navbar: React.FC<NavbarProps> = ({ currentUser }) => {
   const [zones, setZones] = useState<DeliveryZone[]>(StorageRepo.getZones());
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
+  const originalTitleRef = useRef<string>(typeof document !== 'undefined' ? document.title : '');
+  const flashIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // فك قفل تشغيل الصوت بمجرد أول تفاعل من المستخدم مع الصفحة (متطلب أمان
+  // من المتصفحات — راجع notificationSound.ts). Navbar موجود في كل صفحة،
+  // فده أضمن مكان نعمله فيه مرة واحدة بس.
+  useEffect(() => {
+    unlockNotificationAudio();
+  }, []);
+
+  // وميض عنوان التاب لما التاب يبقى مش هو المفتوح قدام المستخدم، عشان
+  // الإشعار يبقى "مرئي بشكل واضح" حتى لو مركّز في تاب/برنامج تاني
+  const flashTabTitle = () => {
+    if (typeof document === 'undefined' || !document.hidden) return;
+    if (flashIntervalRef.current) return; // وميض شغال بالفعل، متكررش
+    let showAlert = true;
+    flashIntervalRef.current = setInterval(() => {
+      document.title = showAlert ? '🔔 إشعار جديد!' : originalTitleRef.current;
+      showAlert = !showAlert;
+    }, 1200);
+
+    const stopFlashing = () => {
+      if (flashIntervalRef.current) {
+        clearInterval(flashIntervalRef.current);
+        flashIntervalRef.current = null;
+      }
+      document.title = originalTitleRef.current;
+      document.removeEventListener('visibilitychange', stopFlashing);
+    };
+    document.addEventListener('visibilitychange', stopFlashing);
+  };
   
   // استخدم useCartStore بشكل صحيح
   const cartItemCount = useCartStore((state) => state.getItemCount());
@@ -119,11 +151,27 @@ export const Navbar: React.FC<NavbarProps> = ({ currentUser }) => {
 
     StorageRepo.refreshNotifications(user.id).then(syncUnread).catch(syncUnread);
 
-    const unsubscribeNotifs = subscribeToNotifications(user.id, () => {
+    const unsubscribeNotifs = subscribeToNotifications(user.id, (payload) => {
       StorageRepo.refreshNotifications(user.id).then(syncUnread).catch(syncUnread);
+
+      // الصوت والوميض بس عند وصول إشعار حقيقي جديد (INSERT فعلي من
+      // الـtrigger)، مش عند أي إعادة تحميل عادية — ومقصورين على صاحب
+      // المتجر والمندوب زي ما اتطلب بالظبط (أدوار محتاجة تنبيه فوري لطلبات
+      // شغالة، بعكس العميل اللي بيتابع طلبه هو بنفسه وهو فاتح التطبيق).
+      if (payload.eventType === 'INSERT' && (user.role === 'store_owner' || user.role === 'delivery_agent')) {
+        playNotificationSound();
+        flashTabTitle();
+      }
     });
 
-    return () => unsubscribeNotifs();
+    return () => {
+      unsubscribeNotifs();
+      if (flashIntervalRef.current) {
+        clearInterval(flashIntervalRef.current);
+        flashIntervalRef.current = null;
+        document.title = originalTitleRef.current;
+      }
+    };
   }, [user?.id]);
 
   const role = user?.role || 'customer';

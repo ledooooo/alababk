@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { StorageRepo } from '../../../lib/storage';
 import { User, Phone, ShieldCheck, Truck, FileText, CheckCircle2, Camera, MapPin, Power } from 'lucide-react';
 import { useToast } from '../../shared/Toast';
+import PushNotificationSettingsCard from '../../shared/PushNotificationSettingsCard';
 export default function DeliveryProfileView() {
   const currentAgent = StorageRepo.getCurrentAgent();
   const [fullName, setFullName] = useState(currentAgent?.name || 'كابتن محمود علي');
@@ -54,6 +55,8 @@ export default function DeliveryProfileView() {
           </div>
         </div>
       </div>
+
+      <PushNotificationSettingsCard userId={currentAgent?.user_id} />
 
       {/* Verification Status */}
       <div className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs flex items-center justify-between gap-4">

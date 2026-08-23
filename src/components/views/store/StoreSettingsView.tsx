@@ -7,6 +7,7 @@ import { Store as StoreIcon, Clock, MapPin, Phone, Save, Check, Loader2, AlertCi
 import { useToast } from '../../shared/Toast';
 import { ImageUploadField } from '../../shared/ImageUploadField';
 import { WorkingHoursEditor } from '../../shared/WorkingHoursEditor';
+import PushNotificationSettingsCard from '../../shared/PushNotificationSettingsCard';
 
 interface StoreSettingsViewProps {
   onNavigate: (tab: string) => void;
@@ -214,6 +215,11 @@ export default function StoreSettingsView({ onNavigate, adminStoreId }: StoreSet
           />
         </button>
       </div>
+
+      {/* الإشعارات الفورية — بس لما صاحب المتجر بيدير إعدادات متجره هو (مش
+          وضع الأدمن، لأن تفعيل Push مرتبط بمتصفح/جهاز المستخدم نفسه ومش
+          حاجة الأدمن يقدر يفعّلها نيابة عن حد تاني). */}
+      {!adminStoreId && <PushNotificationSettingsCard userId={store?.owner_id} />}
 
       <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs space-y-4">
         <h3 className="font-bold text-slate-900 text-sm border-b border-slate-100 pb-2">
