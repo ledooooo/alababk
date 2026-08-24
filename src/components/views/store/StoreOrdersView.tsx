@@ -118,6 +118,14 @@ export default function StoreOrdersView({ onNavigate }) {
   const handleAcceptOrder = async (orderId: string, prepTimeMinutes = 20) => {
     setProcessingOrderId(orderId);
     try {
+      // ملاحظة: الـ state machine في القاعدة بتسمح بـ pending -> accepted -> preparing
+      // بس مش pending -> preparing مباشرة، فلازم نعدّي على 'accepted' الأول.
+      // الزرار ده بيعمل الخطتين عشان يحافظ على UX "قبول + بدء تحضير" بكبسة واحدة.
+      await StorageRepo.updateOrderStatus(
+        orderId,
+        'accepted',
+        'تم قبول الطلب'
+      );
       await StorageRepo.updateOrderStatus(
         orderId,
         'preparing',
@@ -125,6 +133,16 @@ export default function StoreOrdersView({ onNavigate }) {
       );
       showToast({ type: 'success', title: 'تم القبول', message: 'تم قبول الطلب وبدء التحضير' });
     } catch (err: any) {
+      // لو قبول فشل (مفيش صلاحية مثلاً)، نحاول نرجّع الحالة لـ 'pending' عشان
+      // اليوزر يقدر يحاول تاني. الخطأ من أول استدعاء يطلعه زي ما هو.
+      try {
+        const current = StorageRepo.getOrderById(orderId);
+        if (current && current.status === 'accepted') {
+          await StorageRepo.updateOrderStatus(orderId, 'pending', 'فشل بدء التحضير، إعادة للحالة السابقة');
+        }
+      } catch {
+        // ما نوقفش الـ UX — بس نخبّر اليوزر بالخطأ الأصلي
+      }
       showToast({
         type: 'error',
         title: 'تعذّر قبول الطلب',
