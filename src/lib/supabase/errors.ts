@@ -12,7 +12,18 @@ export function translateSupabaseError(error: unknown): { message: string; code?
       case 'PGRST301':
         return { message: 'غير مصرّح به - تأكد من تسجيل الدخول', code: 'unauthorized' };
       case '42501':
-        return { message: 'صلاحية غير كافية - هذا الإجراء يحتاج صلاحيات إضافية', code: 'insufficient_permission' };
+        // رسائل RLS/الـtriggers بتاعتنا (زي validate_order_status_transition،
+        // lock_order_financial_fields...) بترجع نص عربي دقيق ومفيد بالفعل
+        // (مثلاً: "هذا الإجراء يقتصر على صاحب المتجر"). كنا قبل كده بنمسحه
+        // ونستبدله برسالة عامة موحّدة لكل حالات 42501، فكان بيضيع السبب
+        // الحقيقي وبيصعّب تشخيص أي مشكلة صلاحيات فعلية. دلوقتي نفضّل رسالة
+        // القاعدة الفعلية لو موجودة، ونرجع للعامة بس لو مفيش رسالة مخصصة.
+        return {
+          message: pgError.message && pgError.message.length > 0
+            ? pgError.message
+            : 'صلاحية غير كافية - هذا الإجراء يحتاج صلاحيات إضافية',
+          code: 'insufficient_permission',
+        };
       case '23503':
         return { message: 'تعارض مع بيانات أخرى - قد يكون المرجع غير موجود', code: 'foreign_key_violation' };
       case '23505':
