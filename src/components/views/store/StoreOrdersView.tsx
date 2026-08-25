@@ -181,6 +181,19 @@ export default function StoreOrdersView({ onNavigate }) {
   const handleMarkReady = async (orderId: string) => {
     setProcessingOrderId(orderId);
     try {
+      // الـ state machine: pending -> accepted -> preparing -> ready -> ...
+      // الزرار "تم التجهيز" لازم يوصّل لـ 'ready'، بس لو الطلب لسه في
+      // 'accepted' (مثلاً: قبول سابق فشل في خطوة 'preparing'، أو اليوزر
+      // فتح الطلب من تاب "preparing" اللي بيضم الحالتين) لازم نعدّي على
+      // 'preparing' الأول عشان الـ trigger ما يرفضش.
+      const current = StorageRepo.getOrderById(orderId);
+      if (current && current.status === 'accepted') {
+        await StorageRepo.updateOrderStatus(
+          orderId,
+          'preparing',
+          'بدء التحضير (تفعّل تلقائيًا قبل التجهيز)'
+        );
+      }
       await StorageRepo.updateOrderStatus(
         orderId,
         'ready',
@@ -188,6 +201,17 @@ export default function StoreOrdersView({ onNavigate }) {
       );
       showToast({ type: 'success', title: 'تم التجهيز', message: 'تم تجهيز الطلب وجاهز للاستلام' });
     } catch (err: any) {
+      // rollback: لو 'preparing' نجح بس 'ready' فشل، نرجّع 'accepted' عشان
+      // اليوزر يقدر يحاول تاني. لو 'preparing' أصلاً ما اتنفّذش (الطلب
+      // كان 'preparing' من الأول) مفيش حاجة نرجّعها.
+      try {
+        const after = StorageRepo.getOrderById(orderId);
+        if (after && after.status === 'preparing') {
+          await StorageRepo.updateOrderStatus(orderId, 'accepted', 'فشل التحويل لـ ready، إعادة للحالة السابقة');
+        }
+      } catch {
+        // نتجاهل — نخبّر اليوزر بالخطأ الأصلي
+      }
       showToast({
         type: 'error',
         title: 'تعذّر التحديث',
