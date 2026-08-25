@@ -20,4 +20,5 @@ export * from './storage-upload';
 export * from './chat';
 export * from './realtime';
 export * from './admin';     // يحتوي على checkSupabaseConnection
-export * from './summary';   // يحتوي على fetchFinanceSummary و FinanceSummaryItem
+export * from './stats';     // يحتوي على fetchAgentStats, fetchStoreStats, fetchFinanceSummary
+export * from './customer-insights';  // wrappers لـ fix_12 (is_address_in_any_zone, is_first_order, customer_order_count)
