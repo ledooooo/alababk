@@ -438,75 +438,8 @@ export async function fetchOrderStatusHistory(orderId: string): Promise<OrderSta
   }
 }
 
-// ===== إحصائيات الكابتن =====
-export async function fetchAgentStats(agentId: string): Promise<{
-  completed_deliveries: number;
-  total_trips: number;
-  total_earnings: number;
-  total_tips: number;
-  avg_rating: number;
-} | null> {
-  try {
-    // استخدام جدول delivery_agents مباشرة بدلاً من view (في حال عدم وجود view)
-    const { data, error } = await supabase
-      .from('delivery_agents')
-      .select('total_deliveries, total_earnings, rating_avg')
-      .eq('id', agentId)
-      .maybeSingle();
+// NOTE: تم نقل fetchAgentStats و fetchStoreStats إلى ./stats.ts
+// (النسخ هنا كانت dead code ومكررة، بتسبب تعارض في Vite/Rollup
+// لأن stats.ts بيـ export نفس الأسماء من جداول views مختلفة).
+// أي استيراد لهذه الدوال لازم يكون من supabase index.ts (مش من هنا مباشرةً).
 
-    if (error || !data) return null;
-    return {
-      completed_deliveries: data.total_deliveries || 0,
-      total_trips: data.total_deliveries || 0,
-      total_earnings: data.total_earnings || 0,
-      total_tips: 0, // ليس لدينا عمود منفصل للإكراميات
-      avg_rating: data.rating_avg || 0,
-    };
-  } catch {
-    return null;
-  }
-}
-
-// ===== إحصائيات المتجر =====
-export async function fetchStoreStats(storeId: string): Promise<{
-  delivered_orders: number;
-  total_orders: number;
-  total_revenue: number;
-  total_commission: number;
-  avg_rating: number;
-} | null> {
-  try {
-    // حساب الإحصائيات مباشرة من الطلبات والتقييمات
-    const { data: orders, error: ordersError } = await supabase
-      .from('orders')
-      .select('status, total, commission_amount, subtotal')
-      .eq('store_id', storeId);
-
-    if (ordersError || !orders) return null;
-
-    const delivered = orders.filter(o => o.status === 'delivered');
-    const totalRevenue = delivered.reduce((sum, o) => sum + (o.total || 0), 0);
-    const totalCommission = delivered.reduce((sum, o) => sum + (o.commission_amount || 0), 0);
-
-    // جلب متوسط التقييم
-    const { data: reviews } = await supabase
-      .from('reviews')
-      .select('store_rating')
-      .eq('store_id', storeId)
-      .not('store_rating', 'is', null);
-
-    const avgRating = reviews && reviews.length > 0
-      ? reviews.reduce((sum, r) => sum + r.store_rating, 0) / reviews.length
-      : 0;
-
-    return {
-      delivered_orders: delivered.length,
-      total_orders: orders.length,
-      total_revenue: totalRevenue,
-      total_commission: totalCommission,
-      avg_rating: avgRating,
-    };
-  } catch {
-    return null;
-  }
-}
