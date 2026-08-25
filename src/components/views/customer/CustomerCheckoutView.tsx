@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo } from '../../../lib/storage';
 import { quoteOrderSecure, createSecureOrder, upsertAddress, fetchAddresses } from '../../../lib/supabase';
+import { checkPointInZone, checkAddressZone } from '../../../lib/supabase/customer-insights';
 import { CustomerAddress } from '../../../types/domain';
 import { formatCurrency } from '../../../lib/formatters';
 import { useCartStore } from '../../../stores/cart-store';
 import { LeafletMap } from '../../shared/LeafletMap';
+import { ZoneStatusBadge, ZoneStatus } from '../../shared/ZoneStatusBadge';
 import {
   ArrowRight,
   MapPin,
@@ -36,6 +38,11 @@ export default function CustomerCheckoutView({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { showToast } = useToast();
+
+  // zone status للعنوان المختار (من العناوين المحفوظة)
+  const [selectedZoneStatus, setSelectedZoneStatus] = useState<ZoneStatus>(null);
+  // zone status للنقطة اللي اليوزر بيختارها على الخريطة (في وضع الإضافة)
+  const [pickedZoneStatus, setPickedZoneStatus] = useState<ZoneStatus>(null);
 
   // حالة التسعير
   const [quote, setQuote] = useState<{
@@ -152,6 +159,36 @@ export default function CustomerCheckoutView({
       updateQuote(selectedAddressId);
     }
   }, [selectedAddressId, couponCode, tipAmount, items]);
+
+  // فحص zone للعنوان المختار (المحفوظ في addresses)
+  useEffect(() => {
+    if (!selectedAddressId) {
+      setSelectedZoneStatus(null);
+      return;
+    }
+    let cancelled = false;
+    setSelectedZoneStatus('loading');
+    checkAddressZone(selectedAddressId)
+      .then((zone) => {
+        if (cancelled) return;
+        setSelectedZoneStatus(zone || 'outside');
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setSelectedZoneStatus(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedAddressId]);
+
+  // فحص zone للنقطة المختارة على الخريطة (في وضع إضافة عنوان جديد)
+  const handleCheckoutMapClick = async (pickedLat: number, pickedLng: number) => {
+    setNewAddress({ ...newAddress, lat: pickedLat, lng: pickedLng });
+    setPickedZoneStatus('loading');
+    const zone = await checkPointInZone(pickedLat, pickedLng);
+    setPickedZoneStatus(zone || 'outside');
+  };
 
   // ===== دوال معالجة العنوان =====
   const handleSaveNewAddress = async () => {
@@ -419,10 +456,13 @@ export default function CustomerCheckoutView({
               centerLng={newAddress.lng || 31.2357}
               zoom={14}
               interactiveSelect={true}
-              onLocationSelect={(lat, lng) => setNewAddress({ ...newAddress, lat, lng })}
+              onLocationSelect={handleCheckoutMapClick}
               height="260px"
               className="mt-2"
             />
+
+            {/* badge zone تحت الخريطة (feedback فوري) */}
+            <ZoneStatusBadge status={pickedZoneStatus} />
 
             <div className="flex gap-2">
               <button
@@ -474,6 +514,13 @@ export default function CustomerCheckoutView({
                   )}
                 </label>
               ))
+            )}
+
+            {/* badge zone للعنوان المختار — بيظهر تحت قائمة العناوين */}
+            {selectedAddressId && (
+              <div className="pt-2">
+                <ZoneStatusBadge status={selectedZoneStatus} />
+              </div>
             )}
           </div>
         )}

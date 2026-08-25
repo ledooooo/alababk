@@ -48,6 +48,42 @@ export async function checkAddressZone(addressId: string): Promise<ZoneMatch | n
 }
 
 /**
+ * هل النقطة (lat/lng) داخل zone نشطة؟
+ * نسخة من checkAddressZone بس بتاخد إحداثيات مباشرة — مفيدة للـ UX
+ * اللحظي على الخريطة لما اليوزر بيسحب البين (قبل ما يحفظ العنوان).
+ *
+ * @example
+ *   // في Leaflet onClick:
+ *   const zone = await checkPointInZone(lat, lng);
+ *   if (zone) {
+ *     setZoneBadge({ name: zone.zone_name, fee: zone.fee, eta: zone.eta_minutes });
+ *   } else {
+ *     setZoneBadge(null);  // "بره كل مناطق التوصيل"
+ *   }
+ */
+export async function checkPointInZone(lat: number, lng: number): Promise<ZoneMatch | null> {
+  if (lat == null || lng == null || isNaN(lat) || isNaN(lng)) return null;
+  try {
+    const { data, error } = await supabase.rpc('is_point_in_any_zone', {
+      p_lat: lat,
+      p_lng: lng,
+    });
+    if (error) throw error;
+    if (!data || data.length === 0) return null;
+    const row = data[0];
+    return {
+      zone_id: row.zone_id,
+      zone_name: row.zone_name,
+      fee: Number(row.fee),
+      eta_minutes: Number(row.eta_minutes),
+    };
+  } catch (err) {
+    console.error('checkPointInZone error:', translateSupabaseError(err).message);
+    return null;
+  }
+}
+
+/**
  * هل الطلب ده أول طلب ناجح للعميل؟
  * "ناجح" = status ليس cancelled أو rejected.
  *

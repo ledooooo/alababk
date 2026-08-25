@@ -47,3 +47,15 @@ export async function saveSupabaseZone(zone: Partial<DeliveryZone>): Promise<Del
     estimated_delivery_mins: Number(row.eta_minutes || 30),
   };
 }
+
+/**
+ * حذف منطقة من Supabase.
+ * ملاحظة: الـ RLS policies بتتحقق من صلاحيات الأدمن، فلازم المستدعي
+ * يكون admin/finance_admin/orders_manager — وإلا الـ supabase هيرجع
+ * 42501/403 وهيتـ throw.
+ */
+export async function deleteSupabaseZone(zoneId: string): Promise<void> {
+  const validId = ensureUUID(zoneId);
+  const { error } = await supabase.from('delivery_zones').delete().eq('id', validId);
+  if (error) throw new Error(translateSupabaseError(error).message);
+}

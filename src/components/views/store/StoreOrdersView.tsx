@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
 import { fetchSupabaseOrders, subscribeSupabase } from '../../../lib/supabase';
+import { checkAddressZone, isFirstOrder, getCustomerOrderCount } from '../../../lib/supabase/customer-insights';
 import { Order, OrderStatus, Store } from '../../../types/domain';
 import { formatCurrency, formatDateArabic, formatPhoneNumber } from '../../../lib/formatters';
 import { ORDER_STATUS_LABELS, getOrderStatusConfig } from '../../../lib/constants';
 import { Pagination } from '../../shared/Pagination';
 import OrderChatPanel from '../../shared/OrderChatPanel';
+import { ZoneStatusBadge, ZoneStatus } from '../../shared/ZoneStatusBadge';
+import { CustomerHistoryBadge, CustomerHistoryStatus } from '../../shared/CustomerHistoryBadge';
 import {
   ShoppingBag,
   Clock,
@@ -40,6 +43,12 @@ export default function StoreOrdersView({ onNavigate }) {
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [rejectingOrderId, setRejectingOrderId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('بعض المنتجات غير متوفرة بالمخزون حالياً');
+
+  // Zone status لكل order (id → ZoneStatus). بنعمل cache عشان ما نـ fire
+  // RPC على كل reload. الـ effect بيفحص الـ IDs الناقصة بس.
+  const [orderZones, setOrderZones] = useState<Record<string, ZoneStatus>>({});
+  // Customer history لكل order (id → status). نفس فكرة الـ cache.
+  const [orderCustomerHistory, setOrderCustomerHistory] = useState<Record<string, CustomerHistoryStatus>>({});
   const [currentPage, setCurrentPage] = useState(1);
   const [chatOrderId, setChatOrderId] = useState<string | null>(null);
   const ITEMS_PER_PAGE = 5;
@@ -112,6 +121,72 @@ export default function StoreOrdersView({ onNavigate }) {
       unsubscribeRealtimeOrders?.();
     };
   }, []);
+
+  // ============================================================
+  // Zone + Customer History لكل order (cached + lazy)
+  // ============================================================
+  // بنجيب بيانات الـ zone والـ customer history مرة واحدة لكل order،
+  // وبعدين نـ cache. لو الـ order list اتغيّرت (real-time update مثلاً)
+  // بنفحص الـ IDs الناقصة بس.
+  useEffect(() => {
+    if (orders.length === 0) return;
+    let cancelled = false;
+
+    const run = async () => {
+      // (1) Zone status — فريد per address_id
+      const uniqueAddresses = new Map<string, string>(); // addressId → orderId (for cache)
+      for (const o of orders) {
+        if (!o.delivery_address?.id) continue;
+        if (orderZones[o.id] !== undefined) continue;
+        uniqueAddresses.set(o.delivery_address.id, o.id);
+      }
+
+      for (const [addressId, orderId] of uniqueAddresses) {
+        if (cancelled) return;
+        // نشيلها من الـ pending state
+        setOrderZones((prev) => ({ ...prev, [orderId]: 'loading' }));
+        const zone = await checkAddressZone(addressId);
+        if (cancelled) return;
+        setOrderZones((prev) => ({ ...prev, [orderId]: zone || 'outside' }));
+      }
+
+      // (2) Customer history — فريد per customer_id
+      const seenCustomers = new Set<string>();
+      for (const o of orders) {
+        if (!o.customer_id) continue;
+        if (orderCustomerHistory[o.id] !== undefined) continue;
+        if (seenCustomers.has(o.customer_id)) continue;
+        seenCustomers.add(o.customer_id);
+
+        setOrderCustomerHistory((prev) => ({ ...prev, [o.id]: 'loading' }));
+        try {
+          // isFirstOrder بيستثني الـ order الحالي تلقائياً (لأنه لسه في الـ status
+          // الحالي، مش بنعتبر طلب سابق). نمرر order.id عشان النتيجة
+          // ما تتلخبطش لما اليوزر يفتح order قديم في الداشبورد.
+          const [isFirst, total] = await Promise.all([
+            isFirstOrder(o.customer_id, o.id),
+            getCustomerOrderCount(o.customer_id),
+          ]);
+          if (cancelled) return;
+          setOrderCustomerHistory((prev) => ({
+            ...prev,
+            [o.id]: { isFirst, total },
+          }));
+        } catch {
+          if (cancelled) return;
+          setOrderCustomerHistory((prev) => ({ ...prev, [o.id]: 'loading' }));
+        }
+      }
+    };
+
+    // debounce بسيط عشان نمنع spam لو الـ orders اتحدثت كتير في وقت قصير
+    const t = setTimeout(run, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orders]);
 
   const [processingOrderId, setProcessingOrderId] = useState<string | null>(null);
 
@@ -386,16 +461,26 @@ export default function StoreOrdersView({ onNavigate }) {
               >
                 {/* Top Info Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-3">
-                  <div>
-                    <div className="flex items-center gap-2">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-mono font-black text-slate-900 text-base">#{order.order_number}</span>
                       <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${statusConfig.bg} ${statusConfig.text}`}>
                         {statusConfig.label}
                       </span>
+                      {/* Customer history badge: عميل جديد / عائد */}
+                      {orderCustomerHistory[order.id] !== undefined && (
+                        <CustomerHistoryBadge status={orderCustomerHistory[order.id]} />
+                      )}
                     </div>
                     <p className="text-xs text-slate-500 mt-1">
                       العميل: <strong className="text-slate-800">{order.customer_name}</strong> • {formatDateArabic(order.created_at)}
                     </p>
+                    {/* Zone badge: جوه/بره منطقة التوصيل */}
+                    {orderZones[order.id] !== undefined && (
+                      <div className="mt-2">
+                        <ZoneStatusBadge status={orderZones[order.id]} inline={true} />
+                      </div>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-2">

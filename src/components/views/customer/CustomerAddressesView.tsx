@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
 import { CustomerAddress } from '../../../types/domain';
 import { LeafletMap } from '../../shared/LeafletMap';
+import { ZoneStatusBadge, ZoneStatus } from '../../shared/ZoneStatusBadge';
 import { DEFAULT_LAT, DEFAULT_LNG } from '../../../lib/constants';
+import { checkPointInZone, checkAddressZone } from '../../../lib/supabase/customer-insights';
 import { MapPin, Plus, Trash2, Check, Home, Building, PlusCircle } from 'lucide-react';
 import { useToast } from '../../shared/Toast';
 import { useConfirm } from '../../shared/ConfirmDialog';
@@ -27,6 +29,11 @@ export default function CustomerAddressesView() {
   const [lat, setLat] = useState<number>(DEFAULT_LAT);
   const [lng, setLng] = useState<number>(DEFAULT_LNG);
 
+  // حالة فحص الـ zone للنقطة المختارة على الخريطة
+  const [pickedZoneStatus, setPickedZoneStatus] = useState<ZoneStatus>(null);
+  // zone محفوظة لكل عنوان (id → ZoneStatus)
+  const [savedZones, setSavedZones] = useState<Record<string, ZoneStatus>>({});
+
   useEffect(() => {
     const syncAddresses = () => {
       setAddresses(StorageRepo.getAddresses(currentUser?.id));
@@ -41,6 +48,39 @@ export default function CustomerAddressesView() {
     return unsubscribe;
   }, [currentUser?.id]);
 
+  // فحص zone لكل عنوان محفوظ (lazy — واحد واحد لما الـ list تتحدّث).
+  // بنستخدم setTimeout بسيط كـ debounce خفيف عشان ما نـ fireg RPC
+  // requests على كل reload سريع. والـ result بنـ cache في state.
+  useEffect(() => {
+    if (!addresses || addresses.length === 0) return;
+    let cancelled = false;
+    const run = async () => {
+      for (const addr of addresses) {
+        if (!addr.id) continue;
+        if (savedZones[addr.id] !== undefined) continue; // اتفحص قبل كده
+        setSavedZones((prev) => ({ ...prev, [addr.id]: 'loading' }));
+        const zone = await checkAddressZone(addr.id);
+        if (cancelled) return;
+        setSavedZones((prev) => ({ ...prev, [addr.id]: zone || 'outside' }));
+      }
+    };
+    const t = setTimeout(run, 200);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addresses]);
+
+  // فحص zone فوري لما اليوزر يضغط على الخريطة
+  const handleMapClick = async (pickedLat: number, pickedLng: number) => {
+    setLat(pickedLat);
+    setLng(pickedLng);
+    setPickedZoneStatus('loading');
+    const zone = await checkPointInZone(pickedLat, pickedLng);
+    setPickedZoneStatus(zone || 'outside');
+  };
+
   const resetForm = () => {
     setTitle('');
     setAddressLine('');
@@ -50,6 +90,7 @@ export default function CustomerAddressesView() {
     setIsDefault(false);
     setLat(DEFAULT_LAT);
     setLng(DEFAULT_LNG);
+    setPickedZoneStatus(null);
   };
 
   const handleSave = async () => {
@@ -133,12 +174,12 @@ export default function CustomerAddressesView() {
 
           <LeafletMap
             interactiveSelect={true}
-            onLocationSelect={(lLat, lLng) => {
-              setLat(lLat);
-              setLng(lLng);
-            }}
+            onLocationSelect={handleMapClick}
             height="220px"
           />
+
+          {/* badge حالة الـ zone تحت الخريطة — feedback فوري */}
+          <ZoneStatusBadge status={pickedZoneStatus} />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
             <div>
@@ -242,7 +283,7 @@ export default function CustomerAddressesView() {
               <div className="p-2.5 bg-emerald-50 text-emerald-700 rounded-xl mt-1">
                 <Home className="w-5 h-5" />
               </div>
-              <div>
+              <div className="flex-1">
                 <div className="flex items-center gap-2">
                   <h4 className="font-bold text-slate-900 text-sm">{addr.title}</h4>
                   {addr.is_default && (
@@ -255,6 +296,12 @@ export default function CustomerAddressesView() {
                 <p className="text-[11px] text-slate-400 mt-0.5">
                   مبنى: {addr.building || '-'} | دور: {addr.floor || '-'} | شقة: {addr.apartment || '-'}
                 </p>
+                {/* badge zone للعنوان المحفوظ */}
+                {savedZones[addr.id] !== undefined && (
+                  <div className="mt-2">
+                    <ZoneStatusBadge status={savedZones[addr.id]} inline={true} />
+                  </div>
+                )}
               </div>
             </div>
 

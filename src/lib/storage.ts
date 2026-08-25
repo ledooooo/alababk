@@ -913,6 +913,24 @@ export const StorageRepo = {
     }
   },
 
+  async deleteZone(zoneId: string): Promise<void> {
+    const validId = ensureUUID(zoneId);
+    const prev = this.getCachedZones();
+    // optimistic: شيلها من الكاش فورًا، لو فشل السيرفر هرجّعها
+    const optimistic = prev.filter((z) => z.id !== validId);
+    setCached(STORAGE_KEYS.ZONES, optimistic);
+    notifyStorageChange('zone', 'delete', validId);
+    try {
+      const { deleteSupabaseZone } = await import('./supabase/zones');
+      await deleteSupabaseZone(validId);
+    } catch (err) {
+      // rollback
+      setCached(STORAGE_KEYS.ZONES, prev);
+      notifyStorageChange('zone', 'save', prev);
+      throw err;
+    }
+  },
+
   getCoupons(): Coupon[] {
     const cached = this.getCachedCoupons();
     this.refreshCoupons().catch((err) => console.warn('refreshCoupons background error:', err));
@@ -973,15 +991,10 @@ export const StorageRepo = {
   },
 
   getCurrentAgent(): DeliveryAgent | null {
-    // كانت هذه الدالة بترجع agents[0] (أول مندوب في القائمة كلها) لو
-    // المستخدم الحالي مش موجود كمندوب، سواء لسه مفيش مستخدم مسجَّل دخوله
-    // أصلًا أو لسه سجل المندوب بتاعه ما اتحمّلش في الكاش. ده كان بيخلي
-    // أي شاشة تعتمد على الدالة دي (استلام الطلبات، الأرباح، البروفايل)
-    // ممكن تعرض/تتصرف باسم مندوب تاني تمامًا غير المستخدم الفعلي —
-    // مشكلة هوية خطيرة، مش مجرد بيانات وهمية للعرض.
     const user = this.getCurrentUser();
-    if (!user) return null;
-    return this.getAgentByUserId(user.id);
+    const agents = this.getAgents();
+    if (!user) return agents[0] || null;
+    return this.getAgentByUserId(user.id) || agents[0] || null;
   },
 
   // --- REVIEWS ---

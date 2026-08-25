@@ -10,11 +10,26 @@ interface MapMarker {
   type?: 'store' | 'customer' | 'agent';
 }
 
+export interface MapPolygon {
+  /**
+   * قائمة إحداثيات [lat, lng] بتكوّن المضلع. الترتيب: counter-clockwise
+   * أو clockwise (PostGIS مش بيـ care).
+   * مثال: [[30.05, 31.23], [30.05, 31.26], [30.03, 31.26], [30.03, 31.23]]
+   */
+  coordinates: [number, number][];
+  color?: string;
+  fillColor?: string;
+  fillOpacity?: number;
+  name?: string;
+  isActive?: boolean;
+}
+
 interface LeafletMapProps {
   centerLat?: number;
   centerLng?: number;
   zoom?: number;
   markers?: MapMarker[];
+  polygons?: MapPolygon[];
   showRoute?: boolean;
   interactiveSelect?: boolean;
   onLocationSelect?: (lat: number, lng: number) => void;
@@ -49,6 +64,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   centerLng = DEFAULT_LNG,
   zoom = 14,
   markers = [],
+  polygons = [],
   showRoute = false,
   interactiveSelect = false,
   onLocationSelect,
@@ -59,6 +75,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   const mapInstanceRef = useRef<L.Map | null>(null);
   const selectedMarkerRef = useRef<L.Marker | null>(null);
   const markersGroupRef = useRef<L.LayerGroup | null>(null);
+  const polygonsGroupRef = useRef<L.LayerGroup | null>(null);
   const routeLineRef = useRef<L.Polyline | null>(null);
   const hasFittedBoundsRef = useRef<boolean>(false);
   const prevMarkerCountRef = useRef<number>(0);
@@ -80,6 +97,7 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
 
       mapInstanceRef.current = map;
       markersGroupRef.current = L.layerGroup().addTo(map);
+      polygonsGroupRef.current = L.layerGroup().addTo(map);
 
       if (interactiveSelect) {
         map.on('click', (e: L.LeafletMouseEvent) => {
@@ -116,6 +134,10 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
       markersGroupRef.current.clearLayers();
     }
 
+    if (polygonsGroupRef.current) {
+      polygonsGroupRef.current.clearLayers();
+    }
+
     if (routeLineRef.current) {
       routeLineRef.current.remove();
       routeLineRef.current = null;
@@ -132,6 +154,33 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   }
   
     const latLngs: [number, number][] = [];
+
+    // رسم الـ polygons (مناطق التوصيل)
+    polygons.forEach((p) => {
+      if (!p.coordinates || p.coordinates.length < 3) return;
+      const isActive = p.isActive !== false;
+      const color = p.color || (isActive ? '#7c3aed' : '#94a3b8');
+      const fillColor = p.fillColor || (isActive ? '#a78bfa' : '#cbd5e1');
+      const polygon = L.polygon(p.coordinates, {
+        color,
+        weight: 2,
+        fillColor,
+        fillOpacity: p.fillOpacity ?? (isActive ? 0.25 : 0.1),
+        dashArray: isActive ? undefined : '6, 6',
+      });
+      if (p.name) {
+        polygon.bindPopup(`
+          <div style="direction: rtl; text-align: right; font-family: 'Cairo', sans-serif;">
+            <strong style="font-size: 14px; color: #1e293b;">${p.name}</strong>
+            <p style="margin: 4px 0 0 0; font-size: 11px; color: ${isActive ? '#16a34a' : '#64748b'};">
+              ${isActive ? '✓ منطقة نشطة' : '✗ منطقة معطلة'}
+            </p>
+          </div>
+        `);
+      }
+      polygon.addTo(polygonsGroupRef.current!);
+      p.coordinates.forEach((c) => latLngs.push(c));
+    });
 
     markers.forEach((m) => {
       let icon = customerIcon;
@@ -154,29 +203,28 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     const isNewMarkerSet = prevMarkerCountRef.current !== markers.length;
     prevMarkerCountRef.current = markers.length;
 
-    if (showRoute && latLngs.length >= 2) {
-      routeLineRef.current = L.polyline(latLngs, {
-        color: '#2563eb',
-        weight: 4,
-        opacity: 0.8,
-        dashArray: '8, 8',
-      }).addTo(map);
-
+    // fit bounds: لو فيه polygons أو markers، نعمل fit للكل مع بعض
+    if (latLngs.length >= 2) {
       if (!hasFittedBoundsRef.current || isNewMarkerSet) {
         const bounds = L.latLngBounds(latLngs);
-        map.fitBounds(bounds, { padding: [40, 40] });
-        hasFittedBoundsRef.current = true;
-      }
-    } else if (markers.length > 0 && !interactiveSelect) {
-      if (!hasFittedBoundsRef.current || isNewMarkerSet) {
-        const bounds = L.latLngBounds(latLngs);
-        map.fitBounds(bounds, { padding: [30, 30], maxZoom: 16 });
+        map.fitBounds(bounds, { padding: [40, 40], maxZoom: 16 });
         hasFittedBoundsRef.current = true;
       }
     } else {
       map.setView([centerLat, centerLng], zoom);
     }
-  }, [markers, centerLat, centerLng, zoom, showRoute]);
+
+    // legacy route line support
+    if (showRoute && markers.length >= 2) {
+      const routePts: [number, number][] = markers.map((m) => [m.lat, m.lng]);
+      routeLineRef.current = L.polyline(routePts, {
+        color: '#2563eb',
+        weight: 4,
+        opacity: 0.8,
+        dashArray: '8, 8',
+      }).addTo(map);
+    }
+  }, [markers, polygons, centerLat, centerLng, zoom, showRoute]);
 
   return (
     <div className={`relative rounded-xl overflow-hidden border border-slate-200 shadow-sm ${className}`}>
