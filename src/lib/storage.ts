@@ -688,6 +688,18 @@ export const StorageRepo = {
       } else if (['accepted', 'preparing', 'ready', 'rejected'].includes(status) && userRole === 'store_owner') {
         await updateOrderStatusByStore(orderId, status as any, note);
         saved = true;
+      } else if (status === 'assigned' && userRole === 'delivery_agent') {
+        if (!agentInfo?.delivery_agent_id) {
+          throw new Error('بيانات المندوب غير مكتملة لاستلام الطلب');
+        }
+        await assignOrderToAgent(
+          orderId,
+          agentInfo.delivery_agent_id,
+          agentInfo.delivery_agent_name || '',
+          agentInfo.delivery_agent_phone || undefined,
+          agentInfo.delivery_agent_vehicle || undefined
+        );
+        saved = true;
       } else if (['picked_up', 'on_the_way', 'delivered'].includes(status) && userRole === 'delivery_agent') {
         await updateOrderStatusByAgent(orderId, status as any);
         saved = true;
