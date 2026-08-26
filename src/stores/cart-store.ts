@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Product } from '../types/domain';
+import { Product, Order } from '../types/domain';
 
 export interface CartLineItem {
   product: Product;
@@ -35,6 +35,30 @@ interface CartState {
   closeCart: () => void;
   getSubtotal: () => number;
   getItemCount: () => number;
+
+  /**
+   * إعادة طلب قديم — بنضيف كل المنتجات الموجودة في الـ order للعربة.
+   *
+   * المنطق:
+   *   1. لو العربة فاضية → بنضيف على طول.
+   *   2. لو العربة فيها منتجات من متجر تاني → بنرجّع `requiresConfirm: true`
+   *      (الـ UI لازم يعمل clearCart قبل ما ينادي forceReorder).
+   *   3. لو العربة من نفس المتجر → بنضيف على المنتجات الموجودة.
+   *   4. المنتجات اللي مش متاحة/محذوفة من المتجر → بنرجعها في `skipped`
+   *      عشان نعرضها للعميل.
+   *
+   * الـ `getProductById` لازم يكون متاح (StorageRepo.getProductById) عشان
+   * نجيب الـ Product object الكامل. لو مش متاح، بنرجع requiresConfirm: true
+   * والـ UI يعرض رسالة "جاري تحميل المنتجات".
+   */
+  reorderFromHistory: (
+    order: Order,
+    getProductById: (id: string) => Product | null
+  ) => {
+    added: number;
+    skipped: Array<{ product_id: string; product_name: string; reason: string }>;
+    requiresConfirm: boolean;
+  };
 }
 
 function getStorageKey(userId: string | null): string {
@@ -323,5 +347,77 @@ export const useCartStore = create<CartState>()((set, get) => ({
 
   getItemCount: () => {
     return get().items.reduce((sum: number, item: CartLineItem) => sum + item.quantity, 0);
+  },
+
+  reorderFromHistory: (order, getProductById) => {
+    const { storeId, items, userId } = get();
+    const skipped: Array<{ product_id: string; product_name: string; reason: string }> = [];
+    let added = 0;
+
+    // لو العربة فيها منتجات من متجر مختلف، نطلب confirm قبل ما نمسحها
+    if (storeId && storeId !== order.store_id && items.length > 0) {
+      return { added: 0, skipped, requiresConfirm: true };
+    }
+
+    // لو العربة فاضية، نبدأ من الصفر بالـ storeId الجديد
+    const newStoreId = order.store_id;
+    const newStoreName = order.store_name || null;
+    const updatedItems: CartLineItem[] = storeId === order.store_id ? [...items] : [];
+
+    for (const orderItem of order.items) {
+      // جرّب تجيب الـ Product الكامل من الكاش
+      const product = getProductById(orderItem.product_id);
+
+      if (!product) {
+        // المنتج اتحذف من المتجر أو مش في الكاش
+        skipped.push({
+          product_id: orderItem.product_id,
+          product_name: orderItem.product_name,
+          reason: 'غير متاح حالياً',
+        });
+        continue;
+      }
+
+      if (!product.is_active) {
+        skipped.push({
+          product_id: orderItem.product_id,
+          product_name: orderItem.product_name,
+          reason: 'أوقفه المتجر',
+        });
+        continue;
+      }
+
+      // المنتج متاح — ضيفه للعربة (لو موجود بالفعل، زوّد الكمية)
+      const existingIndex = updatedItems.findIndex((i) => i.product.id === product.id);
+      const minQty =
+        product.min_order_quantity && product.min_order_quantity > 1
+          ? product.min_order_quantity
+          : 1;
+      const effectiveQuantity = Math.max(orderItem.quantity, minQty);
+
+      if (existingIndex >= 0) {
+        updatedItems[existingIndex] = {
+          ...updatedItems[existingIndex],
+          quantity: updatedItems[existingIndex].quantity + effectiveQuantity,
+          notes: orderItem.notes || updatedItems[existingIndex].notes,
+        };
+      } else {
+        updatedItems.push({
+          product,
+          quantity: effectiveQuantity,
+          notes: orderItem.notes,
+        });
+      }
+      added++;
+    }
+
+    set({
+      storeId: newStoreId,
+      storeName: newStoreName,
+      items: updatedItems,
+    });
+    persistCart(userId, newStoreId, newStoreName, updatedItems);
+
+    return { added, skipped, requiresConfirm: false };
   },
 }));

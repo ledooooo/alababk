@@ -3,7 +3,10 @@ import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
 import { Order } from '../../../types/domain';
 import { formatCurrency, formatDateArabic } from '../../../lib/formatters';
 import { ORDER_STATUS_LABELS, getOrderStatusConfig } from '../../../lib/constants';
+import { useCartStore } from '../../../stores/cart-store';
 import { Pagination } from '../../shared/Pagination';
+import { useToast } from '../../shared/Toast';
+import { useConfirm } from '../../shared/ConfirmDialog';
 import {
   ListOrdered,
   Store,
@@ -12,23 +15,37 @@ import {
   CheckCircle2,
   Package,
   ArrowRight,
-  ShoppingBag
+  ShoppingBag,
+  RotateCcw,
+  AlertCircle
 } from 'lucide-react';
 
 interface CustomerOrdersViewProps {
   onSelectOrder: (orderId: string) => void;
   onBrowseStores: () => void;
+  /**
+   * Callback اختياري بعد نجاح الـ reorder. الـ parent ممكن يستخدمه عشان
+   * يـ navigate للـ cart أو يفتح الـ drawer.
+   */
+  onReorderComplete?: (cartCount: number) => void;
 }
 
 export default function CustomerOrdersView({
   onSelectOrder,
   onBrowseStores,
+  onReorderComplete,
 }) {
   const currentUser = StorageRepo.getCurrentUser();
   const [orders, setOrders] = useState<Order[]>([]);
   const [activeTab, setActiveTab] = useState<'all' | 'active' | 'completed'>('all');
   const [currentPage, setCurrentPage] = useState(1);
+  const [reorderingOrderId, setReorderingOrderId] = useState<string | null>(null);
   const ITEMS_PER_PAGE = 5;
+  const reorderFromHistory = useCartStore((s) => s.reorderFromHistory);
+  const clearCart = useCartStore((s) => s.clearCart);
+  const openCart = useCartStore((s) => s.openCart);
+  const { showToast } = useToast();
+  const { showConfirm } = useConfirm();
 
   useEffect(() => {
     setCurrentPage(1);
@@ -65,6 +82,89 @@ export default function CustomerOrdersView({
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE
   );
+
+  // ============================================================
+  // إعادة طلب قديم — بنضيف منتجاته للعربة
+  // ============================================================
+  const doReorder = (order: Order) => {
+    const result = reorderFromHistory(order, (id) => StorageRepo.getProductById(id));
+
+    if (result.requiresConfirm) {
+      // العربة فيها منتجات من متجر تاني — لازم نعمل clearCart الأول
+      showConfirm({
+        title: 'استبدال محتويات العربة',
+        message: `عربة التسوق فيها منتجات من متجر آخر. لو أكملت، المنتجات القديمة هتتشال من العربة وهتتحط منتجات "${order.store_name}" بدالها.`,
+        confirmLabel: 'استبدال',
+        onConfirm: () => {
+          clearCart();
+          // استدعاء تاني بعد الـ clear
+          const second = reorderFromHistory(order, (id) => StorageRepo.getProductById(id));
+          finalizeReorder(order, second);
+        },
+      });
+      return;
+    }
+
+    finalizeReorder(order, result);
+  };
+
+  const finalizeReorder = (
+    order: Order,
+    result: { added: number; skipped: Array<{ product_name: string; reason: string }>; requiresConfirm: boolean }
+  ) => {
+    if (result.added === 0 && result.skipped.length === 0) {
+      showToast({ type: 'error', title: 'تعذّر الإعادة', message: 'الطلب ده مفيهوش منتجات صالحة' });
+      return;
+    }
+
+    if (result.added > 0) {
+      const skippedMsg =
+        result.skipped.length > 0
+          ? ` (تم تجاهل ${result.skipped.length} منتج غير متاح)`
+          : '';
+      showToast({
+        type: 'success',
+        title: 'تمت الإضافة للعربة',
+        message: `تم إضافة ${result.added} منتج من "${order.store_name}"${skippedMsg}`,
+      });
+      openCart();
+      if (onReorderComplete) onReorderComplete(result.added);
+    } else {
+      // مفيش حاجة اتزادت (كل المنتجات محذوفة أو معطلة)
+      const reasonText = result.skipped
+        .map((s) => `• ${s.product_name}: ${s.reason}`)
+        .join('\n');
+      showConfirm({
+        title: 'كل المنتجات غير متاحة',
+        message: `للأسف مفيش أي منتج من الطلب ده متاح دلوقتي:\n\n${reasonText}\n\nحابب تتصفح منتجات المتجر بدالها؟`,
+        confirmLabel: 'تصفح المتجر',
+        onConfirm: () => onBrowseStores(),
+      });
+    }
+
+    // عرض المنتجات اللي اتـ skip في toast تاني لو فيه
+    if (result.skipped.length > 0 && result.added > 0) {
+      const skippedList = result.skipped.map((s) => `• ${s.product_name} (${s.reason})`).join('\n');
+      setTimeout(() => {
+        showToast({
+          type: 'error',
+          title: `منتجات لم تُضف (${result.skipped.length})`,
+          message: skippedList,
+        });
+      }, 200);
+    }
+  };
+
+  const handleReorderClick = (e: React.MouseEvent, order: Order) => {
+    e.stopPropagation(); // ما نفتحش الـ order detail
+    if (reorderingOrderId === order.id) return;
+    setReorderingOrderId(order.id);
+    try {
+      doReorder(order);
+    } finally {
+      setTimeout(() => setReorderingOrderId(null), 500);
+    }
+  };
 
   return (
     <div className="space-y-6 dir-rtl pb-16">
@@ -193,6 +293,21 @@ export default function CustomerOrdersView({
                     {formatCurrency(order.total)}
                   </div>
                 </div>
+
+                {/* Reorder Button — للطلبات اللي اتسلّمت/اترفضت/اتلغت أو حتى النشطة */}
+                {order.items && order.items.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-end">
+                    <button
+                      onClick={(e) => handleReorderClick(e, order)}
+                      disabled={reorderingOrderId === order.id}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold rounded-xl border border-emerald-200 transition-colors disabled:opacity-50"
+                      title="إعادة هذا الطلب — إضافة كل المنتجات للعربة"
+                    >
+                      <RotateCcw className={`w-3.5 h-3.5 ${reorderingOrderId === order.id ? 'animate-spin' : ''}`} />
+                      <span>إعادة الطلب</span>
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}
