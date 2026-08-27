@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo } from '../../../lib/storage';
 import { quoteOrderSecure, createSecureOrder, upsertAddress, fetchAddresses } from '../../../lib/supabase';
-import { checkPointInZone, checkAddressZone } from '../../../lib/supabase/customer-insights';
+import { checkPointInZone, checkAddressZone, getNearestZone, logZoneCoverageMiss, NearestZoneMatch } from '../../../lib/supabase/customer-insights';
 import { CustomerAddress } from '../../../types/domain';
 import { formatCurrency } from '../../../lib/formatters';
 import { useCartStore } from '../../../stores/cart-store';
@@ -43,6 +43,8 @@ export default function CustomerCheckoutView({
   const [selectedZoneStatus, setSelectedZoneStatus] = useState<ZoneStatus>(null);
   // zone status للنقطة اللي اليوزر بيختارها على الخريطة (في وضع الإضافة)
   const [pickedZoneStatus, setPickedZoneStatus] = useState<ZoneStatus>(null);
+  // أقرب منطقة تغطية لما الحالة تبقى 'outside' (للعنوان المختار أو النقطة المختارة)
+  const [nearestZone, setNearestZone] = useState<NearestZoneMatch | null>(null);
 
   // حالة التسعير
   const [quote, setQuote] = useState<{
@@ -164,14 +166,23 @@ export default function CustomerCheckoutView({
   useEffect(() => {
     if (!selectedAddressId) {
       setSelectedZoneStatus(null);
+      setNearestZone(null);
       return;
     }
     let cancelled = false;
     setSelectedZoneStatus('loading');
+    setNearestZone(null);
     checkAddressZone(selectedAddressId)
-      .then((zone) => {
+      .then(async (zone) => {
         if (cancelled) return;
         setSelectedZoneStatus(zone || 'outside');
+        if (!zone) {
+          const addr = addresses.find((a) => a.id === selectedAddressId);
+          if (addr?.lat != null && addr?.lng != null) {
+            const nearest = await getNearestZone(addr.lat, addr.lng);
+            if (!cancelled) setNearestZone(nearest);
+          }
+        }
       })
       .catch(() => {
         if (cancelled) return;
@@ -186,8 +197,13 @@ export default function CustomerCheckoutView({
   const handleCheckoutMapClick = async (pickedLat: number, pickedLng: number) => {
     setNewAddress({ ...newAddress, lat: pickedLat, lng: pickedLng });
     setPickedZoneStatus('loading');
+    setNearestZone(null);
     const zone = await checkPointInZone(pickedLat, pickedLng);
     setPickedZoneStatus(zone || 'outside');
+    if (!zone) {
+      const nearest = await getNearestZone(pickedLat, pickedLng);
+      setNearestZone(nearest);
+    }
   };
 
   // ===== دوال معالجة العنوان =====
@@ -214,6 +230,27 @@ export default function CustomerCheckoutView({
         type: 'error',
         title: 'بيانات ناقصة',
         message: 'يرجى تحديد الموقع على الخريطة',
+      });
+      return;
+    }
+    if (pickedZoneStatus === 'outside') {
+      if (newAddress.lat != null && newAddress.lng != null) {
+        logZoneCoverageMiss(newAddress.lat, newAddress.lng);
+      }
+      showToast({
+        type: 'error',
+        title: 'خارج نطاق التغطية',
+        message: nearestZone
+          ? `هذا الموقع برّه نطاق مناطق التوصيل المسجلة حاليًا. أقرب منطقة تغطية: ${nearestZone.zone_name} (تبعد حوالي ${nearestZone.distance_km} كم).`
+          : 'هذا الموقع برّه نطاق مناطق التوصيل المسجلة حاليًا. يرجى اختيار موقع آخر على الخريطة.',
+      });
+      return;
+    }
+    if (pickedZoneStatus === 'loading') {
+      showToast({
+        type: 'error',
+        title: 'برجاء الانتظار',
+        message: 'جاري التحقق من نطاق التوصيل لهذا الموقع...',
       });
       return;
     }
@@ -463,6 +500,12 @@ export default function CustomerCheckoutView({
 
             {/* badge zone تحت الخريطة (feedback فوري) */}
             <ZoneStatusBadge status={pickedZoneStatus} />
+            {pickedZoneStatus === 'outside' && nearestZone && (
+              <p className="text-xs text-slate-500 flex items-center gap-1 mt-1">
+                <MapPin className="w-3.5 h-3.5 shrink-0" />
+                أقرب منطقة تغطية: <span className="font-bold text-slate-700">{nearestZone.zone_name}</span> — تبعد حوالي {nearestZone.distance_km} كم
+              </p>
+            )}
 
             <div className="flex gap-2">
               <button
@@ -520,6 +563,12 @@ export default function CustomerCheckoutView({
             {selectedAddressId && (
               <div className="pt-2">
                 <ZoneStatusBadge status={selectedZoneStatus} />
+                {selectedZoneStatus === 'outside' && nearestZone && (
+                  <p className="text-xs text-slate-500 flex items-center gap-1 mt-1">
+                    <MapPin className="w-3.5 h-3.5 shrink-0" />
+                    أقرب منطقة تغطية: <span className="font-bold text-slate-700">{nearestZone.zone_name}</span> — تبعد حوالي {nearestZone.distance_km} كم
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -659,7 +708,7 @@ export default function CustomerCheckoutView({
       {/* زر التأكيد */}
       <button
         onClick={handleSubmitOrder}
-        disabled={isSubmitting || !quote || !!quoteError || !selectedAddressId}
+        disabled={isSubmitting || !quote || !!quoteError || !selectedAddressId || selectedZoneStatus === 'outside'}
         className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black text-base rounded-2xl shadow-md transition-all flex items-center justify-center gap-2"
       >
         {isSubmitting ? (
@@ -674,6 +723,18 @@ export default function CustomerCheckoutView({
           </>
         )}
       </button>
+
+      {selectedZoneStatus === 'outside' && !submitError && (
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-sm font-bold flex items-start gap-2">
+          <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <span>
+            التوصيل غير متاح لهذا العنوان حاليًا — برّه نطاق مناطق التغطية المسجلة. يرجى اختيار عنوان آخر.
+            {nearestZone && (
+              <> أقرب منطقة تغطية متاحة: <b>{nearestZone.zone_name}</b> (تبعد حوالي {nearestZone.distance_km} كم).</>
+            )}
+          </span>
+        </div>
+      )}
 
       {submitError && (
         <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-sm font-bold flex items-center gap-2">
