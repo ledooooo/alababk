@@ -203,6 +203,7 @@ export async function fetchSupabaseOrders(filters?: {
   store_id?: string;
   delivery_agent_id?: string;
   status?: string;
+  status_in?: string[];
   is_unassigned?: boolean;
   limit?: number;
 }): Promise<Order[]> {
@@ -222,6 +223,7 @@ export async function fetchSupabaseOrders(filters?: {
     if (filters?.store_id) query = query.eq('store_id', filters.store_id);
     if (filters?.delivery_agent_id) query = query.eq('delivery_agent_id', filters.delivery_agent_id);
     if (filters?.status) query = query.eq('status', filters.status);
+    if (filters?.status_in && filters.status_in.length > 0) query = query.in('status', filters.status_in);
     if (filters?.is_unassigned) query = query.is('delivery_agent_id', null);
 
     const { data: ordersData, error: ordersError } = await query
@@ -235,6 +237,7 @@ export async function fetchSupabaseOrders(filters?: {
       if (filters?.store_id) fallbackQuery.eq('store_id', filters.store_id);
       if (filters?.delivery_agent_id) fallbackQuery.eq('delivery_agent_id', filters.delivery_agent_id);
       if (filters?.status) fallbackQuery.eq('status', filters.status);
+      if (filters?.status_in && filters.status_in.length > 0) fallbackQuery.in('status', filters.status_in);
       if (filters?.is_unassigned) fallbackQuery.is('delivery_agent_id', null);
 
       const fallbackRes = await fallbackQuery
@@ -456,6 +459,7 @@ export interface AdminOrderListItem {
   store_phone: string | null;
   customer_id: string;
   customer_name: string;
+  customer_phone: string | null;
   address_line: string;
   delivery_agent_id: string | null;
   delivery_agent_name: string | null;
@@ -509,6 +513,7 @@ export async function fetchAdminOrdersPage(params: {
       store_phone: o.store_phone,
       customer_id: o.customer_id,
       customer_name: o.customer_name || 'عميل',
+      customer_phone: o.customer_phone || null,
       address_line: o.address_line || '',
       delivery_agent_id: o.delivery_agent_id,
       delivery_agent_name: o.delivery_agent_name,
@@ -522,4 +527,63 @@ export async function fetchAdminOrdersPage(params: {
   } catch (err) {
     throw new Error(translateSupabaseError(err).message);
   }
+}
+
+// ===== Aggregates خفيفة تحسب في الداتابيز بدل تحميل صفوف orders =====
+
+export interface FinancialTotals {
+  total_gmv: number;
+  total_commissions: number;
+  total_delivery_fees: number;
+}
+
+/** إجمالي GMV/عمولات/رسوم توصيل للطلبات المسلَّمة، محسوب في الداتابيز. */
+export async function fetchDeliveredOrdersFinancialTotals(): Promise<FinancialTotals> {
+  const { data, error } = await supabase.rpc('get_delivered_orders_financial_totals');
+  if (error) throw new Error(translateSupabaseError(error).message);
+  const row = data?.[0] || {};
+  return {
+    total_gmv: Number(row.total_gmv || 0),
+    total_commissions: Number(row.total_commissions || 0),
+    total_delivery_fees: Number(row.total_delivery_fees || 0),
+  };
+}
+
+/** عدد الطلبات لكل حالة على مستوى المنصة كلها (بدون سقف)، كـ Record جاهز للاستخدام. */
+export async function fetchOrderStatusCounts(): Promise<Record<string, number>> {
+  const { data, error } = await supabase.rpc('get_order_status_counts');
+  if (error) throw new Error(translateSupabaseError(error).message);
+  const counts: Record<string, number> = {};
+  (data || []).forEach((row: any) => {
+    counts[row.status] = Number(row.order_count || 0);
+  });
+  return counts;
+}
+
+export interface MyAgentStats {
+  today_earnings: number;
+  total_delivered_count: number;
+}
+
+/** إحصائيات المندوب الحالي: أرباح اليوم (توقيت القاهرة) + إجمالي الرحلات المسلَّمة تاريخيًا. */
+export async function fetchMyAgentStats(): Promise<MyAgentStats> {
+  const { data, error } = await supabase.rpc('get_my_agent_stats');
+  if (error) throw new Error(translateSupabaseError(error).message);
+  const row = data?.[0] || {};
+  return {
+    today_earnings: Number(row.today_earnings || 0),
+    total_delivered_count: Number(row.total_delivered_count || 0),
+  };
+}
+
+/**
+ * طلب واحد بكامل تفاصيله (بما فيها الأصناف) عبر الـid مباشرة — لعرض
+ * تفاصيل طلب في شاشة إدارية من غير الاعتماد على وجوده في قائمة
+ * محمّلة مسبقًا (زي admin_search_orders اللي بترجع حقول مختصرة بس).
+ */
+export async function fetchOrderFullDetails(orderId: string): Promise<Order | null> {
+  const { data, error } = await supabase.rpc('get_order_full_details', { p_order_id: orderId });
+  if (error) throw new Error(translateSupabaseError(error).message);
+  if (!data) return null;
+  return mapOrders([data])[0] || null;
 }

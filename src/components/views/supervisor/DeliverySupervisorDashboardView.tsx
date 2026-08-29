@@ -27,7 +27,10 @@ import { useToast } from '../../shared/Toast';
 
 export default function DeliverySupervisorDashboardView() {
   const [agents, setAgents] = useState<DeliveryAgent[]>(StorageRepo.getCachedAgents());
-  const [orders, setOrders] = useState<Order[]>(StorageRepo.getCachedOrders());
+  // الطلبات النشطة بس (assigned/picked_up/on_the_way) — مفلترة من الخادم
+  // مباشرة، مش محمّلة من كاش الطلبات العام (اللي بيحمل آخر 500 طلب
+  // بلا فلتر حالة، فمش ضامن يغطي كل الطلبات النشطة مع نمو المنصة).
+  const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState<boolean>(StorageRepo.getCachedAgents().length === 0);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,12 +41,14 @@ export default function DeliverySupervisorDashboardView() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const { showToast } = useToast();
 
+  const ACTIVE_ORDER_STATUSES = ['assigned', 'picked_up', 'on_the_way'];
+
   const loadDataDirectly = async (showBadge = true) => {
     if (showBadge) setIsRefreshing(true);
     try {
       const [freshAgents, freshOrders] = await Promise.all([
         fetchSupabaseAgents(),
-        fetchSupabaseOrders(),
+        fetchSupabaseOrders({ status_in: ACTIVE_ORDER_STATUSES }),
       ]);
       setAgents(freshAgents);
       setOrders(freshOrders);
@@ -65,20 +70,20 @@ export default function DeliverySupervisorDashboardView() {
     loadDataDirectly();
 
     const unsubscribeStorage = subscribeToStorageChange((detail) => {
-      if (detail.entityType !== 'agent' && detail.entityType !== 'order') return;
+      if (detail.entityType !== 'agent') return;
       setAgents(StorageRepo.getCachedAgents());
-      setOrders(StorageRepo.getCachedOrders());
     });
 
-    // ديباونس + مرور عبر StorageRepo (بدل fetchSupabaseOrders()/Agents()
-    // المباشرة) عشان أي حدث Realtime لأي طلب/كابتن على مستوى المنصة كلها
-    // ما يعملش fetch كامل فوري وغير محدود لكل الطلبات والكباتن — نفس العلة
-    // اللي كانت في AdminOrdersView.
+    // ديباونس لأي حدث Realtime (طلب/كابتن) — بيجيب بس الطلبات النشطة
+    // (status_in) بدل تحميل كل الطلبات على مستوى المنصة كل مرة.
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
     const debouncedReload = () => {
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
-        Promise.all([StorageRepo.refreshAgents(), StorageRepo.refreshOrders()])
+        Promise.all([
+          StorageRepo.refreshAgents(),
+          fetchSupabaseOrders({ status_in: ACTIVE_ORDER_STATUSES }),
+        ])
           .then(([freshAgents, freshOrders]) => {
             setAgents(freshAgents);
             setOrders(freshOrders);
@@ -103,7 +108,8 @@ export default function DeliverySupervisorDashboardView() {
     };
   }, []);
 
-  const activeOrders = orders.filter((o) => ['assigned', 'picked_up', 'on_the_way'].includes(o.status));
+  // orders هنا أصلًا مفلترة من الخادم على نفس الحالات (ACTIVE_ORDER_STATUSES)
+  const activeOrders = orders;
   const onlineAgents = agents.filter((a) => a.is_online);
   const busyAgents = agents.filter((a) => {
     return activeOrders.some((o) => o.delivery_agent_id === a.id);

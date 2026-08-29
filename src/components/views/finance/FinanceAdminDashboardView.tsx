@@ -4,7 +4,8 @@ import {
   subscribeSupabase,
   fetchFinanceSummary,
   FinanceSummaryItem,
-  fetchSupabaseOrders,
+  fetchDeliveredOrdersFinancialTotals,
+  FinancialTotals,
   fetchSupabaseStores,
   fetchSupabasePayouts,
 } from '../../../lib/supabase';
@@ -36,11 +37,13 @@ import { useToast } from '../../shared/Toast';
 import { useConfirm } from '../../shared/ConfirmDialog';
 
 export default function FinanceAdminDashboardView() {
-  const [orders, setOrders] = useState<Order[]>(StorageRepo.getCachedOrders());
   const [stores, setStores] = useState<Store[]>(StorageRepo.getCachedStores());
   const [payouts, setPayouts] = useState<PayoutRequest[]>(StorageRepo.getCachedPayouts());
   const [financeSummary, setFinanceSummary] = useState<FinanceSummaryItem[]>([]);
-  const [loading, setLoading] = useState<boolean>(StorageRepo.getCachedOrders().length === 0);
+  // fallback خفيف (aggregate في الداتابيز) لو finance_summary رجعت فاضية —
+  // بدل تحميل كل صفوف orders لحساب المجموع في الفرونت
+  const [fallbackTotals, setFallbackTotals] = useState<FinancialTotals | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -52,17 +55,20 @@ export default function FinanceAdminDashboardView() {
   const loadFinanceDataDirectly = async (showBadge = true) => {
     if (showBadge) setIsRefreshing(true);
     try {
-      const [freshOrders, freshStores, freshPayouts, summary] = await Promise.all([
-        fetchSupabaseOrders(),
+      const [freshStores, freshPayouts, summary] = await Promise.all([
         fetchSupabaseStores(),
         fetchSupabasePayouts(),
         fetchFinanceSummary().catch(() => []),
       ]);
-      setOrders(freshOrders);
       setStores(freshStores);
       setPayouts(freshPayouts);
       if (summary && summary.length > 0) {
         setFinanceSummary(summary);
+      } else {
+        // finance_summary فاضية → نجيب الإجمالي من aggregate خفيف بدل تحميل الطلبات كلها
+        fetchDeliveredOrdersFinancialTotals()
+          .then(setFallbackTotals)
+          .catch((err) => console.warn('fallback financial totals failed:', err));
       }
       setError(null);
     } catch (err: any) {
@@ -79,31 +85,34 @@ export default function FinanceAdminDashboardView() {
   useEffect(() => {
     loadFinanceDataDirectly();
 
-    const RELEVANT_TYPES = new Set(['order', 'store', 'payout']);
+    const RELEVANT_TYPES = new Set(['store', 'payout']);
     const unsubStorage = subscribeToStorageChange((detail) => {
       if (!RELEVANT_TYPES.has(detail.entityType)) return;
-      setOrders(StorageRepo.getCachedOrders());
       setStores(StorageRepo.getCachedStores());
       setPayouts(StorageRepo.getCachedPayouts());
     });
 
-    // ديباونس + مرور عبر StorageRepo للطلبات/المتاجر/الدفعات (fetchFinanceSummary
-    // مفيهاش طبقة كاش في StorageRepo فبتفضل مباشرة، لكن برضه بقت مديبونسة)
+    // ديباونس لأي تحديث (طلبات/متاجر/دفعات) — بيعيد جلب الملخص المالي +
+    // المتاجر + الدفعات مباشرة من الخادم، من غير تحميل صفوف orders كاملة
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
     const debouncedReload = () => {
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
         Promise.all([
-          StorageRepo.refreshOrders(),
-          StorageRepo.refreshStores(),
-          StorageRepo.refreshPayouts(),
+          fetchSupabaseStores(),
+          fetchSupabasePayouts(),
           fetchFinanceSummary().catch(() => []),
         ])
-          .then(([freshOrders, freshStores, freshPayouts, summary]) => {
-            setOrders(freshOrders);
+          .then(([freshStores, freshPayouts, summary]) => {
             setStores(freshStores);
             setPayouts(freshPayouts);
-            if (summary && summary.length > 0) setFinanceSummary(summary);
+            if (summary && summary.length > 0) {
+              setFinanceSummary(summary);
+            } else {
+              fetchDeliveredOrdersFinancialTotals()
+                .then(setFallbackTotals)
+                .catch((err) => console.warn('fallback financial totals failed:', err));
+            }
           })
           .catch((err) => console.warn('finance dashboard debounced reload error:', err));
       }, 1500);
@@ -131,20 +140,19 @@ export default function FinanceAdminDashboardView() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // Financial Summary from Database
-  const deliveredOrders = orders.filter((o) => o.status === 'delivered');
-
+  // الإجمالي المالي: finance_summary أولًا، وإلا fallbackTotals (aggregate
+  // من الداتابيز مباشرة — بدون تحميل أي صفوف orders في الفرونت)
   const totalGMV = financeSummary.length > 0
     ? financeSummary.reduce((sum, item) => sum + item.gmv, 0)
-    : deliveredOrders.reduce((sum, o) => sum + o.total, 0);
+    : (fallbackTotals?.total_gmv ?? 0);
 
   const totalCommissions = financeSummary.length > 0
     ? financeSummary.reduce((sum, item) => sum + item.commissions, 0)
-    : deliveredOrders.reduce((sum, o) => sum + (o.commission_amount || 0), 0);
+    : (fallbackTotals?.total_commissions ?? 0);
 
   const totalDeliveryFees = financeSummary.length > 0
     ? financeSummary.reduce((sum, item) => sum + item.delivery_fees, 0)
-    : deliveredOrders.reduce((sum, o) => sum + o.delivery_fee, 0);
+    : (fallbackTotals?.total_delivery_fees ?? 0);
 
   const pendingPayoutsList = payouts.filter((p) => p.status === 'pending');
   const completedPayoutsList = payouts.filter((p) => p.status === 'completed');

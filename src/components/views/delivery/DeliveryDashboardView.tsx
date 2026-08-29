@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
-import { subscribeSupabase, fetchSupabaseOrders, fetchSupabaseAgents } from '../../../lib/supabase';
+import { subscribeSupabase, fetchSupabaseOrders, fetchSupabaseAgents, fetchMyAgentStats, MyAgentStats } from '../../../lib/supabase';
 import { DeliveryAgent, Order } from '../../../types/domain';
 import { formatCurrency, formatPhoneNumber } from '../../../lib/formatters';
 import { Bike, Power, DollarSign, Package, MapPin, Star, CheckCircle2, ArrowUpRight, PhoneCall, RefreshCw, AlertCircle, Loader2 } from 'lucide-react';
@@ -10,13 +10,22 @@ interface DeliveryDashboardViewProps {
   onNavigate: (tab: string) => void;
 }
 
+const NON_TERMINAL_STATUSES = ['pending', 'accepted', 'preparing', 'ready', 'assigned', 'picked_up', 'on_the_way'];
+
 export default function DeliveryDashboardView({ onNavigate }) {
   const currentUser = StorageRepo.getCurrentUser();
   const [agent, setAgent] = useState<DeliveryAgent | null>(
     StorageRepo.getAgentByUserId(currentUser?.id || 'usr-agent-1')
   );
-  const [orders, setOrders] = useState<Order[]>(StorageRepo.getCachedOrders());
-  const [loading, setLoading] = useState<boolean>(StorageRepo.getCachedOrders().length === 0);
+  // طلبات هذا المندوب بس (مش كل طلبات المنصة) — مفلترة من الخادم
+  // بـdelivery_agent_id، فحجمها محدود طبيعيًا بحجم شغل المندوب ده
+  // نفسه، مش بحجم المنصة كلها.
+  const [myOrders, setMyOrders] = useState<Order[]>([]);
+  // طلبات جاهزة ومالهاش مندوب بعد — مفلترة من الخادم مباشرة
+  const [availableOrders, setAvailableOrders] = useState<Order[]>([]);
+  // أرباح اليوم + إجمالي الرحلات — aggregate من الداتابيز، بدون تحميل صفوف orders
+  const [agentStats, setAgentStats] = useState<MyAgentStats>({ today_earnings: 0, total_delivered_count: 0 });
+  const [loading, setLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,13 +33,18 @@ export default function DeliveryDashboardView({ onNavigate }) {
     if (showBadge) setIsRefreshing(true);
     try {
       const user = StorageRepo.getCurrentUser();
-      const [allAgents, allOrders] = await Promise.all([
-        fetchSupabaseAgents(),
-        fetchSupabaseOrders(),
-      ]);
+      const allAgents = await fetchSupabaseAgents();
       const ag = user ? allAgents.find((a) => a.user_id === user.id) || allAgents[0] : allAgents[0];
       setAgent(ag || null);
-      setOrders(allOrders);
+
+      const [available, mine, stats] = await Promise.all([
+        fetchSupabaseOrders({ status: 'ready', is_unassigned: true }),
+        ag ? fetchSupabaseOrders({ delivery_agent_id: ag.id }) : Promise.resolve([]),
+        fetchMyAgentStats().catch(() => ({ today_earnings: 0, total_delivered_count: 0 })),
+      ]);
+      setAvailableOrders(available);
+      setMyOrders(mine);
+      setAgentStats(stats);
       setError(null);
     } catch (err: any) {
       console.error('Error in DeliveryDashboardView direct fetch:', err);
@@ -45,28 +59,21 @@ export default function DeliveryDashboardView({ onNavigate }) {
     loadCaptainDataDirectly();
 
     const unsubscribeStorage = subscribeToStorageChange((detail) => {
-      if (detail.entityType !== 'agent' && detail.entityType !== 'order') return;
+      if (detail.entityType !== 'agent') return;
       const user = StorageRepo.getCurrentUser();
       const ag = user ? StorageRepo.getAgentByUserId(user.id) || StorageRepo.getAgents()[0] : null;
       setAgent(ag || null);
-      setOrders(StorageRepo.getCachedOrders());
     });
 
-    // ديباونس + مرور عبر StorageRepo: الشاشة دي بتفضل مفتوحة طول شِفت
-    // الكابتن، وكانت بتعمل fetch كامل لكل طلبات وكباتن المنصة مع أي حدث
-    // Realtime — حتى لو الحدث ما لوش أي علاقة بالكابتن ده تحديدًا.
+    // ديباونس + مرور مباشر (بدل StorageRepo.refreshOrders الكامل): الشاشة
+    // دي بتفضل مفتوحة طول شِفت الكابتن، وكانت بتعمل fetch كامل لكل طلبات
+    // وكباتن المنصة مع أي حدث Realtime — حتى لو الحدث ما لوش أي علاقة
+    // بالكابتن ده تحديدًا. دلوقتي بتجيب بس طلباته + المتاحة + إحصائياته.
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
     const debouncedReload = () => {
       if (debounceTimer) clearTimeout(debounceTimer);
       debounceTimer = setTimeout(() => {
-        const user = StorageRepo.getCurrentUser();
-        Promise.all([StorageRepo.refreshAgents(), StorageRepo.refreshOrders()])
-          .then(([allAgents, allOrders]) => {
-            const ag = user ? allAgents.find((a) => a.user_id === user.id) || allAgents[0] : allAgents[0];
-            setAgent(ag || null);
-            setOrders(allOrders);
-          })
-          .catch((err) => console.warn('captain dashboard debounced reload error:', err));
+        loadCaptainDataDirectly(false);
       }, 1500);
     };
 
@@ -106,19 +113,10 @@ export default function DeliveryDashboardView({ onNavigate }) {
     }
   };
 
-  const activeTrip = orders.find(
-    (o) => o.delivery_agent_id === agent.id && !['delivered', 'cancelled', 'rejected'].includes(o.status)
-  );
+  const activeTrip = myOrders.find((o) => NON_TERMINAL_STATUSES.includes(o.status));
+  const todayEarnings = agentStats.today_earnings;
+  const totalDeliveredCount = agentStats.total_delivered_count;
 
-  const availableOrders = orders.filter(
-    (o) => o.status === 'ready' && !o.delivery_agent_id
-  );
-
-  const myDeliveredOrders = orders.filter(
-    (o) => o.delivery_agent_id === agent.id && o.status === 'delivered'
-  );
-
-  const todayEarnings = myDeliveredOrders.reduce((sum, o) => sum + o.delivery_fee, 0);
 
   return (
     <div className="max-w-2xl mx-auto space-y-6 dir-rtl pb-20">
@@ -229,7 +227,7 @@ export default function DeliveryDashboardView({ onNavigate }) {
 
         <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs space-y-1">
           <span className="text-[11px] text-slate-500 font-bold">رحلات ناجحة مكتملة</span>
-          <div className="text-xl font-black text-slate-900">{myDeliveredOrders.length}</div>
+          <div className="text-xl font-black text-slate-900">{totalDeliveredCount}</div>
           <p className="text-[10px] text-slate-400">إجمالي الرحلات المسجلة</p>
         </div>
       </div>
