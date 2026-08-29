@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo } from '../../../lib/storage';
-import { quoteOrderSecure, createSecureOrder, upsertAddress, fetchAddresses } from '../../../lib/supabase';
+import { quoteOrderSecure, createSecureOrder, upsertAddress, fetchAddresses, fetchStoreById } from '../../../lib/supabase';
 import { checkPointInZone, checkAddressZone, getNearestZone, logZoneCoverageMiss, NearestZoneMatch } from '../../../lib/supabase/customer-insights';
-import { CustomerAddress } from '../../../types/domain';
+import { CustomerAddress, Store } from '../../../types/domain';
+import { getStoreOpenStatus, StoreOpenStatus } from '../../../lib/store-hours';
 import { formatCurrency } from '../../../lib/formatters';
 import { useCartStore } from '../../../stores/cart-store';
 import { LeafletMap } from '../../shared/LeafletMap';
@@ -45,6 +46,21 @@ export default function CustomerCheckoutView({
   const [pickedZoneStatus, setPickedZoneStatus] = useState<ZoneStatus>(null);
   // أقرب منطقة تغطية لما الحالة تبقى 'outside' (للعنوان المختار أو النقطة المختارة)
   const [nearestZone, setNearestZone] = useState<NearestZoneMatch | null>(null);
+
+  // حالة فتح/إغلاق المحل الفعلية (إجازة / مواعيد عمل) — لمنع تأكيد طلب من محل مقفول
+  const [storeOpenStatus, setStoreOpenStatus] = useState<StoreOpenStatus | null>(null);
+
+  useEffect(() => {
+    if (!storeId) return;
+    let cancelled = false;
+    fetchStoreById(storeId).then((store: Store | null) => {
+      if (cancelled || !store) return;
+      setStoreOpenStatus(getStoreOpenStatus(store));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [storeId]);
 
   // حالة التسعير
   const [quote, setQuote] = useState<{
@@ -708,7 +724,7 @@ export default function CustomerCheckoutView({
       {/* زر التأكيد */}
       <button
         onClick={handleSubmitOrder}
-        disabled={isSubmitting || !quote || !!quoteError || !selectedAddressId || selectedZoneStatus === 'outside'}
+        disabled={isSubmitting || !quote || !!quoteError || !selectedAddressId || selectedZoneStatus === 'outside' || storeOpenStatus?.isOpen === false}
         className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black text-base rounded-2xl shadow-md transition-all flex items-center justify-center gap-2"
       >
         {isSubmitting ? (
@@ -733,6 +749,13 @@ export default function CustomerCheckoutView({
               <> أقرب منطقة تغطية متاحة: <b>{nearestZone.zone_name}</b> (تبعد حوالي {nearestZone.distance_km} كم).</>
             )}
           </span>
+        </div>
+      )}
+
+      {storeOpenStatus?.isOpen === false && !submitError && (
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-sm font-bold flex items-start gap-2">
+          <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <span>لا يمكن إتمام الطلب الآن — {storeOpenStatus.label}.</span>
         </div>
       )}
 

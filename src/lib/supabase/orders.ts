@@ -443,3 +443,83 @@ export async function fetchOrderStatusHistory(orderId: string): Promise<OrderSta
 // لأن stats.ts بيـ export نفس الأسماء من جداول views مختلفة).
 // أي استيراد لهذه الدوال لازم يكون من supabase index.ts (مش من هنا مباشرةً).
 
+// ===== سجل الطلبات للأدمن: pagination حقيقي بـ cursor (keyset) =====
+
+export interface AdminOrderListItem {
+  id: string;
+  order_number: string;
+  status: OrderStatus;
+  total: number;
+  created_at: string;
+  store_id: string;
+  store_name: string;
+  store_phone: string | null;
+  customer_id: string;
+  customer_name: string;
+  address_line: string;
+  delivery_agent_id: string | null;
+  delivery_agent_name: string | null;
+}
+
+export interface AdminOrdersCursor {
+  placed_at: string;
+  id: string;
+}
+
+export interface AdminOrdersPage {
+  items: AdminOrderListItem[];
+  nextCursor: AdminOrdersCursor | null;
+}
+
+/**
+ * صفحة واحدة من سجل الطلبات (للأدمن) عبر admin_search_orders — فلترة
+ * حالة وبحث نصي وترقيم صفحات كلهم على مستوى الداتابيز، بدل تحميل كل
+ * الطلبات دفعة واحدة وفلترتها في الفرونت. مرّر cursor من nextCursor
+ * الخاص بالصفحة السابقة لجلب اللي بعدها؛ اتركه فارغًا لأول صفحة.
+ */
+export async function fetchAdminOrdersPage(params: {
+  search?: string;
+  status?: string;
+  cursor?: AdminOrdersCursor | null;
+  limit?: number;
+}): Promise<AdminOrdersPage> {
+  const limit = params.limit ?? 20;
+  try {
+    const { data, error } = await supabase.rpc('admin_search_orders', {
+      p_search: params.search?.trim() || null,
+      p_status: params.status && params.status !== 'all' ? params.status : null,
+      p_cursor_placed_at: params.cursor?.placed_at ?? null,
+      p_cursor_id: params.cursor?.id ?? null,
+      p_limit: limit,
+    });
+    if (error) throw error;
+
+    const rows: any[] = data || [];
+    const hasMore = rows.length > limit;
+    const pageRows = hasMore ? rows.slice(0, limit) : rows;
+
+    const items: AdminOrderListItem[] = pageRows.map((o) => ({
+      id: o.id,
+      order_number: o.code || `ORD-${String(o.id).slice(0, 8)}`,
+      status: (o.status || 'pending') as OrderStatus,
+      total: Number(o.total || 0),
+      created_at: o.placed_at || new Date().toISOString(),
+      store_id: o.store_id,
+      store_name: o.store_name || 'متجر محذوف',
+      store_phone: o.store_phone,
+      customer_id: o.customer_id,
+      customer_name: o.customer_name || 'عميل',
+      address_line: o.address_line || '',
+      delivery_agent_id: o.delivery_agent_id,
+      delivery_agent_name: o.delivery_agent_name,
+    }));
+
+    const last = pageRows[pageRows.length - 1];
+    const nextCursor: AdminOrdersCursor | null =
+      hasMore && last ? { placed_at: last.placed_at, id: last.id } : null;
+
+    return { items, nextCursor };
+  } catch (err) {
+    throw new Error(translateSupabaseError(err).message);
+  }
+}

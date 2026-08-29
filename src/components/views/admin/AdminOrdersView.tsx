@@ -1,71 +1,97 @@
-import React, { useState, useEffect } from 'react';
-import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
-import { subscribeSupabase } from '../../../lib/supabase';
+import React, { useState, useEffect, useCallback } from 'react';
+import { StorageRepo } from '../../../lib/storage';
+import { subscribeSupabase, fetchAdminOrdersPage, AdminOrderListItem, AdminOrdersCursor } from '../../../lib/supabase';
 import { Order, OrderStatus } from '../../../types/domain';
 import { formatCurrency, formatDateArabic, formatPhoneNumber } from '../../../lib/formatters';
-import { ORDER_STATUS_LABELS, getOrderStatusConfig } from '../../../lib/constants';
-import { Pagination } from '../../shared/Pagination';
-import { ShoppingBag, Search, Filter, ShieldCheck, Phone, MapPin, RefreshCw, AlertCircle, Loader2 } from 'lucide-react';
+import { getOrderStatusConfig } from '../../../lib/constants';
+import { ShoppingBag, Search, ChevronRight, ChevronLeft, RefreshCw, AlertCircle, Loader2 } from 'lucide-react';
 import { useToast } from '../../shared/Toast';
 
+const PAGE_SIZE = 20;
+
 export default function AdminOrdersView() {
-  const [orders, setOrders] = useState<Order[]>(StorageRepo.getCachedOrders());
-  const [loading, setLoading] = useState<boolean>(StorageRepo.getCachedOrders().length === 0);
+  const [items, setItems] = useState<AdminOrderListItem[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
+
+  const [searchInput, setSearchInput] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [currentPage, setCurrentPage] = useState(1);
-  const ITEMS_PER_PAGE = 8;
+
+  // history[i] هو الـcursor اللي استُخدم لجلب الصفحة رقم i (history[0] = null دايمًا لأول صفحة)
+  const [history, setHistory] = useState<(AdminOrdersCursor | null)[]>([null]);
+  const [pageIndex, setPageIndex] = useState(0);
+  const [nextCursor, setNextCursor] = useState<AdminOrdersCursor | null>(null);
+
   const { showToast } = useToast();
 
+  // ديباونس البحث (400ms) بدل ما نستعلم على كل ضغطة زرار
   useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, statusFilter]);
+    const t = setTimeout(() => setDebouncedSearch(searchInput.trim()), 400);
+    return () => clearTimeout(t);
+  }, [searchInput]);
 
-  const loadOrdersDirectly = async (showBadge = true) => {
-    if (showBadge) setIsRefreshing(true);
-    try {
-      // كانت هنا بتنادي fetchSupabaseOrders() مباشرة، متجاوزة الـthrottle
-      // الموجود في StorageRepo.refreshOrders() بالكامل — أي حدث Realtime
-      // كان بيعمل fetch فوري وغير محدود لكل طلبات المنصة. دلوقتي بنمر
-      // عبر StorageRepo عشان نستفيد من الـthrottle (20 ثانية) واكتشاف
-      // "مفيش تغيير فعلي" اللي بيمنع إشعارات فاضية.
-      const freshOrders = await StorageRepo.refreshOrders();
-      setOrders(freshOrders);
-      setError(null);
-    } catch (err: any) {
-      console.error('Failed to fetch direct orders in AdminOrdersView:', err);
-      setError('تعذر تحميل الطلبات مباشرة من خادم Supabase.');
-    } finally {
-      setLoading(false);
-      setIsRefreshing(false);
-    }
-  };
+  // أي تغيير في البحث أو الفلتر بيرجّع لأول صفحة من جديد
+  useEffect(() => {
+    setHistory([null]);
+    setPageIndex(0);
+  }, [debouncedSearch, statusFilter]);
+
+  const loadPage = useCallback(
+    async (cursor: AdminOrdersCursor | null, showBadge: boolean) => {
+      if (showBadge) setIsRefreshing(true);
+      try {
+        const page = await fetchAdminOrdersPage({
+          search: debouncedSearch,
+          status: statusFilter,
+          cursor,
+          limit: PAGE_SIZE,
+        });
+        setItems(page.items);
+        setNextCursor(page.nextCursor);
+        setError(null);
+      } catch (err: any) {
+        console.error('Failed to fetch admin orders page:', err);
+        setError('تعذر تحميل سجل الطلبات من الخادم.');
+      } finally {
+        setLoading(false);
+        setIsRefreshing(false);
+      }
+    },
+    [debouncedSearch, statusFilter]
+  );
 
   useEffect(() => {
-    loadOrdersDirectly();
+    setLoading(true);
+    loadPage(history[pageIndex] ?? null, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [history, pageIndex, loadPage]);
 
-    const unsubscribeStorage = subscribeToStorageChange((detail) => {
-      if (detail.entityType === 'order') setOrders(StorageRepo.getCachedOrders());
-    });
-
-    // ديباونس بسيط: لو جاية دفعة أحداث قريبة من بعض (زي بث حالة لعدة
-    // طلبات مرة واحدة)، نعمل fetch واحد بس بعد ما الأحداث تهدأ، بدل fetch
-    // منفصل لكل حدث — الأدمن أصلًا محتاج يشوف كل الطلبات فعليًا (مش
-    // فلترة خاطئة)، لكن معدل التحديث هو المشكلة اللي كانت هنا.
+  // ديباونس لأحداث realtime: نعيد تحميل نفس الصفحة الحالية بس (من غير
+  // ما نفقد مكان الأدمن في البحث/الفلتر/رقم الصفحة اللي هو واقف عندها)
+  useEffect(() => {
     let debounceTimer: ReturnType<typeof setTimeout> | null = null;
     const unsubscribeRealtime = subscribeSupabase<Order>('orders', () => {
       if (debounceTimer) clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(() => loadOrdersDirectly(false), 1500);
+      debounceTimer = setTimeout(() => loadPage(history[pageIndex] ?? null, true), 1500);
     });
-
     return () => {
-      unsubscribeStorage();
       unsubscribeRealtime();
       if (debounceTimer) clearTimeout(debounceTimer);
     };
-  }, []);
+  }, [history, pageIndex, loadPage]);
+
+  const goNext = () => {
+    if (!nextCursor) return;
+    setHistory((h) => [...h.slice(0, pageIndex + 1), nextCursor]);
+    setPageIndex((p) => p + 1);
+  };
+
+  const goPrevious = () => {
+    if (pageIndex === 0) return;
+    setPageIndex((p) => p - 1);
+  };
 
   const handleStatusOverride = async (orderId: string, newStatus: OrderStatus) => {
     try {
@@ -75,7 +101,7 @@ export default function AdminOrdersView() {
         title: 'تم التحديث',
         message: 'تم تغيير حالة الطلب بنجاح',
       });
-      await loadOrdersDirectly(false);
+      await loadPage(history[pageIndex] ?? null, false);
     } catch (err: any) {
       showToast({
         type: 'error',
@@ -84,23 +110,6 @@ export default function AdminOrdersView() {
       });
     }
   };
-
-  const filteredOrders = orders.filter((o) => {
-    const matchesSearch =
-      o.order_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (o.store_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (o.customer_name || '').toLowerCase().includes(searchQuery.toLowerCase());
-
-    const matchesStatus = statusFilter === 'all' || o.status === statusFilter;
-
-    return matchesSearch && matchesStatus;
-  });
-
-  const totalPages = Math.ceil(filteredOrders.length / ITEMS_PER_PAGE);
-  const paginatedOrders = filteredOrders.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE
-  );
 
   return (
     <div className="space-y-6 dir-rtl pb-16">
@@ -130,7 +139,7 @@ export default function AdminOrdersView() {
             <span>{error}</span>
           </div>
           <button
-            onClick={() => loadOrdersDirectly()}
+            onClick={() => loadPage(history[pageIndex] ?? null, false)}
             className="px-3 py-1 bg-rose-600 text-white rounded-xl text-xs hover:bg-rose-700 transition-all shadow-xs"
           >
             إعادة المحاولة
@@ -138,131 +147,142 @@ export default function AdminOrdersView() {
         </div>
       )}
 
-      {loading ? (
-        <div className="p-12 text-center space-y-3 bg-white rounded-2xl border border-slate-200">
-          <Loader2 className="w-8 h-8 text-purple-600 animate-spin mx-auto" />
-          <p className="text-xs font-bold text-slate-600">جاري تحميل الطلبات مباشرة من خادم Supabase...</p>
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-3" />
+          <input
+            type="text"
+            placeholder="ابحث برقم الطلب، اسم المتجر، أو اسم العميل..."
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            className="w-full pr-10 pl-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none"
+          />
         </div>
-      ) : (
-        <>
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
-              <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-3" />
-              <input
-                type="text"
-                placeholder="ابحث برقم الطلب، اسم المتجر، أو اسم العميل..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pr-10 pl-4 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none"
-              />
-            </div>
 
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:ring-2 focus:ring-purple-500 focus:outline-none"
-            >
-              <option value="all">جميع الحالات ({orders.length})</option>
-              <option value="pending">معلقة جديدة</option>
-              <option value="preparing">قيد التحضير بالمحل</option>
-              <option value="ready">جاهزة للتوصيل</option>
-              <option value="on_the_way">في الطريق للعميل</option>
-              <option value="delivered">مكتملة ومسلمة</option>
-              <option value="cancelled">ملغاة</option>
-            </select>
-          </div>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value)}
+          className="p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+        >
+          <option value="all">جميع الحالات</option>
+          <option value="pending">معلقة جديدة</option>
+          <option value="preparing">قيد التحضير بالمحل</option>
+          <option value="ready">جاهزة للتوصيل</option>
+          <option value="on_the_way">في الطريق للعميل</option>
+          <option value="delivered">مكتملة ومسلمة</option>
+          <option value="cancelled">ملغاة</option>
+        </select>
+      </div>
 
-          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
-            <div className="overflow-x-auto">
-              <table className="w-full text-right text-xs">
-                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
-                  <tr>
-                    <th className="p-3.5">الطلب والتاريخ</th>
-                    <th className="p-3.5">المتجر</th>
-                    <th className="p-3.5">العميل والموقع</th>
-                    <th className="p-3.5">الكابتن المندوب</th>
-                    <th className="p-3.5">المبلغ</th>
-                    <th className="p-3.5">حالة الطلب الإدارية</th>
-                  </tr>
-                </thead>
+      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+        <div className="overflow-x-auto">
+          <table className="w-full text-right text-xs">
+            <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
+              <tr>
+                <th className="p-3.5">الطلب والتاريخ</th>
+                <th className="p-3.5">المتجر</th>
+                <th className="p-3.5">العميل والموقع</th>
+                <th className="p-3.5">الكابتن المندوب</th>
+                <th className="p-3.5">المبلغ</th>
+                <th className="p-3.5">حالة الطلب الإدارية</th>
+              </tr>
+            </thead>
 
-                <tbody className="divide-y divide-slate-100">
-                  {filteredOrders.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="p-8 text-center text-slate-400">
-                        لا توجد طلبات متطابقة مع البحث.
+            <tbody className="divide-y divide-slate-100">
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="p-12 text-center">
+                    <Loader2 className="w-6 h-6 text-purple-600 animate-spin mx-auto mb-2" />
+                    <span className="text-xs font-bold text-slate-500">جاري تحميل الطلبات...</span>
+                  </td>
+                </tr>
+              ) : items.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="p-8 text-center text-slate-400">
+                    لا توجد طلبات متطابقة مع البحث.
+                  </td>
+                </tr>
+              ) : (
+                items.map((o) => {
+                  const statusConfig = getOrderStatusConfig(o.status);
+
+                  return (
+                    <tr key={o.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="p-3.5">
+                        <span className="font-mono font-black text-slate-900 block">#{o.order_number}</span>
+                        <span className="text-[10px] text-slate-400">{formatDateArabic(o.created_at)}</span>
+                      </td>
+
+                      <td className="p-3.5">
+                        <span className="font-bold text-slate-900 block">{o.store_name}</span>
+                        <span className="text-[10px] text-slate-400 font-mono">{formatPhoneNumber(o.store_phone || '')}</span>
+                      </td>
+
+                      <td className="p-3.5">
+                        <span className="font-bold text-slate-900 block">{o.customer_name}</span>
+                        <span className="text-[10px] text-slate-500 line-clamp-1">{o.address_line}</span>
+                      </td>
+
+                      <td className="p-3.5">
+                        {o.delivery_agent_name ? (
+                          <span className="font-bold text-orange-700 bg-orange-50 px-2 py-0.5 rounded-md">
+                            🛵 {o.delivery_agent_name}
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-slate-400">غير معين بعد</span>
+                        )}
+                      </td>
+
+                      <td className="p-3.5 font-black text-slate-900">
+                        {formatCurrency(o.total)}
+                      </td>
+
+                      <td className="p-3.5">
+                        <select
+                          value={o.status}
+                          onChange={(e) => handleStatusOverride(o.id, e.target.value as OrderStatus)}
+                          className={`p-1.5 rounded-xl text-[11px] font-bold border ${statusConfig.bg} ${statusConfig.text} focus:outline-none`}
+                        >
+                          <option value="pending">جديد بانتظار القبول</option>
+                          <option value="accepted">تم قبول الطلب</option>
+                          <option value="preparing">جاري التحضير بالمحل</option>
+                          <option value="ready">جاهز واستلام الكابتن</option>
+                          <option value="on_the_way">في الطريق للعميل</option>
+                          <option value="delivered">تم التسليم بنجاح</option>
+                          <option value="cancelled">ملغي</option>
+                          <option value="rejected">مرفوض من المتجر</option>
+                        </select>
                       </td>
                     </tr>
-                  ) : (
-                    paginatedOrders.map((o) => {
-                      const statusConfig = getOrderStatusConfig(o.status);
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
 
-                      return (
-                        <tr key={o.id} className="hover:bg-slate-50/80 transition-colors">
-                          <td className="p-3.5">
-                            <span className="font-mono font-black text-slate-900 block">#{o.order_number}</span>
-                            <span className="text-[10px] text-slate-400">{formatDateArabic(o.created_at)}</span>
-                          </td>
-
-                          <td className="p-3.5">
-                            <span className="font-bold text-slate-900 block">{o.store_name}</span>
-                            <span className="text-[10px] text-slate-400 font-mono">{formatPhoneNumber(o.store_phone)}</span>
-                          </td>
-
-                          <td className="p-3.5">
-                            <span className="font-bold text-slate-900 block">{o.customer_name}</span>
-                            <span className="text-[10px] text-slate-500 line-clamp-1">{o.delivery_address.address_line}</span>
-                          </td>
-
-                          <td className="p-3.5">
-                            {o.delivery_agent_name ? (
-                              <span className="font-bold text-orange-700 bg-orange-50 px-2 py-0.5 rounded-md">
-                                🛵 {o.delivery_agent_name}
-                              </span>
-                            ) : (
-                              <span className="text-[11px] text-slate-400">غير معين بعد</span>
-                            )}
-                          </td>
-
-                          <td className="p-3.5 font-black text-slate-900">
-                            {formatCurrency(o.total)}
-                          </td>
-
-                          <td className="p-3.5">
-                            <select
-                              value={o.status}
-                              onChange={(e) => handleStatusOverride(o.id, e.target.value as OrderStatus)}
-                              className={`p-1.5 rounded-xl text-[11px] font-bold border ${statusConfig.bg} ${statusConfig.text} focus:outline-none`}
-                            >
-                              <option value="pending">جديد بانتظار القبول</option>
-                              <option value="accepted">تم قبول الطلب</option>
-                              <option value="preparing">جاري التحضير بالمحل</option>
-                              <option value="ready">جاهز واستلام الكابتن</option>
-                              <option value="on_the_way">في الطريق للعميل</option>
-                              <option value="delivered">تم التسليم بنجاح</option>
-                              <option value="cancelled">ملغي</option>
-                              <option value="rejected">مرفوض من المتجر</option>
-                            </select>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              onPageChange={setCurrentPage}
-              totalItems={filteredOrders.length}
-              itemsPerPage={ITEMS_PER_PAGE}
-              className="p-4"
-            />
+        <div className="flex items-center justify-between p-4 border-t border-slate-100">
+          <span className="text-[11px] text-slate-400 font-bold">الصفحة {pageIndex + 1}</span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={goPrevious}
+              disabled={pageIndex === 0 || loading}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold border border-slate-200 text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+              السابق
+            </button>
+            <button
+              onClick={goNext}
+              disabled={!nextCursor || loading}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold border border-slate-200 text-slate-600 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-50"
+            >
+              التالي
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
           </div>
-        </>
-      )}
+        </div>
+      </div>
     </div>
   );
-};
+}
