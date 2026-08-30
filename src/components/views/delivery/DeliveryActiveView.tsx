@@ -3,7 +3,7 @@ import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
 import { Order, OrderStatus } from '../../../types/domain';
 import { formatCurrency, formatPhoneNumber } from '../../../lib/formatters';
 import { LeafletMap } from '../../shared/LeafletMap';
-import { Bike, Store, MapPin, Phone, CheckCircle2, Package, Navigation, DollarSign, AlertCircle } from 'lucide-react';
+import { Bike, Store, MapPin, Phone, CheckCircle2, Package, Navigation, DollarSign, AlertCircle, StickyNote } from 'lucide-react';
 import { useToast } from '../../shared/Toast';
 
 interface DeliveryActiveViewProps {
@@ -193,6 +193,17 @@ export default function DeliveryActiveView({ onTripCompleted }) {
           </div>
         </div>
       </div>
+
+      {/* ملاحظات العميل للتوصيل — لو موجودة */}
+      {activeOrder.customer_notes && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-2.5">
+          <StickyNote className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-black text-amber-900 text-xs mb-0.5">ملاحظة من العميل</p>
+            <p className="text-amber-800 text-xs font-medium">{activeOrder.customer_notes}</p>
+          </div>
+        </div>
+      )}
 
       {/* Step Action Buttons Sequence */}
       <div className="bg-slate-900 text-white rounded-3xl p-6 shadow-xl space-y-4 border border-slate-800">

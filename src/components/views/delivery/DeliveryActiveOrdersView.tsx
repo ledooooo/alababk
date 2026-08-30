@@ -3,7 +3,7 @@ import { StorageRepo } from '../../../lib/storage';
 import { updateSupabaseOrderLocation } from '../../../lib/supabase';
 import { Order } from '../../../types/domain';
 import { formatCurrency, formatDateArabic } from '../../../lib/formatters';
-import { Loader2, MapPin, Truck, Clock, CheckCircle2, Navigation, AlertCircle, MessageCircle } from 'lucide-react';
+import { Loader2, MapPin, Truck, Clock, CheckCircle2, Navigation, AlertCircle, MessageCircle, StickyNote } from 'lucide-react';
 import OrderChatPanel from '../../shared/OrderChatPanel';
 
 interface DeliveryActiveOrdersViewProps {
@@ -179,6 +179,13 @@ export default function DeliveryActiveOrdersView({ onNavigate }) {
                 <span className="mr-1">{order.delivery_address.address_line}</span>
               </div>
             </div>
+
+            {order.customer_notes && (
+              <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-800 font-bold flex items-start gap-1.5">
+                <StickyNote className="w-3.5 h-3.5 text-amber-600 mt-0.5 shrink-0" />
+                <span>ملاحظة العميل: {order.customer_notes}</span>
+              </div>
+            )}
 
             <button
               onClick={() => setChatOrderId(order.id)}

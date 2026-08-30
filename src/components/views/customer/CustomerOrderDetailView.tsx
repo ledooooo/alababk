@@ -4,10 +4,11 @@ import { fetchOrderStatusHistory, subscribeSupabase, fetchChatRecipients, ChatRe
 import { Order, OrderStatus, OrderStatusHistoryItem } from '../../../types/domain';
 import { formatCurrency, formatDateArabic, formatPhoneNumber } from '../../../lib/formatters';
 import { ORDER_STATUS_LABELS, getOrderStatusConfig } from '../../../lib/constants';
-import { ArrowLeft, MapPin, Phone, Clock, Truck, CheckCircle2, XCircle, AlertCircle, Loader2, Store, Package, CreditCard, Calendar, User, RefreshCw, MessageCircle } from 'lucide-react';
+import { ArrowLeft, MapPin, Phone, Clock, Truck, CheckCircle2, XCircle, AlertCircle, Loader2, Store, Package, CreditCard, Calendar, User, RefreshCw, MessageCircle, Star } from 'lucide-react';
 import { useToast } from '../../shared/Toast';
 import { useConfirm } from '../../shared/ConfirmDialog';
 import OrderChatPanel from '../../shared/OrderChatPanel';
+import { SubmitReviewModal } from '../../modals/SubmitReviewModal';
 
 
 interface CustomerOrderDetailViewProps {
@@ -27,6 +28,8 @@ export default function CustomerOrderDetailView({ orderId, onBack }) {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [chatRecipients, setChatRecipients] = useState<ChatRecipients | null>(null);
   const [openChatWith, setOpenChatWith] = useState<'store' | 'agent' | null>(null);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [hasExistingReview, setHasExistingReview] = useState(false);
 
   // ===== دوال التحميل =====
   const loadOrder = async () => {
@@ -41,6 +44,10 @@ export default function CustomerOrderDetailView({ orderId, onBack }) {
         // جلب تاريخ الحالة
         const history = await fetchOrderStatusHistory(orderId);
         setStatusHistory(history.length > 0 ? history : found.status_history || []);
+        // هل الطلب ده اتقيّم قبل كده؟
+        StorageRepo.refreshReviews()
+          .then((reviews) => setHasExistingReview(reviews.some((r) => r.order_id === orderId)))
+          .catch(() => {});
       } else {
         setError('الطلب غير موجود أو لا تملك صلاحية عرضه');
       }
@@ -401,15 +408,36 @@ export default function CustomerOrderDetailView({ orderId, onBack }) {
           </button>
         )}
         {isDelivered && (
-          <button
-            onClick={() => window.location.href = `/orders/${order.id}/review`}
-            className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold shadow-md transition-colors flex items-center gap-2"
-          >
-            <CheckCircle2 className="w-4 h-4" />
-            تقييم الطلب
-          </button>
+          hasExistingReview ? (
+            <button
+              disabled
+              className="px-6 py-2.5 bg-slate-100 text-slate-400 rounded-xl text-sm font-bold flex items-center gap-2 cursor-not-allowed"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              تم تقييم الطلب
+            </button>
+          ) : (
+            <button
+              onClick={() => setShowReviewModal(true)}
+              className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold shadow-md transition-colors flex items-center gap-2"
+            >
+              <Star className="w-4 h-4" />
+              تقييم الطلب
+            </button>
+          )
         )}
       </div>
+
+      {showReviewModal && order && (
+        <SubmitReviewModal
+          order={order}
+          onClose={() => setShowReviewModal(false)}
+          onSubmitted={() => {
+            setHasExistingReview(true);
+            showToast({ type: 'success', title: 'شكراً لك', message: 'تم إرسال تقييمك بنجاح' });
+          }}
+        />
+      )}
 
       {/* مودال إلغاء الطلب */}
       {showCancelModal && (
