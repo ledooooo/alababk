@@ -222,18 +222,15 @@ export const Navbar: React.FC<NavbarProps> = ({ currentUser }) => {
               onClick={() => navigate('/')}
               className="flex items-center gap-2 text-right group"
             >
-              <img
+                            <img
                 src="/icon.png"
-                alt="على بابك"
+                alt="وياك"
                 className="w-10 h-10 rounded-xl object-cover shadow-md shadow-emerald-600/20 group-hover:scale-105 transition-transform"
                 referrerPolicy="no-referrer"
               />
               <div>
                 <span className="font-extrabold text-xl text-slate-900 tracking-tight block leading-none">
-                  على بابك
-                </span>
-                <span className="text-[10px] text-slate-500 font-medium block mt-0.5">
-                  منصة التوصيل المحلي الفائق
+                  وياك
                 </span>
               </div>
             </button>

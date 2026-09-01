@@ -39,7 +39,7 @@ Deno.serve(async (req: Request) => {
 
     const vapidPublicKey = Deno.env.get('VAPID_PUBLIC_KEY');
     const vapidPrivateKey = Deno.env.get('VAPID_PRIVATE_KEY');
-    const vapidSubject = Deno.env.get('VAPID_SUBJECT') || 'mailto:support@alababak.app';
+    const vapidSubject = Deno.env.get('VAPID_SUBJECT') || 'mailto:support@wayyak.app';
     if (!vapidPublicKey || !vapidPrivateKey) {
       console.error('VAPID keys not configured');
       return json({ error: 'Push غير مُهيّأ على الخادم' }, 500);

@@ -84,7 +84,7 @@ export default function StoreReviewsSection({ store }) {
       store_id: store.id,
       store_name: store.name,
       customer_id: currentUser?.id || `anon-${Date.now()}`,
-      customer_name: currentUser?.full_name || 'عميل على بابك',
+      customer_name: currentUser?.full_name || 'عميل وياك',
       store_rating: newRating,
       rating: newRating,
       comment: newComment.trim(),
@@ -333,7 +333,7 @@ export default function StoreReviewsSection({ store }) {
                     </div>
                     <div>
                       <h4 className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
-                        <span>{rev.customer_name || 'عميل على بابك'}</span>
+                        <span>{rev.customer_name || 'عميل وياك'}</span>
                         <span className="text-[10px] bg-emerald-50 text-emerald-700 font-semibold px-1.5 py-0.5 rounded-md border border-emerald-100 flex items-center gap-0.5">
                           <UserCheck className="w-3 h-3 text-emerald-600" />
                           مشتري موثق

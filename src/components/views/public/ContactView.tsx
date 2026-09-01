@@ -79,7 +79,7 @@ export default function ContactView({ onNavigate }) {
             <h3 className="font-extrabold text-emerald-950 text-xs">الدعم الفوري عبر واتساب</h3>
             <p className="text-[11px] text-emerald-800">تواصل مباشر وسريع مع ممثل خدمة العملاء</p>
             <a
-              href="https://wa.me/201000000000?text=مرحباً%20منصة%20على%20بابك%20لدي%20استفسار"
+              href="https://wa.me/201012136524?text=مرحباً%20منصة%20وياك%20لدي%20استفسار"
               target="_blank"
               rel="noreferrer"
               className="inline-block px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs mt-1"
@@ -93,8 +93,8 @@ export default function ContactView({ onNavigate }) {
               <Mail className="w-5 h-5" />
             </div>
             <h3 className="font-extrabold text-slate-900 text-xs">البريد الإلكتروني</h3>
-            <p className="text-xs text-slate-600 font-mono">support@jihat-alababak.com</p>
-          </div>
+            <p className="text-xs text-slate-600 font-mono">support@wayak.app</p>
+                      </div>
 
           <div className="p-5 bg-white rounded-2xl border border-slate-200/80 shadow-xs space-y-2">
             <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center font-bold">

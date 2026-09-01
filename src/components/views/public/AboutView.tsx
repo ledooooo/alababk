@@ -21,9 +21,8 @@ export default function AboutView({ onNavigate }) {
 
   const faqs = [
     {
-      q: 'ما هي منصة "على بابك" وكيف تعمل؟',
-      a: 'على بابك هي منصة توصيل فائقة السرعة للمحلات المجاورة لك (Hyperlocal Delivery). توفر لك كل احتياجاتك اليومية من المتاجر والبقالة والصيدليات المجاورة وتوصلها لباب بيتك في دقائق معدودة.',
-    },
+      q: 'ما هي منصة "وياك" وكيف تعمل؟',
+      a: 'وياك هي منصة توصيل فائقة السرعة للمحلات المجاورة لك (Hyperlocal Delivery). توفر لك كل احتياجاتك اليومية من المتاجر والبقالة والصيدليات المجاورة وتوصلها لباب بيتك في دقائق معدودة.',    },
     {
       q: 'كم يستغرق توصيل الطلب في المتوسط؟',
       a: 'متوسط زمن التوصيل لدينا يتراوح بين 15 إلى 25 دقيقة فقط، لأننا نربط الطلب بأقرب كابتن توصيل موجود بجوار المحل مباشرة.',
@@ -48,7 +47,7 @@ export default function AboutView({ onNavigate }) {
       <div className="bg-gradient-to-r from-purple-900 via-indigo-900 to-purple-800 text-white rounded-3xl p-8 sm:p-10 text-center space-y-4 shadow-md">
         <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 border border-white/20 text-purple-200 text-xs font-bold backdrop-blur-md">
           <Sparkles className="w-4 h-4 text-amber-300" />
-          <span>تعرف على منصة على بابك</span>
+          <span>تعرف على منصة (وياك)</span>
         </div>
         <h1 className="text-3xl font-black">عن منصتنا وكيفية العمل</h1>
         <p className="text-xs sm:text-sm text-purple-100 max-w-2xl mx-auto leading-relaxed">
@@ -81,7 +80,7 @@ export default function AboutView({ onNavigate }) {
 
           <div className="p-5 bg-slate-50 rounded-2xl border border-slate-200/60 space-y-2 text-center">
             <span className="w-8 h-8 rounded-full bg-emerald-600 text-white font-extrabold text-xs inline-flex items-center justify-center">4</span>
-            <h3 className="font-extrabold text-slate-900 text-sm">استلم على بابك</h3>
+            <h3 className="font-extrabold text-slate-900 text-sm">استلم لحد باب بيتك</h3>
             <p className="text-xs text-slate-500 leading-relaxed">ينطلق الكابتن إليك مباشرة وتتابع مساره حياً حتى وصوله.</p>
           </div>
         </div>

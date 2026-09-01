@@ -676,12 +676,12 @@ export default function App() {
                 <a href="/terms" className="hover:text-purple-600 transition-colors">الشروط والخصوصية</a>
               </div>
               <span className="text-[11px] text-slate-400 font-normal">
-                منصة على بابك (JIHAT Platform) - توصيل فائق السرعة
+                منصة عل (JIHAT Platform) - توصيل فائق السرعة
               </span>
             </div>
             <div className="text-center text-xs text-slate-500">
               <p className="font-bold text-slate-800">
-                منصة على بابك - التوصيل الفائق والتسوق المحلي المباشر في جمهورية مصر العربية 🇪🇬
+                منصة (وياك) - التوصيل الفائق والتسوق المحلي المباشر في جمهورية مصر العربية 🇪🇬
               </p>
               <p className="mt-1 text-[11px] text-slate-400">
                 جميع الحقوق محفوظة © {new Date().getFullYear()} - ربط أصحاب المحلات، كباتن التوصيل، والعملاء

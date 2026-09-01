@@ -180,7 +180,7 @@ export default function AdminStoresView() {
       slug: newStoreName.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now().toString(36),
       owner_id: selectedOwner.id,
       category_id: newStoreCategoryId,
-      description: 'متجر مسجل في منصة على بابك',
+      description: 'متجر مسجل في منصة وياك',
       // مفيش شعار افتراضي وهمي هنا عمدًا — صاحب المتجر أو الأدمن يرفع
       // شعار حقيقي لاحقًا من StoreSettingsView (فيه ImageUploadField فعلي).
       logo_url: '',
@@ -222,7 +222,7 @@ export default function AdminStoresView() {
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <StoreIcon className="w-6 h-6 text-purple-600" />
-            <span>دليل المتاجر والعمولات في على بابك</span>
+            <span>دليل المتاجر والعمولات في وياك</span>
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
             إدارة المتاجر المسجلة في Supabase وتحديد نسب العمولة وحالات التشغيل

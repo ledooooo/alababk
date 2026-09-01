@@ -238,7 +238,7 @@ export default function FinanceAdminDashboardView() {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-xl sm:text-2xl font-black">المسؤول المالي والإداري - منصة على بابك</h1>
+                <h1 className="text-xl sm:text-2xl font-black">المسؤول المالي والإداري - منصة (وياك)</h1>
                 <span className="bg-emerald-500/30 text-emerald-300 text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-emerald-400/20">
                   الإدارة المالية والضرائب
                 </span>

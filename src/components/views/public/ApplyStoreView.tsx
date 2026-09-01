@@ -114,7 +114,7 @@ export default function ApplyStoreView({ onNavigate }) {
         <div className="space-y-2">
           <h2 className="text-2xl font-black text-slate-900">تم استلام طلبك بنجاح!</h2>
           <p className="text-xs text-slate-600 leading-relaxed">
-            شكراً لانضمامك لمنصة "على بابك". طلبك حالياً قيد المراجعة والتدقيق من قِبل إدارة المنصة.
+            شكراً لانضمامك لمنصة "وياك". طلبك حالياً قيد المراجعة والتدقيق من قِبل إدارة المنصة.
           </p>
         </div>
         <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200/80 text-xs text-right space-y-2 font-bold text-slate-700">

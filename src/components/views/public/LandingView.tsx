@@ -62,7 +62,7 @@ export default function LandingView({ onNavigate }) {
           <div className="flex items-center gap-3">
             <img
               src="/icon.png"
-              alt="شعار على بابك"
+              alt="شعار (وياك))"
               className="w-12 h-12 rounded-2xl object-cover shadow-lg border border-amber-300/30"
               referrerPolicy="no-referrer"
             />
@@ -73,7 +73,7 @@ export default function LandingView({ onNavigate }) {
           </div>
 
           <h1 className="text-3xl sm:text-5xl font-black leading-tight tracking-tight text-white">
-            كل طلباتك من أجدع المحلات المجاورة.. <span className="text-amber-300 underline decoration-emerald-400">على بابك!</span>
+            كل طلباتك من أجدع المحلات المجاورة.. <span className="text-amber-300 underline decoration-emerald-400">وياك!</span>
           </h1>
 
           <p className="text-sm sm:text-base text-emerald-100/90 font-medium leading-relaxed max-w-2xl">
@@ -235,7 +235,7 @@ export default function LandingView({ onNavigate }) {
       <section className="bg-white rounded-3xl p-8 border border-slate-200/80 shadow-xs space-y-8">
         <div className="text-center max-w-xl mx-auto space-y-2">
           <span className="px-3 py-1 rounded-full bg-purple-100 text-purple-800 font-extrabold text-xs">خطوات بسيطة</span>
-          <h2 className="text-2xl font-black text-slate-900">كيف تعتمد على منصة "على بابك"؟</h2>
+          <h2 className="text-2xl font-black text-slate-900">كيف تعتمد على منصة "وياك"؟</h2>
           <p className="text-xs text-slate-500">4 خطوات فقط يفصلونك عن استلام طلبك طازجاً وسريعاً</p>
         </div>
 
@@ -268,7 +268,7 @@ export default function LandingView({ onNavigate }) {
             <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white font-black text-lg flex items-center justify-center mx-auto shadow-md">
               4
             </div>
-            <h3 className="font-extrabold text-slate-900 text-sm">استلم الطلب على بابك!</h3>
+            <h3 className="font-extrabold text-slate-900 text-sm">استلم الطلب لحد باب بيتك!</h3>
             <p className="text-xs text-slate-500 leading-relaxed">تابع حركة الكابتن على الخريطة لحظة بلحظة واستلم طلبك بكل أمان.</p>
           </div>
         </div>
@@ -306,7 +306,7 @@ export default function LandingView({ onNavigate }) {
             </div>
             <h3 className="text-2xl font-black text-slate-900">هل تملك محلاً أو بقالة؟</h3>
             <p className="text-xs text-slate-600 leading-relaxed">
-              انضم لمنصة "على بابك" وضاعف مبيعاتك اليومية عبر الوصول لآلاف العملاء في منطقتك مجاناً وبدون تعقيدات.
+              انضم لمنصة "وياك" وضاعف مبيعاتك اليومية عبر الوصول لآلاف العملاء في منطقتك مجاناً وبدون تعقيدات.
             </p>
           </div>
           <button

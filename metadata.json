@@ -1,7 +1,7 @@
 {
-  "name": "على بابك - Ala Babak Delivery Platform",
-  "description": "منصة على بابك للتوصيل الفائق والتسوق المحلي المباشر بين العملاء وأصحاب المحلات وكباتن التوصيل.",
-  "requestFramePermissions": ["geolocation"],
+  "name": "وياك - Wayak Delivery Platform",
+  "description": "منصة وياك للتوصيل الفائق والتسوق المحلي المباشر بين العملاء وأصحاب المحلات وكباتن التوصيل.",
+    "requestFramePermissions": ["geolocation"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
 

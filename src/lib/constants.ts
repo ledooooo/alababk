@@ -1,6 +1,6 @@
 import { Category, DeliveryZone } from '../types/domain';
 
-export const APP_NAME = 'على بابك';
+export const APP_NAME = 'وياك';
 export const APP_SLOGAN = 'منصة التوصيل المحلي لمتاجر منطقتك';
 
 export const DEFAULT_LAT = 30.0444;

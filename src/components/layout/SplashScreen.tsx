@@ -53,7 +53,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({
         <div className="relative z-10 flex items-center justify-between w-full max-w-2xl mx-auto">
           <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900/80 border border-slate-800 text-amber-400 text-xs font-bold backdrop-blur-md">
             <Sparkles className="w-3.5 h-3.5 animate-spin text-amber-400" />
-            <span>على بابك v2.5</span>
+            <span>وياك v2.5</span>
           </div>
 
           <button
@@ -81,7 +81,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({
             
             <img
               src="/icon.png"
-              alt="على بابك"
+              alt="وياك"
               className="relative w-28 h-28 sm:w-36 sm:h-36 rounded-3xl object-cover shadow-2xl border-2 border-amber-300/40"
               referrerPolicy="no-referrer"
             />
@@ -94,7 +94,7 @@ export const SplashScreen: React.FC<SplashScreenProps> = ({
             className="space-y-2"
           >
             <h1 className="text-3xl sm:text-5xl font-black tracking-tight text-white">
-              على <span className="text-transparent bg-clip-text bg-gradient-to-l from-amber-300 via-amber-400 to-amber-200">بابك</span>
+               <span className="text-transparent bg-clip-text bg-gradient-to-l from-amber-300 via-amber-400 to-amber-200">وياك</span>
             </h1>
             <p className="text-sm sm:text-base font-semibold text-slate-300 max-w-xs sm:max-w-md mx-auto leading-relaxed">
               منصة التوصيل الفائق والتسوق المحلي المباشر في مصر 🇪🇬

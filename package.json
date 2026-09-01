@@ -1,6 +1,6 @@
 {
-  "name": "alababak-platform",
-  "private": true,
+  "name": "wayak-platform",
+    "private": true,
   "version": "2.5.0",
   "type": "module",
   "scripts": {

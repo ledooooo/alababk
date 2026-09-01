@@ -96,7 +96,7 @@ export default function ApplyAgentView({ onNavigate }) {
           <CheckCircle2 className="w-10 h-10" />
         </div>
         <div className="space-y-2">
-          <h2 className="text-2xl font-black text-slate-900">أهلاً بك في فريق كباتن على بابك!</h2>
+          <h2 className="text-2xl font-black text-slate-900">أهلاً بك في فريق كباتن (وياك)!</h2>
           <p className="text-xs text-slate-600 leading-relaxed">
             تم استلام طلبك ومستنداتك بنجاح. يتم الآن مراجعة صحة البيانات من قِبل إدارة عمليات التوصيل.
           </p>
@@ -221,7 +221,7 @@ export default function ApplyAgentView({ onNavigate }) {
         </div>
 
         <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-[11px] text-amber-900 font-medium">
-          ⚠️ بالتسجيل فإنك تؤكد صحة البيانات والالتزام بمعايير جودة التوصيل والسلامة واحترام العملاء على منصة على بابك.
+          ⚠️ بالتسجيل فإنك تؤكد صحة البيانات والالتزام بمعايير جودة التوصيل والسلامة واحترام العملاء على منصة (وياك).
         </div>
 
         <div className="pt-2">

@@ -83,7 +83,7 @@ export default function AdminCategoriesView() {
           </div>
           <h1 className="text-2xl font-black text-slate-900">أقسام المحلات والمنتجات</h1>
           <p className="text-xs text-slate-500 mt-1">
-            إدارة وتصنيف المتاجر والمنتجات المتوفرة في تطبيق علي بابك
+            إدارة وتصنيف المتاجر والمنتجات المتوفرة في تطبيق (وياك)
           </p>
         </div>
         <button

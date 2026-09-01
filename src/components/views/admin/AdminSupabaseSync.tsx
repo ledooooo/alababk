@@ -88,7 +88,7 @@ export default function AdminSupabaseSync() {
             <Database className="w-5 h-5" />
             <span>حالة اتصال الربط البرمجي السحابي (Supabase Real Backend)</span>
           </div>
-          <h1 className="text-2xl font-black">ربط وقاعدة بيانات منصة "على بابك"</h1>
+          <h1 className="text-2xl font-black">ربط وقاعدة بيانات منصة "وياك"</h1>
           <p className="text-xs text-emerald-100 mt-1 max-w-xl">
             مشروعك متصل حالياً بخادم Supabase الحقيقي بمعلومات الاعتماد الرسمية.
           </p>

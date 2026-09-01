@@ -291,15 +291,15 @@ export default function AuthView({
       <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xl overflow-hidden p-6 sm:p-8 space-y-6">
         <div className="text-center space-y-2">
           <div className="w-16 h-16 rounded-2xl bg-emerald-600 text-white font-black text-2xl flex items-center justify-center mx-auto shadow-md shadow-emerald-600/20">
-            على بابك
+            وياك
           </div>
           <h1 className="text-2xl font-black text-slate-900">
             {mode === 'login' ? 'تسجيل الدخول إلى حسابك' : 'إنشاء حساب جديد'}
           </h1>
           <p className="text-xs text-slate-500 font-medium">
             {mode === 'login'
-              ? 'مرحباً بك مجدداً في منصة على بابك للتوصيل السريع'
-              : 'سجل حسابك مجاناً للاستفادة من كل خدمات التوصيل والمتاجر'}
+              ? 'مرحباً بك مجدداً في منصة وياك للتوصيل السريع'
+                            : 'سجل حسابك مجاناً للاستفادة من كل خدمات التوصيل والمتاجر'}
           </p>
         </div>
 

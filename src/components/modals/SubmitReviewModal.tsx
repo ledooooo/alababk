@@ -30,7 +30,7 @@ export const SubmitReviewModal: React.FC<SubmitReviewModalProps> = ({
       id: `rev-${Date.now()}`,
       order_id: order.id,
       customer_id: currentUser?.id || 'usr-customer-1',
-      customer_name: currentUser?.full_name || 'عميل على بابك',
+      customer_name: currentUser?.full_name || 'عميل (وياك)',
       store_id: order.store_id,
       store_name: order.store_name,
       delivery_agent_id: order.delivery_agent_id,

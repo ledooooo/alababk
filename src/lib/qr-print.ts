@@ -65,7 +65,7 @@ export async function printStoreQRCode(store: Store): Promise<void> {
       <h1 style="font-size:22px;margin:0 0 20px;color:#0f172a;">${escapeHtml(store.name)}</h1>
       <img src="${qrDataUrl}" width="320" height="320" style="display:block;margin:0 auto;" />
       <p style="font-size:11px;color:#94a3b8;margin-top:20px;word-break:break-all;">${escapeHtml(url)}</p>
-      <p style="font-size:14px;font-weight:bold;margin-top:16px;color:#059669;">على بابك</p>
+      <p style="font-size:14px;font-weight:bold;margin-top:16px;color:#059669;">وياك</p>
     </div>
   `;
 

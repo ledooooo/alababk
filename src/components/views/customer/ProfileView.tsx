@@ -15,7 +15,7 @@ interface ProfileViewProps {
 
 export default function ProfileView({ onNavigate, onLogout }) {
   const currentUser = StorageRepo.getCurrentUser();
-  const [fullName, setFullName] = useState(currentUser?.full_name || 'عميل على بابك');
+  const [fullName, setFullName] = useState(currentUser?.full_name || 'عميل وياك');
   const [phone, setPhone] = useState(currentUser?.phone || '01012345678');
   const [email, setEmail] = useState(currentUser?.email || 'customer@example.com');
   const [avatarUrl, setAvatarUrl] = useState(currentUser?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=200');

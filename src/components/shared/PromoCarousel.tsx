@@ -59,7 +59,7 @@ export const PromoCarousel: React.FC<PromoCarouselProps> = ({ onNavigate }) => {
       badgeBg: 'bg-blue-500 text-white',
       title: 'ستور تجريبي',
       highlightText: 'تصفح المنتجات المتاحة الآن',
-      description: 'اطلب من هذا المتجر المتاح على منصة على بابك مع توصيل سريع لباب بيتك.',
+      description: 'اطلب من هذا المتجر المتاح على منصة (وياك) مع توصيل سريع لباب بيتك.',
       bgGradient: 'from-blue-950 via-indigo-900 to-slate-900',
       icon: <StoreIcon className="w-8 h-8 text-blue-300" />,
       actionText: 'زيارة المتجر',
