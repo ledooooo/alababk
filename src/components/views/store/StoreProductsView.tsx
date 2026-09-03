@@ -200,6 +200,36 @@ export default function StoreProductsView({ onNavigate, adminStoreId }: StorePro
     }
   };
 
+  // تعليم/إلغاء تعليم المنتج كـ"نفذت الكمية": بيصفّر الكمية (فيظهر
+  // "نفذت الكمية" للعميل تلقائيًا عبر ProductCard)، ويحفظ الكمية
+  // الأصلية عشان يرجّعها بضغطة واحدة تاني بدل ما يعيد كتابتها.
+  const toggleProductStock = async (p: Product) => {
+    try {
+      if (p.stock > 0) {
+        await StorageRepo.saveProduct({ ...p, stock: 0, saved_stock: p.stock });
+        showToast({
+          type: 'success',
+          title: 'تم التحديث',
+          message: 'تم تعليم المنتج كـ"نفذت الكمية" — هيظهر كده للعميل حتى يتم تفعيله تاني',
+        });
+      } else {
+        const restored = p.saved_stock && p.saved_stock > 0 ? p.saved_stock : 10;
+        await StorageRepo.saveProduct({ ...p, stock: restored, saved_stock: null });
+        showToast({
+          type: 'success',
+          title: 'تم التحديث',
+          message: `تم إتاحة المنتج بكمية ${restored} ${p.unit}`,
+        });
+      }
+    } catch (err: any) {
+      showToast({
+        type: 'error',
+        title: 'فشل التحديث',
+        message: err.message || 'تعذر تغيير حالة التوفر',
+      });
+    }
+  };
+
   const filteredProducts = products.filter(
     (p) =>
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -330,6 +360,16 @@ export default function StoreProductsView({ onNavigate, adminStoreId }: StorePro
                       }`}>
                         {p.stock} {p.unit}
                       </span>
+                      <button
+                        onClick={() => toggleProductStock(p)}
+                        className={`block mt-1 px-2 py-0.5 rounded-md text-[10px] font-bold transition-colors ${
+                          p.stock <= 0
+                            ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
+                            : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+                        }`}
+                      >
+                        {p.stock <= 0 ? 'إتاحة المنتج' : 'تعليم كنافذ الكمية'}
+                      </button>
                     </td>
 
                     <td className="p-3.5">

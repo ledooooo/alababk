@@ -196,6 +196,8 @@ export interface Product {
   category_name: string;
   image_url: string;
   stock: number;
+  /** الكمية المحفوظة وقت تعليم المنتج "نفذت الكمية" يدويًا — لإرجاعها بضغطة واحدة عند التوفر */
+  saved_stock?: number | null;
   is_active: boolean;
   /** يحدّده الأدمن/صاحب المتجر: هل يجوز طلب استرجاع لهذا المنتج (انظر request_refund في fix_08) */
   is_returnable: boolean;
