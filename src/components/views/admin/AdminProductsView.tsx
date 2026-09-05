@@ -9,6 +9,7 @@ import {
 } from '../../../lib/supabase';
 import { Product, Category } from '../../../types/domain';
 import { formatCurrency } from '../../../lib/formatters';
+import { PRODUCT_BADGE_OPTIONS, PRODUCT_BADGES } from '../../../lib/product-badges';
 import { Pagination } from '../../shared/Pagination';
 import {
   Package,
@@ -366,7 +367,14 @@ export default function AdminProductsView() {
                           )}
                         </div>
                         <div className="min-w-0">
-                          <p className="font-bold text-slate-900 truncate max-w-[160px]">{p.name}</p>
+                          <p className="font-bold text-slate-900 truncate max-w-[160px] flex items-center gap-1.5">
+                            {p.name}
+                            {p.badge_type && p.badge_type !== 'none' && (
+                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0 ${PRODUCT_BADGES[p.badge_type as keyof typeof PRODUCT_BADGES].className}`}>
+                                {PRODUCT_BADGES[p.badge_type as keyof typeof PRODUCT_BADGES].label}
+                              </span>
+                            )}
+                          </p>
                           <p className="text-[10px] text-slate-400">{p.category_name}</p>
                         </div>
                       </div>
@@ -519,6 +527,32 @@ export default function AdminProductsView() {
                   <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">تاج على صورة المنتج</label>
+                <select
+                  value={editingProduct.badge_type || 'none'}
+                  onChange={(e) => setEditingProduct({ ...editingProduct, badge_type: e.target.value as any })}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                >
+                  {PRODUCT_BADGE_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+              {editingProduct.badge_type && editingProduct.badge_type !== 'none' && (
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">ينتهي تلقائيًا في (اختياري)</label>
+                  <input
+                    type="datetime-local"
+                    value={editingProduct.badge_expires_at ? editingProduct.badge_expires_at.slice(0, 16) : ''}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, badge_expires_at: e.target.value ? new Date(e.target.value).toISOString() : null })}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  />
+                </div>
+              )}
             </div>
 
             <div className="flex items-center justify-between gap-3">

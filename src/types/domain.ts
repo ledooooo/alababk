@@ -198,6 +198,10 @@ export interface Product {
   stock: number;
   /** الكمية المحفوظة وقت تعليم المنتج "نفذت الكمية" يدويًا — لإرجاعها بضغطة واحدة عند التوفر */
   saved_stock?: number | null;
+  /** تاج تسويقي اختياري على صورة المنتج */
+  badge_type?: 'none' | 'sale' | 'new' | 'flash_sale' | 'best_seller';
+  /** وقت انتهاء التاج تلقائيًا (اختياري، غالبًا لـ flash_sale) */
+  badge_expires_at?: string | null;
   is_active: boolean;
   /** يحدّده الأدمن/صاحب المتجر: هل يجوز طلب استرجاع لهذا المنتج (انظر request_refund في fix_08) */
   is_returnable: boolean;

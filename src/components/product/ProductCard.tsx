@@ -3,6 +3,7 @@ import { Product } from '../../types/domain';
 import { useCartStore } from '../../stores/cart-store';
 import { StorageRepo, subscribeToStorageChange } from '../../lib/storage';
 import { formatCurrency } from '../../lib/formatters';
+import { PRODUCT_BADGES, isBadgeActive } from '../../lib/product-badges';
 import { Plus, Minus, Check, ShoppingCart, AlertCircle, Heart } from 'lucide-react';
 
 interface ProductCardProps {
@@ -60,13 +61,27 @@ export const ProductCard: React.FC<ProductCardProps> = ({
     ? Math.round(((product.original_price! - product.price) / product.original_price!) * 100)
     : 0;
 
+  const showBadge = isBadgeActive(product.badge_type, product.badge_expires_at);
+  const badgeConfig = showBadge && product.badge_type && product.badge_type !== 'none'
+    ? PRODUCT_BADGES[product.badge_type as Exclude<typeof product.badge_type, 'none'>]
+    : null;
+
   return (
     <div className="bg-white rounded-xl border border-slate-200/80 p-3 shadow-xs hover:shadow-md hover:border-slate-300 transition-all flex flex-col justify-between relative group">
-      {/* Discount Badge */}
-      {hasDiscount && (
-        <span className="absolute top-2.5 right-2.5 bg-rose-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-xs z-10">
-          خصم {discountPercent}%
-        </span>
+      {/* تاجات المنتج (تسويقي + خصم) — تتراص فوق بعض لو الاتنين موجودين */}
+      {(badgeConfig || hasDiscount) && (
+        <div className="absolute top-2.5 right-2.5 z-10 flex flex-col items-end gap-1">
+          {badgeConfig && (
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md shadow-xs ${badgeConfig.className} ${badgeConfig.pulse ? 'animate-pulse' : ''}`}>
+              {badgeConfig.label}
+            </span>
+          )}
+          {hasDiscount && (
+            <span className="bg-rose-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-md shadow-xs">
+              خصم {discountPercent}%
+            </span>
+          )}
+        </div>
       )}
 
       {/* Image & Main Info */}

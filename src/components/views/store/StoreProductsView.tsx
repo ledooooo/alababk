@@ -3,6 +3,7 @@ import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
 import { subscribeSupabase, fetchStoreById } from '../../../lib/supabase';
 import { Product, Store } from '../../../types/domain';
 import { formatCurrency } from '../../../lib/formatters';
+import { PRODUCT_BADGE_OPTIONS, PRODUCT_BADGES } from '../../../lib/product-badges';
 import { Pagination } from '../../shared/Pagination';
 import { ImageUploadField } from '../../shared/ImageUploadField';
 import { Package, Plus, Edit2, Trash2, Search, Check, X, Image as ImageIcon, AlertCircle, Loader2, Store as StoreIcon } from 'lucide-react';
@@ -341,7 +342,14 @@ export default function StoreProductsView({ onNavigate, adminStoreId }: StorePro
                           className="w-12 h-12 object-cover rounded-xl border border-slate-200 shrink-0"
                         />
                         <div>
-                          <h4 className="font-bold text-slate-900 text-xs">{p.name}</h4>
+                          <h4 className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                            {p.name}
+                            {p.badge_type && p.badge_type !== 'none' && (
+                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${PRODUCT_BADGES[p.badge_type as keyof typeof PRODUCT_BADGES].className}`}>
+                                {PRODUCT_BADGES[p.badge_type as keyof typeof PRODUCT_BADGES].label}
+                              </span>
+                            )}
+                          </h4>
                           <p className="text-[10px] text-slate-400 line-clamp-1">{p.description}</p>
                         </div>
                       </div>
@@ -513,6 +521,32 @@ export default function StoreProductsView({ onNavigate, adminStoreId }: StorePro
                     className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
                   />
                 </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">تاج على صورة المنتج</label>
+                  <select
+                    value={editingProduct.badge_type || 'none'}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, badge_type: e.target.value as any })}
+                    className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  >
+                    {PRODUCT_BADGE_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {editingProduct.badge_type && editingProduct.badge_type !== 'none' && (
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">ينتهي التاج تلقائيًا في (اختياري)</label>
+                    <input
+                      type="datetime-local"
+                      value={editingProduct.badge_expires_at ? editingProduct.badge_expires_at.slice(0, 16) : ''}
+                      onChange={(e) => setEditingProduct({ ...editingProduct, badge_expires_at: e.target.value ? new Date(e.target.value).toISOString() : null })}
+                      className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                    />
+                    <p className="text-[10px] text-slate-400 mt-1">سيبها فاضية لو عايز التاج يفضل ظاهر لغاية ما تلغيه يدويًا</p>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">اسم القسم</label>
