@@ -6,6 +6,7 @@ export * from './crud';
 export * from './auth';
 export * from './users';
 export * from './categories';
+export * from './promotions';
 export * from './stores';
 export * from './products';
 export * from './orders';

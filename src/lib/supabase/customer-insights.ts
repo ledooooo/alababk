@@ -26,11 +26,12 @@ export interface ZoneMatch {
  *     console.log('بره كل مناطق التوصيل');
  *   }
  */
-export async function checkAddressZone(addressId: string): Promise<ZoneMatch | null> {
+export async function checkAddressZone(addressId: string, storeId?: string | null): Promise<ZoneMatch | null> {
   if (!addressId) return null;
   try {
     const { data, error } = await supabase.rpc('is_address_in_any_zone', {
       p_address_id: addressId,
+      p_store_id: storeId || null,
     });
     if (error) throw error;
     if (!data || data.length === 0) return null;
@@ -61,12 +62,13 @@ export async function checkAddressZone(addressId: string): Promise<ZoneMatch | n
  *     setZoneBadge(null);  // "بره كل مناطق التوصيل"
  *   }
  */
-export async function checkPointInZone(lat: number, lng: number): Promise<ZoneMatch | null> {
+export async function checkPointInZone(lat: number, lng: number, storeId?: string | null): Promise<ZoneMatch | null> {
   if (lat == null || lng == null || isNaN(lat) || isNaN(lng)) return null;
   try {
     const { data, error } = await supabase.rpc('is_point_in_any_zone', {
       p_lat: lat,
       p_lng: lng,
+      p_store_id: storeId || null,
     });
     if (error) throw error;
     if (!data || data.length === 0) return null;
@@ -99,12 +101,13 @@ export interface NearestZoneMatch extends ZoneMatch {
  *     // "أقرب منطقة تغطية: مدينة نصر — تبعد حوالي 4.2 كم"
  *   }
  */
-export async function getNearestZone(lat: number, lng: number): Promise<NearestZoneMatch | null> {
+export async function getNearestZone(lat: number, lng: number, storeId?: string | null): Promise<NearestZoneMatch | null> {
   if (lat == null || lng == null || isNaN(lat) || isNaN(lng)) return null;
   try {
     const { data, error } = await supabase.rpc('nearest_delivery_zone', {
       p_lat: lat,
       p_lng: lng,
+      p_store_id: storeId || null,
     });
     if (error) throw error;
     if (!data || data.length === 0) return null;

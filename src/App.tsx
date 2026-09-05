@@ -65,6 +65,7 @@ const AdminOrdersView = lazy(() => import('./components/views/admin/AdminOrdersV
 const AdminZonesView = lazy(() => import('./components/views/admin/AdminZonesView'));
 const AdminCouponsView = lazy(() => import('./components/views/admin/AdminCouponsView'));
 const AdminCategoriesView = lazy(() => import('./components/views/admin/AdminCategoriesView'));
+const AdminPromotionsView = lazy(() => import('./components/views/admin/AdminPromotionsView'));
 const AdminPayoutsView = lazy(() => import('./components/views/admin/AdminPayoutsView'));
 const AdminReviewsView = lazy(() => import('./components/views/admin/AdminReviewsView'));
 const AdminNotificationsView = lazy(() => import('./components/views/admin/AdminNotificationsView'));
@@ -151,6 +152,7 @@ const TAB_TO_PATH: Record<string, string> = {
   'admin-zones': '/admin/zones',
   'admin-coupons': '/admin/coupons',
   'admin-categories': '/admin/categories',
+  'admin-promotions': '/admin/promotions',
   'admin-payouts': '/admin/payouts',
   'admin-activity-log': '/admin/activity',
   'admin-settings': '/admin/settings',
@@ -621,6 +623,7 @@ export default function App() {
               <Route path="/admin/zones" element={<ProtectedRoute allowedRoles={['admin']}><AdminZonesView /></ProtectedRoute>} />
               <Route path="/admin/coupons" element={<ProtectedRoute allowedRoles={['admin']}><AdminCouponsView /></ProtectedRoute>} />
               <Route path="/admin/categories" element={<ProtectedRoute allowedRoles={['admin']}><AdminCategoriesView /></ProtectedRoute>} />
+              <Route path="/admin/promotions" element={<ProtectedRoute allowedRoles={['admin']}><AdminPromotionsView /></ProtectedRoute>} />
               <Route path="/admin/payouts" element={<ProtectedRoute allowedRoles={['admin']}><AdminPayoutsView /></ProtectedRoute>} />
               <Route path="/admin/activity" element={<ProtectedRoute allowedRoles={['admin']}><AdminActivityLogView /></ProtectedRoute>} />
               <Route path="/admin/settings" element={<ProtectedRoute allowedRoles={['admin']}><AdminPlatformSettingsView /></ProtectedRoute>} />
@@ -676,12 +679,12 @@ export default function App() {
                 <a href="/terms" className="hover:text-purple-600 transition-colors">الشروط والخصوصية</a>
               </div>
               <span className="text-[11px] text-slate-400 font-normal">
-                منصة عل (JIHAT Platform) - توصيل فائق السرعة
+                منصة على بابك (JIHAT Platform) - توصيل فائق السرعة
               </span>
             </div>
             <div className="text-center text-xs text-slate-500">
               <p className="font-bold text-slate-800">
-                منصة (وياك) - التوصيل الفائق والتسوق المحلي المباشر في جمهورية مصر العربية 🇪🇬
+                منصة على بابك - التوصيل الفائق والتسوق المحلي المباشر في جمهورية مصر العربية 🇪🇬
               </p>
               <p className="mt-1 text-[11px] text-slate-400">
                 جميع الحقوق محفوظة © {new Date().getFullYear()} - ربط أصحاب المحلات، كباتن التوصيل، والعملاء

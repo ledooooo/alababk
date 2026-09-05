@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
-import { DeliveryZone } from '../../../types/domain';
+import { DeliveryZone, Store } from '../../../types/domain';
 import { formatCurrency } from '../../../lib/formatters';
 import { LeafletMap, MapPolygon } from '../../shared/LeafletMap';
-import { ensureUUID } from '../../../lib/supabase';
-import { MapPin, Plus, Clock, Edit2, ShieldCheck, Check, AlertCircle, Power, Trash2 } from 'lucide-react';
+import { ensureUUID, fetchSupabaseStores } from '../../../lib/supabase';
+import { MapPin, Plus, Clock, Edit2, ShieldCheck, Check, AlertCircle, Power, Trash2, Store as StoreIcon, Globe } from 'lucide-react';
 import { useToast } from '../../shared/Toast';
 import { useConfirm } from '../../shared/ConfirmDialog';
 
 export default function AdminZonesView() {
   const [zones, setZones] = useState<DeliveryZone[]>(StorageRepo.getZones());
+  const [stores, setStores] = useState<Store[]>([]);
+  const [storeFilter, setStoreFilter] = useState<string>('all');
   const [editingZone, setEditingZone] = useState<Partial<DeliveryZone> | null>(null);
   const [polygonStr, setPolygonStr] = useState<string>('');
   const [saving, setSaving] = useState(false);
@@ -35,6 +37,16 @@ export default function AdminZonesView() {
     });
     return unsubscribe;
   }, []);
+
+  useEffect(() => {
+    fetchSupabaseStores().then(setStores).catch((err) => console.warn('fetch stores for zones error:', err));
+  }, []);
+
+  const filteredZones = storeFilter === 'all'
+    ? zones
+    : storeFilter === 'global'
+      ? zones.filter((z) => !z.store_id)
+      : zones.filter((z) => z.store_id === storeFilter);
 
   const handleSaveZone = async () => {
     setErrorMessage(null);
@@ -133,7 +145,7 @@ export default function AdminZonesView() {
     }
   };
 
-  const zoneMarkers = zones.map((z) => ({
+  const zoneMarkers = filteredZones.map((z) => ({
     lat: z.center_lat || 30.0444,
     lng: z.center_lng || 31.2357,
     title: z.name,
@@ -142,7 +154,7 @@ export default function AdminZonesView() {
   }));
 
   // تحويل الـ polygons للـ format اللي LeafletMap يفهمه
-  const zonePolygons: MapPolygon[] = zones
+  const zonePolygons: MapPolygon[] = filteredZones
     .filter((z) => Array.isArray(z.polygon) && z.polygon.length >= 3)
     .map((z) => ({
       coordinates: z.polygon as [number, number][],
@@ -152,14 +164,14 @@ export default function AdminZonesView() {
 
   return (
     <div className="space-y-6 dir-rtl pb-16">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <MapPin className="w-6 h-6 text-purple-600" />
             <span>إدارة مناطق وعصبيات التوصيل الميداني</span>
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            تحديد أقطار النطاق الجغرافي والمضلعات (Polygon) ورسوم التوصيل والزمن التقديري للخدمة
+            كل متجر له مناطق تغطية خاصة به (عنوانه مختلف عن غيره) — أو تُستخدم المناطق العامة تلقائيًا لأي متجر لسه ما حدّدش مناطقه
           </p>
         </div>
 
@@ -176,6 +188,7 @@ export default function AdminZonesView() {
               eta_minutes: 30,
               estimated_delivery_mins: 30,
               is_active: true,
+              store_id: storeFilter !== 'all' && storeFilter !== 'global' ? storeFilter : null,
             });
             setPolygonStr('');
             setErrorMessage(null);
@@ -185,6 +198,34 @@ export default function AdminZonesView() {
           <Plus className="w-4 h-4" />
           <span>إضافة منطقة تغطية جديدة</span>
         </button>
+      </div>
+
+      {/* فلتر عرض المناطق حسب المتجر */}
+      <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex flex-wrap items-center gap-2">
+        <span className="text-xs font-bold text-slate-500 shrink-0">اعرض مناطق:</span>
+        <button
+          onClick={() => setStoreFilter('all')}
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors ${storeFilter === 'all' ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+        >
+          الكل
+        </button>
+        <button
+          onClick={() => setStoreFilter('global')}
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-colors flex items-center gap-1 ${storeFilter === 'global' ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+        >
+          <Globe className="w-3.5 h-3.5" />
+          <span>عامة (fallback)</span>
+        </button>
+        <select
+          value={storeFilter !== 'all' && storeFilter !== 'global' ? storeFilter : ''}
+          onChange={(e) => setStoreFilter(e.target.value || 'all')}
+          className="px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-100 text-slate-700 border-none outline-none focus:ring-2 focus:ring-purple-500"
+        >
+          <option value="">-- اختر متجر معيّن --</option>
+          {stores.map((s) => (
+            <option key={s.id} value={s.id}>{s.name}</option>
+          ))}
+        </select>
       </div>
 
       {/* Map Overview */}
@@ -216,6 +257,25 @@ export default function AdminZonesView() {
               <span>{errorMessage}</span>
             </div>
           )}
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">تابعة لمتجر معيّن، ولا منطقة عامة؟</label>
+            <select
+              value={editingZone.store_id || ''}
+              onChange={(e) => setEditingZone({ ...editingZone, store_id: e.target.value || null })}
+              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-purple-500 focus:outline-none"
+            >
+              <option value="">🌐 منطقة عامة (fallback لكل متجر لسه ما حدّدش مناطقه)</option>
+              {stores.map((s) => (
+                <option key={s.id} value={s.id}>🏪 {s.name}</option>
+              ))}
+            </select>
+            {editingZone.store_id && (
+              <p className="text-[10px] text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-2 py-1 mt-1.5 font-bold">
+                ⚠️ بمجرد ما تحفظ أول منطقة خاصة بهذا المتجر، عناوين عملائه هتتفحص ضد مناطقه الخاصة بس (مش هيرجعوا للمناطق العامة تلقائيًا).
+              </p>
+            )}
+          </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
@@ -332,7 +392,7 @@ export default function AdminZonesView() {
 
       {/* Zone Cards List */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {zones.map((z) => (
+        {filteredZones.map((z) => (
           <div
             key={z.id}
             className={`bg-white rounded-2xl p-4 border shadow-xs space-y-2 ${
@@ -342,6 +402,15 @@ export default function AdminZonesView() {
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
               <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="font-extrabold text-slate-900 text-sm">{z.name}</h3>
+                {z.store_id ? (
+                  <span className="bg-blue-50 text-blue-700 text-[10px] font-bold px-2 py-0.5 rounded-md border border-blue-200 flex items-center gap-1">
+                    <StoreIcon className="w-3 h-3" /> {z.store_name || 'متجر'}
+                  </span>
+                ) : (
+                  <span className="bg-slate-50 text-slate-500 text-[10px] font-bold px-2 py-0.5 rounded-md border border-slate-200 flex items-center gap-1">
+                    <Globe className="w-3 h-3" /> عامة
+                  </span>
+                )}
                 {z.is_active === false && (
                   <span className="bg-slate-100 text-slate-500 text-[10px] font-bold px-2 py-0.5 rounded-md border border-slate-200">
                     معطلة

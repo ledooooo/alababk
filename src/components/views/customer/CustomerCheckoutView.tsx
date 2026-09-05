@@ -188,14 +188,14 @@ export default function CustomerCheckoutView({
     let cancelled = false;
     setSelectedZoneStatus('loading');
     setNearestZone(null);
-    checkAddressZone(selectedAddressId)
+    checkAddressZone(selectedAddressId, storeId)
       .then(async (zone) => {
         if (cancelled) return;
         setSelectedZoneStatus(zone || 'outside');
         if (!zone) {
           const addr = addresses.find((a) => a.id === selectedAddressId);
           if (addr?.lat != null && addr?.lng != null) {
-            const nearest = await getNearestZone(addr.lat, addr.lng);
+            const nearest = await getNearestZone(addr.lat, addr.lng, storeId);
             if (!cancelled) setNearestZone(nearest);
           }
         }
@@ -207,17 +207,17 @@ export default function CustomerCheckoutView({
     return () => {
       cancelled = true;
     };
-  }, [selectedAddressId]);
+  }, [selectedAddressId, storeId]);
 
   // فحص zone للنقطة المختارة على الخريطة (في وضع إضافة عنوان جديد)
   const handleCheckoutMapClick = async (pickedLat: number, pickedLng: number) => {
     setNewAddress({ ...newAddress, lat: pickedLat, lng: pickedLng });
     setPickedZoneStatus('loading');
     setNearestZone(null);
-    const zone = await checkPointInZone(pickedLat, pickedLng);
+    const zone = await checkPointInZone(pickedLat, pickedLng, storeId);
     setPickedZoneStatus(zone || 'outside');
     if (!zone) {
-      const nearest = await getNearestZone(pickedLat, pickedLng);
+      const nearest = await getNearestZone(pickedLat, pickedLng, storeId);
       setNearestZone(nearest);
     }
   };

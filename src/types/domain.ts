@@ -334,6 +334,9 @@ export interface DeliveryZone {
   radius_km?: number;
   base_delivery_fee?: number;
   estimated_delivery_mins?: number;
+  /** المتجر اللي المنطقة دي خاصة بيه. فاضي/null = منطقة عامة (fallback) لأي متجر لسه معملوش مناطق خاصة */
+  store_id?: string | null;
+  store_name?: string;
 }
 
 export interface Coupon {

@@ -14,6 +14,7 @@ import {
   Package,
   QrCode,
   Star,
+  Sparkles,
   DollarSign,
   TrendingUp,
   Settings,
@@ -117,13 +118,13 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
               <div className="flex items-center gap-3">
                 <img
                   src="/icon.png"
-                  alt="وياك"
+                  alt="على بابك"
                   className="w-10 h-10 rounded-xl object-cover shadow-md border border-amber-400/40"
                   referrerPolicy="no-referrer"
                 />
                 <div>
                   <h2 className="font-extrabold text-base text-white tracking-tight leading-tight">
-                    وياك
+                    على بابك
                   </h2>
                   <p className="text-[11px] text-emerald-400 font-medium mt-0.5">
                     القائمة الملاحة الشاملة
@@ -744,6 +745,19 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                 </button>
 
                 <button
+                  onClick={() => onNavigate('/admin/promotions')}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                    isActive('/admin/promotions') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Sparkles className="w-4 h-4" />
+                    <span>العروض الترويجية</span>
+                  </div>
+                  <ChevronLeft className="w-4 h-4 opacity-60" />
+                </button>
+
+                <button
                   onClick={() => onNavigate('/admin/reviews')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
                     isActive('/admin/reviews') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
@@ -813,8 +827,8 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
               >
                 <div className="flex items-center gap-2.5">
                   <Info className="w-4 h-4 text-emerald-600" />
-                  <span>عن منصة وياك</span>
-                                  </div>
+                  <span>عن منصة على بابك</span>
+                </div>
               </button>
 
               <button
@@ -832,7 +846,8 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
           </div>
 
           <div className="shrink-0 p-4 bg-slate-50 border-t border-slate-200 text-center text-xs text-slate-500">
-            <p className="font-bold text-slate-700">وياك © 2026</p>            <p className="text-[10px] mt-0.5">التوصيل الفائق من المتاجر المحلية</p>
+            <p className="font-bold text-slate-700">على بابك © 2026</p>
+            <p className="text-[10px] mt-0.5">التوصيل الفائق من المتاجر المحلية</p>
           </div>
         </div>
       </div>
