@@ -7,6 +7,7 @@ export * from './auth';
 export * from './users';
 export * from './categories';
 export * from './promotions';
+export * from './wishlist';
 export * from './stores';
 export * from './products';
 export * from './orders';

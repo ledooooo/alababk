@@ -65,6 +65,12 @@ import {
   fetchAddresses,
   deleteAddress,
   translateSupabaseError,
+  fetchWishlistStoreIds,
+  fetchWishlistProductIds,
+  addStoreToWishlist,
+  removeStoreFromWishlist,
+  addProductToWishlist,
+  removeProductFromWishlist,
 } from './supabase';
 
 // تعريف المتغيرات المستقلة للـ My Store Cache
@@ -1108,18 +1114,49 @@ export const StorageRepo = {
   },
 
   // --- WISHLIST ---
+  // الكاش المحلي (localStorage) هنا مرآة سريعة للقراءة الفورية فقط —
+  // المصدر الحقيقي بقى جداول wishlist_stores/wishlist_products في
+  // Supabase (كانت موجودة أصلاً وماكنش بيستخدمها حد). getWishlistX
+  // بترجع الكاش فورًا وتطلق تحديث خلفي مديبونس من السيرفر، فمفضلة
+  // العميل بقت تتزامن بين الأجهزة بدل ما تضيع لو مسح بيانات المتصفح.
   getWishlistStoreIds(userId?: string): string[] {
     if (typeof window === 'undefined') return [];
     const targetUserId = userId || this.getCurrentUser()?.id || 'guest';
     const data = localStorage.getItem(`${STORAGE_KEYS.WISHLIST_STORES}_${targetUserId}`);
-    return data ? JSON.parse(data) : [];
+    const cached = data ? JSON.parse(data) : [];
+    if (targetUserId !== 'guest' && shouldTriggerBackgroundRefresh(`wishlist_stores_${targetUserId}`)) {
+      this.refreshWishlistStoreIds(targetUserId).catch((err) => console.warn('refreshWishlistStoreIds error:', err));
+    }
+    return cached;
   },
 
   getWishlistProductIds(userId?: string): string[] {
     if (typeof window === 'undefined') return [];
     const targetUserId = userId || this.getCurrentUser()?.id || 'guest';
     const data = localStorage.getItem(`${STORAGE_KEYS.WISHLIST_PRODUCTS}_${targetUserId}`);
-    return data ? JSON.parse(data) : [];
+    const cached = data ? JSON.parse(data) : [];
+    if (targetUserId !== 'guest' && shouldTriggerBackgroundRefresh(`wishlist_products_${targetUserId}`)) {
+      this.refreshWishlistProductIds(targetUserId).catch((err) => console.warn('refreshWishlistProductIds error:', err));
+    }
+    return cached;
+  },
+
+  async refreshWishlistStoreIds(userId?: string): Promise<string[]> {
+    const targetUserId = userId || this.getCurrentUser()?.id;
+    if (!targetUserId || typeof window === 'undefined') return [];
+    const ids = await fetchWishlistStoreIds(targetUserId);
+    localStorage.setItem(`${STORAGE_KEYS.WISHLIST_STORES}_${targetUserId}`, JSON.stringify(ids));
+    notifyStorageChange('wishlist', 'refresh_stores', { ids });
+    return ids;
+  },
+
+  async refreshWishlistProductIds(userId?: string): Promise<string[]> {
+    const targetUserId = userId || this.getCurrentUser()?.id;
+    if (!targetUserId || typeof window === 'undefined') return [];
+    const ids = await fetchWishlistProductIds(targetUserId);
+    localStorage.setItem(`${STORAGE_KEYS.WISHLIST_PRODUCTS}_${targetUserId}`, JSON.stringify(ids));
+    notifyStorageChange('wishlist', 'refresh_products', { ids });
+    return ids;
   },
 
   isStoreWishlisted(storeId: string, userId?: string): boolean {
@@ -1130,6 +1167,9 @@ export const StorageRepo = {
     return this.getWishlistProductIds(userId).includes(productId);
   },
 
+  // بيرجع فورًا (تحديث تفاؤلي محلي)، وبيزامن مع السيرفر في الخلفية.
+  // لو المزامنة فشلت، بيرجع الحالة المحلية للخلف ويبلّغ تاني عشان
+  // الواجهة تتصحح تلقائيًا (نفس الاستدعاءات الحالية بدون أي تعديل).
   toggleWishlistStore(storeId: string, userId?: string): boolean {
     if (typeof window === 'undefined') return false;
     const targetUserId = userId || this.getCurrentUser()?.id || 'guest';
@@ -1146,6 +1186,22 @@ export const StorageRepo = {
     }
     localStorage.setItem(key, JSON.stringify(list));
     notifyStorageChange('wishlist', 'toggle_store', { storeId, isAdded });
+
+    if (targetUserId !== 'guest') {
+      const syncPromise = isAdded
+        ? addStoreToWishlist(targetUserId, storeId)
+        : removeStoreFromWishlist(targetUserId, storeId);
+      syncPromise.catch((err) => {
+        console.warn('wishlist store sync failed, reverting local state:', err);
+        const currentList = this.getWishlistStoreIds(targetUserId);
+        const idx = currentList.indexOf(storeId);
+        if (isAdded && idx > -1) currentList.splice(idx, 1);
+        else if (!isAdded && idx === -1) currentList.push(storeId);
+        localStorage.setItem(key, JSON.stringify(currentList));
+        notifyStorageChange('wishlist', 'sync_failed', { storeId });
+      });
+    }
+
     return isAdded;
   },
 
@@ -1165,6 +1221,22 @@ export const StorageRepo = {
     }
     localStorage.setItem(key, JSON.stringify(list));
     notifyStorageChange('wishlist', 'toggle_product', { productId, isAdded });
+
+    if (targetUserId !== 'guest') {
+      const syncPromise = isAdded
+        ? addProductToWishlist(targetUserId, productId)
+        : removeProductFromWishlist(targetUserId, productId);
+      syncPromise.catch((err) => {
+        console.warn('wishlist product sync failed, reverting local state:', err);
+        const currentList = this.getWishlistProductIds(targetUserId);
+        const idx = currentList.indexOf(productId);
+        if (isAdded && idx > -1) currentList.splice(idx, 1);
+        else if (!isAdded && idx === -1) currentList.push(productId);
+        localStorage.setItem(key, JSON.stringify(currentList));
+        notifyStorageChange('wishlist', 'sync_failed', { productId });
+      });
+    }
+
     return isAdded;
   },
 
