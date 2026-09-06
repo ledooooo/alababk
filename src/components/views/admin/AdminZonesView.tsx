@@ -153,9 +153,14 @@ export default function AdminZonesView() {
     type: 'store' as const,
   }));
 
-  // تحويل الـ polygons للـ format اللي LeafletMap يفهمه
+  // تحويل الـ polygons للـ format اللي LeafletMap يفهمه — فحص عميق لكل
+  // نقطة (مش بس طول المصفوفة) عشان منطقة واحدة ببيانات غريبة/تالفة
+  // ما تكرّشش الصفحة كلها زي ما حصل قبل كده.
+  const isValidPoint = (pt: any): pt is [number, number] =>
+    Array.isArray(pt) && pt.length === 2 && Number.isFinite(pt[0]) && Number.isFinite(pt[1]);
+
   const zonePolygons: MapPolygon[] = filteredZones
-    .filter((z) => Array.isArray(z.polygon) && z.polygon.length >= 3)
+    .filter((z) => Array.isArray(z.polygon) && z.polygon.length >= 3 && z.polygon.every(isValidPoint))
     .map((z) => ({
       coordinates: z.polygon as [number, number][],
       name: z.name,

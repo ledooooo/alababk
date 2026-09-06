@@ -158,28 +158,34 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
     // رسم الـ polygons (مناطق التوصيل)
     polygons.forEach((p) => {
       if (!p.coordinates || p.coordinates.length < 3) return;
-      const isActive = p.isActive !== false;
-      const color = p.color || (isActive ? '#7c3aed' : '#94a3b8');
-      const fillColor = p.fillColor || (isActive ? '#a78bfa' : '#cbd5e1');
-      const polygon = L.polygon(p.coordinates, {
-        color,
-        weight: 2,
-        fillColor,
-        fillOpacity: p.fillOpacity ?? (isActive ? 0.25 : 0.1),
-        dashArray: isActive ? undefined : '6, 6',
-      });
-      if (p.name) {
-        polygon.bindPopup(`
-          <div style="direction: rtl; text-align: right; font-family: 'Cairo', sans-serif;">
-            <strong style="font-size: 14px; color: #1e293b;">${p.name}</strong>
-            <p style="margin: 4px 0 0 0; font-size: 11px; color: ${isActive ? '#16a34a' : '#64748b'};">
-              ${isActive ? '✓ منطقة نشطة' : '✗ منطقة معطلة'}
-            </p>
-          </div>
-        `);
+      try {
+        const isActive = p.isActive !== false;
+        const color = p.color || (isActive ? '#7c3aed' : '#94a3b8');
+        const fillColor = p.fillColor || (isActive ? '#a78bfa' : '#cbd5e1');
+        const polygon = L.polygon(p.coordinates, {
+          color,
+          weight: 2,
+          fillColor,
+          fillOpacity: p.fillOpacity ?? (isActive ? 0.25 : 0.1),
+          dashArray: isActive ? undefined : '6, 6',
+        });
+        if (p.name) {
+          polygon.bindPopup(`
+            <div style="direction: rtl; text-align: right; font-family: 'Cairo', sans-serif;">
+              <strong style="font-size: 14px; color: #1e293b;">${p.name}</strong>
+              <p style="margin: 4px 0 0 0; font-size: 11px; color: ${isActive ? '#16a34a' : '#64748b'};">
+                ${isActive ? '✓ منطقة نشطة' : '✗ منطقة معطلة'}
+              </p>
+            </div>
+          `);
+        }
+        polygon.addTo(polygonsGroupRef.current!);
+        p.coordinates.forEach((c) => latLngs.push(c));
+      } catch (err) {
+        // منطقة واحدة ببيانات إحداثيات تالفة/غير متوقعة ما ينبغيش
+        // تكسر الخريطة كلها — نتجاهلها ونكمل باقي المناطق عادي.
+        console.warn(`Failed to render delivery zone polygon "${p.name || 'unnamed'}":`, err);
       }
-      polygon.addTo(polygonsGroupRef.current!);
-      p.coordinates.forEach((c) => latLngs.push(c));
     });
 
     markers.forEach((m) => {
