@@ -49,6 +49,8 @@ export default function CustomerCheckoutView({
 
   // حالة فتح/إغلاق المحل الفعلية (إجازة / مواعيد عمل) — لمنع تأكيد طلب من محل مقفول
   const [storeOpenStatus, setStoreOpenStatus] = useState<StoreOpenStatus | null>(null);
+  // الحد الأدنى للطلب من هذا المتجر (لو محدد) — لمنع تأكيد طلب أقل منه
+  const [storeMinOrderAmount, setStoreMinOrderAmount] = useState<number>(0);
 
   useEffect(() => {
     if (!storeId) return;
@@ -56,6 +58,7 @@ export default function CustomerCheckoutView({
     fetchStoreById(storeId).then((store: Store | null) => {
       if (cancelled || !store) return;
       setStoreOpenStatus(getStoreOpenStatus(store));
+      setStoreMinOrderAmount(store.min_order_amount || 0);
     });
     return () => {
       cancelled = true;
@@ -724,7 +727,7 @@ export default function CustomerCheckoutView({
       {/* زر التأكيد */}
       <button
         onClick={handleSubmitOrder}
-        disabled={isSubmitting || !quote || !!quoteError || !selectedAddressId || selectedZoneStatus === 'outside' || storeOpenStatus?.isOpen === false}
+        disabled={isSubmitting || !quote || !!quoteError || !selectedAddressId || selectedZoneStatus === 'outside' || storeOpenStatus?.isOpen === false || (!!quote && quote.subtotal < storeMinOrderAmount)}
         className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black text-base rounded-2xl shadow-md transition-all flex items-center justify-center gap-2"
       >
         {isSubmitting ? (
@@ -739,6 +742,15 @@ export default function CustomerCheckoutView({
           </>
         )}
       </button>
+
+      {quote && storeMinOrderAmount > 0 && quote.subtotal < storeMinOrderAmount && !submitError && (
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-sm font-bold flex items-start gap-2">
+          <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+          <span>
+            الحد الأدنى للطلب من هذا المتجر {formatCurrency(storeMinOrderAmount)} — أضف {formatCurrency(storeMinOrderAmount - quote.subtotal)} كمان للوصول للحد الأدنى.
+          </span>
+        </div>
+      )}
 
       {selectedZoneStatus === 'outside' && !submitError && (
         <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-sm font-bold flex items-start gap-2">

@@ -6,7 +6,7 @@ import {
   createSupabaseNotification,
   fetchNotificationBroadcasts,
   deleteNotificationBroadcast,
-  fetchSupabaseUsers,
+  searchUsersAdmin,
   deleteSupabaseNotification,
   NotificationBroadcast,
 } from '../../../lib/supabase';
@@ -39,9 +39,11 @@ export default function AdminNotificationsView() {
   const [type, setType] = useState<'system' | 'promotion' | 'order_status'>('promotion');
   const [targetMode, setTargetMode] = useState<TargetMode>('all');
 
-  // اختيار مستخدم واحد بالتحديد
-  const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
+  // اختيار مستخدم واحد بالتحديد — بحث مباشر في الداتابيز (debounced)
+  // بدل تحميل أول 1000 مستخدم مقدمًا وفلترتهم محليًا
   const [userSearch, setUserSearch] = useState('');
+  const [userSearchResults, setUserSearchResults] = useState<UserProfile[]>([]);
+  const [userSearchLoading, setUserSearchLoading] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
 
   // فلترة/بحث وحذف سجل الإشعارات المرسلة لكل المستخدمين
@@ -87,10 +89,28 @@ export default function AdminNotificationsView() {
   }, []);
 
   useEffect(() => {
-    if (targetMode === 'user' && allUsers.length === 0) {
-      fetchSupabaseUsers().then(setAllUsers).catch(() => {});
+    const term = userSearch.trim();
+    if (!term) {
+      setUserSearchResults([]);
+      return;
     }
-  }, [targetMode]);
+    let cancelled = false;
+    setUserSearchLoading(true);
+    const debounceTimer = setTimeout(() => {
+      searchUsersAdmin(term, 8)
+        .then((results) => {
+          if (!cancelled) setUserSearchResults(results);
+        })
+        .catch((err) => console.warn('searchUsersAdmin error:', err))
+        .finally(() => {
+          if (!cancelled) setUserSearchLoading(false);
+        });
+    }, 350);
+    return () => {
+      cancelled = true;
+      clearTimeout(debounceTimer);
+    };
+  }, [userSearch]);
 
   const filteredHistory = useMemo(() => {
     const term = historySearch.trim().toLowerCase();
@@ -177,11 +197,6 @@ export default function AdminNotificationsView() {
     });
   };
 
-  const filteredUsers = allUsers.filter((u) => {
-    const term = userSearch.trim().toLowerCase();
-    if (!term) return false;
-    return u.name.toLowerCase().includes(term) || u.phone.includes(term) || u.email.toLowerCase().includes(term);
-  }).slice(0, 8);
 
   const handleSendBroadcast = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -308,13 +323,18 @@ export default function AdminNotificationsView() {
                       onChange={(e) => setUserSearch(e.target.value)}
                       className="w-full pr-9 pl-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:border-indigo-600"
                     />
-                    {userSearch && filteredUsers.length > 0 && (
+                    {userSearch && userSearchLoading && (
+                      <div className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg p-3 text-center">
+                        <span className="text-[10px] text-slate-400">جاري البحث...</span>
+                      </div>
+                    )}
+                    {userSearch && !userSearchLoading && userSearchResults.length > 0 && (
                       <div className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
-                        {filteredUsers.map((u) => (
+                        {userSearchResults.map((u) => (
                           <button
                             type="button"
                             key={u.id}
-                            onClick={() => { setSelectedUser(u); setUserSearch(''); }}
+                            onClick={() => { setSelectedUser(u); setUserSearch(''); setUserSearchResults([]); }}
                             className="w-full text-right px-3 py-2 hover:bg-slate-50 text-xs border-b border-slate-100 last:border-0"
                           >
                             <div className="font-bold text-slate-900">{u.name}</div>
@@ -322,6 +342,9 @@ export default function AdminNotificationsView() {
                           </button>
                         ))}
                       </div>
+                    )}
+                    {userSearch && !userSearchLoading && userSearchResults.length === 0 && (
+                      <p className="text-[10px] text-slate-400 mt-1">مفيش مستخدم مطابق.</p>
                     )}
                   </div>
                 )}

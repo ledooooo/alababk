@@ -67,3 +67,25 @@ export async function saveSupabaseUser(user: Partial<UserProfile>, options: Save
     created_at: u.created_at || new Date().toISOString(),
   };
 }
+
+/**
+ * بحث مباشر عن مستخدمين بالاسم/التليفون/الإيميل عبر admin_search_users —
+ * بديل تحميل fetchSupabaseUsers() كامل (محدود بـ1000) وفلترته محليًا.
+ * ترجع مصفوفة فاضية لو search فاضي، بدون استعلام.
+ */
+export async function searchUsersAdmin(search: string, limit = 8): Promise<UserProfile[]> {
+  const term = search.trim();
+  if (!term) return [];
+  const { data, error } = await supabase.rpc('admin_search_users', { p_search: term, p_limit: limit });
+  if (error) throw new Error(translateSupabaseError(error).message);
+  return (data || []).map((u: any) => ({
+    id: u.id,
+    email: u.email || '',
+    name: u.full_name || 'مستخدم',
+    phone: u.phone || '',
+    role: (u.role as UserRole) || 'customer',
+    avatar_url: undefined,
+    is_active: true,
+    created_at: new Date().toISOString(),
+  }));
+}

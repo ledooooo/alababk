@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
-import { subscribeSupabase, fetchSupabaseUsers } from '../../../lib/supabase';
+import { subscribeSupabase, searchUsersAdmin } from '../../../lib/supabase';
 import { Store, UserProfile, Category } from '../../../types/domain';
 import { formatCurrency, formatPhoneNumber } from '../../../lib/formatters';
 import { Pagination } from '../../shared/Pagination';
@@ -28,11 +28,39 @@ export default function AdminStoresView() {
   // كان بيخلي إنشاء المتجر يفشل دايمًا (مُعرّف مالك المتجر مفقود أو غير
   // صالح)، وبعد إضافة قيد stores_owner_id_unique (fix_10) كمان لازم
   // يبقى المالك مستخدم حقيقي مالوش متجر تاني أصلًا.
-  const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
+  // نبحث عن مالك محتمل مباشرة في الداتابيز (debounced) بدل تحميل أول
+  // 1000 مستخدم مقدمًا وفلترتهم محليًا — أي مستخدم اتسجل بعدهم كان
+  // هيبقى غير قابل للاختيار كمالك جديد بصمت.
   const [ownerSearch, setOwnerSearch] = useState('');
+  const [ownerSearchResults, setOwnerSearchResults] = useState<UserProfile[]>([]);
+  const [ownerSearchLoading, setOwnerSearchLoading] = useState(false);
   const [selectedOwner, setSelectedOwner] = useState<UserProfile | null>(null);
   const { showToast } = useToast();
   const { showConfirm } = useConfirm();
+
+  useEffect(() => {
+    const term = ownerSearch.trim();
+    if (!term) {
+      setOwnerSearchResults([]);
+      return;
+    }
+    let cancelled = false;
+    setOwnerSearchLoading(true);
+    const debounceTimer = setTimeout(() => {
+      searchUsersAdmin(term, 8)
+        .then((results) => {
+          if (!cancelled) setOwnerSearchResults(results);
+        })
+        .catch((err) => console.warn('searchUsersAdmin error:', err))
+        .finally(() => {
+          if (!cancelled) setOwnerSearchLoading(false);
+        });
+    }, 350);
+    return () => {
+      cancelled = true;
+      clearTimeout(debounceTimer);
+    };
+  }, [ownerSearch]);
 
   useEffect(() => {
     const refresh = () => {
@@ -59,20 +87,6 @@ export default function AdminStoresView() {
   useEffect(() => {
     setCategories(StorageRepo.getCategories());
   }, []);
-
-  // نحمّل المستخدمين فقط لما نفتح مودال إنشاء متجر جديد فعليًا — لا داعي
-  // لتحميلها مسبقًا لكل زيارة لهذه الشاشة
-  useEffect(() => {
-    if (isAddModalOpen && allUsers.length === 0) {
-      fetchSupabaseUsers().then(setAllUsers).catch(() => {});
-    }
-  }, [isAddModalOpen]);
-
-  const filteredOwnerCandidates = allUsers.filter((u) => {
-    const term = ownerSearch.trim().toLowerCase();
-    if (!term) return false;
-    return u.name.toLowerCase().includes(term) || u.phone.includes(term) || u.email.toLowerCase().includes(term);
-  }).slice(0, 8);
 
   const filteredStores = stores.filter(
     (s) =>
@@ -180,7 +194,7 @@ export default function AdminStoresView() {
       slug: newStoreName.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now().toString(36),
       owner_id: selectedOwner.id,
       category_id: newStoreCategoryId,
-      description: 'متجر مسجل في منصة وياك',
+      description: 'متجر مسجل في منصة على بابك',
       // مفيش شعار افتراضي وهمي هنا عمدًا — صاحب المتجر أو الأدمن يرفع
       // شعار حقيقي لاحقًا من StoreSettingsView (فيه ImageUploadField فعلي).
       logo_url: '',
@@ -222,7 +236,7 @@ export default function AdminStoresView() {
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
             <StoreIcon className="w-6 h-6 text-purple-600" />
-            <span>دليل المتاجر والعمولات في وياك</span>
+            <span>دليل المتاجر والعمولات في على بابك</span>
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
             إدارة المتاجر المسجلة في Supabase وتحديد نسب العمولة وحالات التشغيل
@@ -422,13 +436,18 @@ export default function AdminStoresView() {
                       onChange={(e) => setOwnerSearch(e.target.value)}
                       className="w-full pr-9 pl-3 p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs"
                     />
-                    {ownerSearch && filteredOwnerCandidates.length > 0 && (
+                    {ownerSearch && ownerSearchLoading && (
+                      <div className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg p-3 text-center">
+                        <span className="text-[10px] text-slate-400">جاري البحث...</span>
+                      </div>
+                    )}
+                    {ownerSearch && !ownerSearchLoading && ownerSearchResults.length > 0 && (
                       <div className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg max-h-40 overflow-y-auto">
-                        {filteredOwnerCandidates.map((u) => (
+                        {ownerSearchResults.map((u) => (
                           <button
                             type="button"
                             key={u.id}
-                            onClick={() => { setSelectedOwner(u); setOwnerSearch(''); }}
+                            onClick={() => { setSelectedOwner(u); setOwnerSearch(''); setOwnerSearchResults([]); }}
                             className="w-full text-right px-3 py-2 hover:bg-slate-50 text-xs border-b border-slate-100 last:border-0"
                           >
                             <div className="font-bold text-slate-900">{u.name}</div>
@@ -437,7 +456,7 @@ export default function AdminStoresView() {
                         ))}
                       </div>
                     )}
-                    {ownerSearch && filteredOwnerCandidates.length === 0 && (
+                    {ownerSearch && !ownerSearchLoading && ownerSearchResults.length === 0 && (
                       <p className="text-[10px] text-slate-400 mt-1">
                         مفيش مستخدم مطابق. المالك لازم يكون سجّل حساب في التطبيق الأول.
                       </p>
