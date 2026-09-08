@@ -33,6 +33,12 @@ interface LeafletMapProps {
   showRoute?: boolean;
   interactiveSelect?: boolean;
   onLocationSelect?: (lat: number, lng: number) => void;
+  /** وضع "ارسم منطقة": كل ضغطة على الخريطة بتضيف نقطة جديدة لمضلع قيد الرسم */
+  drawPolygonMode?: boolean;
+  /** النقاط الحالية للمضلع قيد الرسم (controlled من الأب) */
+  drawPoints?: [number, number][];
+  /** بينادَى بالنقاط الجديدة كل ما المستخدم يضغط على الخريطة في وضع الرسم */
+  onDrawPointsChange?: (points: [number, number][]) => void;
   height?: string;
   className?: string;
 }
@@ -68,6 +74,9 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   showRoute = false,
   interactiveSelect = false,
   onLocationSelect,
+  drawPolygonMode = false,
+  drawPoints = [],
+  onDrawPointsChange,
   height = '320px',
   className = '',
 }) => {
@@ -76,9 +85,19 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
   const selectedMarkerRef = useRef<L.Marker | null>(null);
   const markersGroupRef = useRef<L.LayerGroup | null>(null);
   const polygonsGroupRef = useRef<L.LayerGroup | null>(null);
+  const drawGroupRef = useRef<L.LayerGroup | null>(null);
   const routeLineRef = useRef<L.Polyline | null>(null);
   const hasFittedBoundsRef = useRef<boolean>(false);
   const prevMarkerCountRef = useRef<number>(0);
+
+  // قيم أحدث لوضع الرسم — بيقرأهم الـclick handler وقت التنفيذ الفعلي،
+  // مش وقت التسجيل (الـmap effect بيتنفذ مرة واحدة بس عند mount)
+  const drawModeRef = useRef(drawPolygonMode);
+  const drawPointsRef = useRef(drawPoints);
+  const onDrawPointsChangeRef = useRef(onDrawPointsChange);
+  useEffect(() => { drawModeRef.current = drawPolygonMode; }, [drawPolygonMode]);
+  useEffect(() => { drawPointsRef.current = drawPoints; }, [drawPoints]);
+  useEffect(() => { onDrawPointsChangeRef.current = onDrawPointsChange; }, [onDrawPointsChange]);
 
   useEffect(() => {
     if (!mapContainerRef.current) return;
@@ -98,10 +117,18 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
       mapInstanceRef.current = map;
       markersGroupRef.current = L.layerGroup().addTo(map);
       polygonsGroupRef.current = L.layerGroup().addTo(map);
+      drawGroupRef.current = L.layerGroup().addTo(map);
 
-      if (interactiveSelect) {
-        map.on('click', (e: L.LeafletMouseEvent) => {
-          const { lat, lng } = e.latlng;
+      map.on('click', (e: L.LeafletMouseEvent) => {
+        const { lat, lng } = e.latlng;
+
+        if (drawModeRef.current) {
+          const next: [number, number][] = [...(drawPointsRef.current || []), [lat, lng]];
+          onDrawPointsChangeRef.current?.(next);
+          return;
+        }
+
+        if (interactiveSelect) {
           if (selectedMarkerRef.current) {
             selectedMarkerRef.current.setLatLng([lat, lng]);
           } else {
@@ -113,8 +140,8 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
           if (onLocationSelect) {
             onLocationSelect(lat, lng);
           }
-        });
-      }
+        }
+      });
     }
 
     return () => {
@@ -124,6 +151,41 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
       }
     };
   }, []);
+
+  // رسم نقاط/خطوط/معاينة المضلع قيد الرسم — بتتحدث مع كل نقطة جديدة
+  useEffect(() => {
+    const map = mapInstanceRef.current;
+    if (!map || !drawGroupRef.current) return;
+
+    drawGroupRef.current.clearLayers();
+    if (!drawPolygonMode || drawPoints.length === 0) return;
+
+    drawPoints.forEach((pt, idx) => {
+      const marker = L.circleMarker(pt, {
+        radius: 7,
+        color: '#ffffff',
+        weight: 2,
+        fillColor: '#dc2626',
+        fillOpacity: 1,
+      }).bindTooltip(String(idx + 1), { permanent: true, direction: 'center', className: 'zone-draw-point-label' });
+      marker.addTo(drawGroupRef.current!);
+    });
+
+    if (drawPoints.length >= 2) {
+      L.polyline(drawPoints, { color: '#dc2626', weight: 2, dashArray: '4, 6' }).addTo(drawGroupRef.current!);
+    }
+
+    if (drawPoints.length >= 3) {
+      L.polygon(drawPoints, {
+        color: '#dc2626',
+        weight: 1,
+        fillColor: '#f87171',
+        fillOpacity: 0.2,
+        dashArray: '4, 6',
+      }).addTo(drawGroupRef.current!);
+    }
+  }, [drawPoints, drawPolygonMode]);
+
 
   // Update map center & markers reactively
   useEffect(() => {
@@ -239,6 +301,12 @@ export const LeafletMap: React.FC<LeafletMapProps> = ({
         <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-lg shadow-md border border-slate-200 text-xs text-slate-700 font-medium z-[400] flex items-center gap-1.5">
           <span>📍</span>
           <span>انقر على الخريطة لتحديد عنوان التوصيل</span>
+        </div>
+      )}
+      {drawPolygonMode && (
+        <div className="absolute top-3 right-3 bg-rose-600/95 backdrop-blur-md px-3 py-1.5 rounded-lg shadow-md text-xs text-white font-bold z-[400] flex items-center gap-1.5">
+          <span>✏️</span>
+          <span>{drawPoints.length === 0 ? 'انقر على الخريطة لبدء رسم حدود المنطقة' : `${drawPoints.length} نقطة — استمر في النقر لإضافة حدود المنطقة`}</span>
         </div>
       )}
     </div>

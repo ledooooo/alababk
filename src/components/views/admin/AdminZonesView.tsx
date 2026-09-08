@@ -14,6 +14,8 @@ export default function AdminZonesView() {
   const [storeFilter, setStoreFilter] = useState<string>('all');
   const [editingZone, setEditingZone] = useState<Partial<DeliveryZone> | null>(null);
   const [polygonStr, setPolygonStr] = useState<string>('');
+  const [showAdvancedPaste, setShowAdvancedPaste] = useState(false);
+  const [drawnPoints, setDrawnPoints] = useState<[number, number][]>([]);
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const { showToast } = useToast();
@@ -22,9 +24,12 @@ export default function AdminZonesView() {
   useEffect(() => {
     if (editingZone?.polygon && Array.isArray(editingZone.polygon)) {
       setPolygonStr(JSON.stringify(editingZone.polygon));
+      setDrawnPoints(editingZone.polygon as [number, number][]);
     } else {
       setPolygonStr('');
+      setDrawnPoints([]);
     }
+    setShowAdvancedPaste(false);
   }, [editingZone?.id]);
 
   // subscribe لأي تغيير في zones (save/delete من أي مكان) عشان الـ list
@@ -61,23 +66,13 @@ export default function AdminZonesView() {
     }
 
     let parsedPolygon: [number, number][] | undefined = undefined;
-    if (polygonStr.trim()) {
-      try {
-        const arr = JSON.parse(polygonStr);
-        if (Array.isArray(arr) && arr.every((pt) => Array.isArray(pt) && pt.length === 2)) {
-          parsedPolygon = arr as [number, number][];
-        } else {
-          const msg = 'صيغة المضلع (polygon) غير صحيحة. يجب أن تكون قائمة إحداثيات مثل [[30.05, 31.23], [30.05, 31.26]]';
-          setErrorMessage(msg);
-          showToast({ type: 'error', title: 'خطأ في الإحداثيات', message: msg });
-          return;
-        }
-      } catch {
-        const msg = 'تعذر قراءة إحداثيات المضلع. يرجى التأكد من كتابة JSON صحيح';
-        setErrorMessage(msg);
-        showToast({ type: 'error', title: 'خطأ في JSON', message: msg });
-        return;
-      }
+    if (drawnPoints.length >= 3) {
+      parsedPolygon = drawnPoints;
+    } else if (drawnPoints.length > 0) {
+      const msg = 'محتاج 3 نقاط على الأقل لرسم حدود منطقة صحيحة (عندك حاليًا ' + drawnPoints.length + ')';
+      setErrorMessage(msg);
+      showToast({ type: 'error', title: 'حدود المنطقة ناقصة', message: msg });
+      return;
     }
 
     const fullZone: DeliveryZone = {
@@ -339,39 +334,88 @@ export default function AdminZonesView() {
 
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">
-              إحداثيات الحدود الجغرافية Polygon (JSON اختياري)
+              ارسم حدود المنطقة على الخريطة
             </label>
-            <textarea
-              rows={2}
-              value={polygonStr}
-              onChange={(e) => setPolygonStr(e.target.value)}
-              placeholder="[[30.05, 31.23], [30.05, 31.26], [30.03, 31.26], [30.03, 31.23]]"
-              className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono focus:ring-2 focus:ring-purple-500 focus:outline-none dir-ltr"
+            <LeafletMap
+              drawPolygonMode
+              drawPoints={drawnPoints}
+              onDrawPointsChange={setDrawnPoints}
+              polygons={zones
+                .filter((z) => z.id !== editingZone.id && Array.isArray(z.polygon) && z.polygon.length >= 3)
+                .map((z) => ({ coordinates: z.polygon as [number, number][], name: z.name, isActive: false }))}
+              centerLat={editingZone.center_lat || 30.0444}
+              centerLng={editingZone.center_lng || 31.2357}
+              height="280px"
             />
-            {polygonStr.trim() && (() => {
-              try {
-                const arr = JSON.parse(polygonStr);
-                if (Array.isArray(arr) && arr.length >= 3 && arr.every((p) => Array.isArray(p) && p.length === 2)) {
-                  return (
-                    <p className="text-[10px] text-emerald-600 mt-1 font-bold flex items-center gap-1">
-                      <Check className="w-3 h-3" />
-                      مضلع صالح: {arr.length} نقطة
-                    </p>
-                  );
-                }
-                return (
-                  <p className="text-[10px] text-rose-600 mt-1 font-bold">
-                    ⚠️ محتاج 3 نقاط على الأقل وكل نقطة [lat, lng]
-                  </p>
-                );
-              } catch {
-                return (
-                  <p className="text-[10px] text-rose-600 mt-1 font-bold">
-                    ⚠️ JSON غير صالح
-                  </p>
-                );
-              }
-            })()}
+            <div className="flex items-center justify-between mt-1.5">
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setDrawnPoints((pts) => pts.slice(0, -1))}
+                  disabled={drawnPoints.length === 0}
+                  className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 text-[11px] font-bold rounded-lg transition-colors"
+                >
+                  تراجع عن آخر نقطة
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDrawnPoints([])}
+                  disabled={drawnPoints.length === 0}
+                  className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 text-[11px] font-bold rounded-lg transition-colors"
+                >
+                  امسح الكل
+                </button>
+              </div>
+              {drawnPoints.length >= 3 ? (
+                <p className="text-[11px] text-emerald-600 font-bold flex items-center gap-1">
+                  <Check className="w-3 h-3" />
+                  مضلع صالح: {drawnPoints.length} نقطة
+                </p>
+              ) : drawnPoints.length > 0 ? (
+                <p className="text-[11px] text-amber-600 font-bold">محتاج {3 - drawnPoints.length} نقطة كمان على الأقل</p>
+              ) : (
+                <p className="text-[11px] text-slate-400 font-bold">مفيش حدود مرسومة بعد</p>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowAdvancedPaste((v) => !v)}
+              className="text-[11px] text-slate-400 hover:text-slate-600 font-bold mt-2 underline"
+            >
+              {showAdvancedPaste ? 'إخفاء' : 'أو ألصق إحداثيات JSON جاهزة (متقدم)'}
+            </button>
+
+            {showAdvancedPaste && (
+              <div className="mt-2 space-y-1.5">
+                <textarea
+                  rows={2}
+                  value={polygonStr}
+                  onChange={(e) => setPolygonStr(e.target.value)}
+                  placeholder="[[30.05, 31.23], [30.05, 31.26], [30.03, 31.26], [30.03, 31.23]]"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono focus:ring-2 focus:ring-purple-500 focus:outline-none dir-ltr"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    try {
+                      const arr = JSON.parse(polygonStr);
+                      if (Array.isArray(arr) && arr.length >= 3 && arr.every((p) => Array.isArray(p) && p.length === 2)) {
+                        setDrawnPoints(arr as [number, number][]);
+                        showToast({ type: 'success', title: 'تم', message: `تم تحميل ${arr.length} نقطة على الخريطة` });
+                      } else {
+                        showToast({ type: 'error', title: 'صيغة غير صحيحة', message: 'محتاج 3 نقاط على الأقل، كل نقطة [lat, lng]' });
+                      }
+                    } catch {
+                      showToast({ type: 'error', title: 'JSON غير صالح', message: 'تأكد من صيغة الإحداثيات' });
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-slate-700 hover:bg-slate-800 text-white text-[11px] font-bold rounded-lg transition-colors"
+                >
+                  تحميل هذه الإحداثيات على الخريطة
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="flex gap-2">
