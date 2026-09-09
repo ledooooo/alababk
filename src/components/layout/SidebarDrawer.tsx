@@ -15,6 +15,7 @@ import {
   QrCode,
   Star,
   Sparkles,
+  MessageSquare,
   DollarSign,
   TrendingUp,
   Settings,
@@ -284,6 +285,19 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                   <div className="flex items-center gap-2.5">
                     <Bell className="w-4 h-4" />
                     <span>الإشعارات</span>
+                  </div>
+                  <ChevronLeft className="w-4 h-4 opacity-60" />
+                </button>
+
+                <button
+                  onClick={() => onNavigate('/support')}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                    isActive('/support') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <MessageSquare className="w-4 h-4" />
+                    <span>الدعم والشكاوى</span>
                   </div>
                   <ChevronLeft className="w-4 h-4 opacity-60" />
                 </button>
@@ -753,6 +767,19 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
                   <div className="flex items-center gap-2.5">
                     <Sparkles className="w-4 h-4" />
                     <span>العروض الترويجية</span>
+                  </div>
+                  <ChevronLeft className="w-4 h-4 opacity-60" />
+                </button>
+
+                <button
+                  onClick={() => onNavigate('/admin/support')}
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                    isActive('/admin/support') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <MessageSquare className="w-4 h-4" />
+                    <span>تذاكر الدعم والشكاوى</span>
                   </div>
                   <ChevronLeft className="w-4 h-4 opacity-60" />
                 </button>

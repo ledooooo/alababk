@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
 import { fetchOrderStatusHistory, subscribeSupabase, fetchChatRecipients, ChatRecipients } from '../../../lib/supabase';
 import { Order, OrderStatus, OrderStatusHistoryItem } from '../../../types/domain';
 import { formatCurrency, formatDateArabic, formatPhoneNumber } from '../../../lib/formatters';
 import { ORDER_STATUS_LABELS, getOrderStatusConfig } from '../../../lib/constants';
-import { ArrowLeft, MapPin, Phone, Clock, Truck, CheckCircle2, XCircle, AlertCircle, Loader2, Store, Package, CreditCard, Calendar, User, RefreshCw, MessageCircle, Star } from 'lucide-react';
+import { ArrowLeft, MapPin, Phone, Clock, Truck, CheckCircle2, XCircle, AlertCircle, Loader2, Store, Package, CreditCard, Calendar, User, RefreshCw, MessageCircle, Star, Flag } from 'lucide-react';
 import { useToast } from '../../shared/Toast';
 import { useConfirm } from '../../shared/ConfirmDialog';
 import OrderChatPanel from '../../shared/OrderChatPanel';
@@ -17,6 +18,7 @@ interface CustomerOrderDetailViewProps {
 }
 
 export default function CustomerOrderDetailView({ orderId, onBack }) {
+  const navigate = useNavigate();
   // ===== HOOKS ===== (جميع الـ hooks في الأعلى، قبل أي return شرطي)
   const [order, setOrder] = useState<Order | null>(null);
   const [statusHistory, setStatusHistory] = useState<OrderStatusHistoryItem[]>([]);
@@ -426,6 +428,13 @@ export default function CustomerOrderDetailView({ orderId, onBack }) {
             </button>
           )
         )}
+        <button
+          onClick={() => navigate(`/support?order=${order.id}`)}
+          className="px-6 py-2.5 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-sm font-bold shadow-xs transition-colors flex items-center gap-2"
+        >
+          <Flag className="w-4 h-4" />
+          الإبلاغ عن مشكلة في هذا الطلب
+        </button>
       </div>
 
       {showReviewModal && order && (

@@ -20,6 +20,7 @@ const CustomerCheckoutView = lazy(() => import('./components/views/customer/Cust
 const CustomerOrdersView = lazy(() => import('./components/views/customer/CustomerOrdersView'));
 const CustomerOrderDetailView = lazy(() => import('./components/views/customer/CustomerOrderDetailView'));
 const CustomerAddressesView = lazy(() => import('./components/views/customer/CustomerAddressesView'));
+const CustomerSupportView = lazy(() => import('./components/views/customer/CustomerSupportView'));
 const SearchView = lazy(() => import('./components/views/customer/SearchView'));
 const CategoriesBrowseView = lazy(() => import('./components/views/customer/CategoriesBrowseView'));
 const ProfileView = lazy(() => import('./components/views/customer/ProfileView'));
@@ -63,6 +64,7 @@ const AdminProductsView = lazy(() => import('./components/views/admin/AdminProdu
 const AdminAgentsView = lazy(() => import('./components/views/admin/AdminAgentsView'));
 const AdminOrdersView = lazy(() => import('./components/views/admin/AdminOrdersView'));
 const AdminZonesView = lazy(() => import('./components/views/admin/AdminZonesView'));
+const AdminSupportTicketsView = lazy(() => import('./components/views/admin/AdminSupportTicketsView'));
 const AdminStoreQRCodesView = lazy(() => import('./components/views/admin/AdminStoreQRCodesView'));
 const AdminCouponsView = lazy(() => import('./components/views/admin/AdminCouponsView'));
 const AdminCategoriesView = lazy(() => import('./components/views/admin/AdminCategoriesView'));
@@ -115,6 +117,7 @@ const TAB_TO_PATH: Record<string, string> = {
   'customer-orders': '/orders',
   profile: '/profile',
   'customer-addresses': '/addresses',
+  'customer-support': '/support',
   notifications: '/notifications',
 
   // Store owner
@@ -151,6 +154,7 @@ const TAB_TO_PATH: Record<string, string> = {
   'admin-customers': '/admin/customers',
   'admin-orders': '/admin/orders',
   'admin-zones': '/admin/zones',
+  'admin-support': '/admin/support',
   'admin-store-qr-codes': '/admin/store-qr-codes',
   'admin-coupons': '/admin/coupons',
   'admin-categories': '/admin/categories',
@@ -585,6 +589,7 @@ export default function App() {
               <Route path="/order-confirmation/:orderId" element={<OrderConfirmationRoute />} />
               <Route path="/profile" element={<ProfileRoute />} />
               <Route path="/addresses" element={<CustomerAddressesView />} />
+              <Route path="/support" element={<CustomerSupportView />} />
               <Route path="/notifications" element={<NotificationsRoute />} />
 
               {/* Store Owner Routes */}
@@ -623,6 +628,7 @@ export default function App() {
               <Route path="/admin/customers" element={<ProtectedRoute allowedRoles={['admin']}><AdminCustomersView /></ProtectedRoute>} />
               <Route path="/admin/orders" element={<ProtectedRoute allowedRoles={['admin']}><AdminOrdersView /></ProtectedRoute>} />
               <Route path="/admin/zones" element={<ProtectedRoute allowedRoles={['admin']}><AdminZonesView /></ProtectedRoute>} />
+              <Route path="/admin/support" element={<ProtectedRoute allowedRoles={['admin']}><AdminSupportTicketsView /></ProtectedRoute>} />
               <Route path="/admin/store-qr-codes" element={<ProtectedRoute allowedRoles={['admin']}><AdminStoreQRCodesView /></ProtectedRoute>} />
               <Route path="/admin/coupons" element={<ProtectedRoute allowedRoles={['admin']}><AdminCouponsView /></ProtectedRoute>} />
               <Route path="/admin/categories" element={<ProtectedRoute allowedRoles={['admin']}><AdminCategoriesView /></ProtectedRoute>} />
