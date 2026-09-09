@@ -16,6 +16,7 @@ export * from './delivery-agents';
 export * from './zones';
 export * from './coupons';
 export * from './reviews';
+export * from './support';
 export * from './notifications';
 export * from './payouts';
 export * from './storage-upload';
