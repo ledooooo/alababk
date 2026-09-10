@@ -119,13 +119,13 @@ export const SidebarDrawer: React.FC<SidebarDrawerProps> = ({
               <div className="flex items-center gap-3">
                 <img
                   src="/icon.png"
-                  alt="على بابك"
+                  alt="وياك"
                   className="w-10 h-10 rounded-xl object-cover shadow-md border border-amber-400/40"
                   referrerPolicy="no-referrer"
                 />
                 <div>
                   <h2 className="font-extrabold text-base text-white tracking-tight leading-tight">
-                    على بابك
+                    وياك
                   </h2>
                   <p className="text-[11px] text-emerald-400 font-medium mt-0.5">
                     القائمة الملاحة الشاملة

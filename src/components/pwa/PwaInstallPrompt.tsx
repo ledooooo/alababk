@@ -106,7 +106,7 @@ export const PwaInstallPrompt: React.FC = () => {
         <div className="fixed top-5 left-1/2 -translate-x-1/2 z-[100] bg-emerald-700 text-white px-5 py-3 rounded-2xl shadow-2xl flex items-center gap-3 dir-rtl animate-in fade-in slide-in-from-top-4">
           <CheckCircle2 className="w-6 h-6 text-emerald-300 shrink-0" />
           <div className="text-xs">
-            <h4 className="font-extrabold text-sm">تم تثبيت تطبيق على بابك بنجاح! 🎉</h4>
+            <h4 className="font-extrabold text-sm">تم تثبيت تطبيق (وياك) بنجاح! 🎉</h4>
             <p className="text-emerald-100 font-medium mt-0.5">يمكنك الآن فتح التطبيق مباشرة من الشاشة الرئيسية بجهازك.</p>
           </div>
         </div>

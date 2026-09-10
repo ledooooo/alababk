@@ -122,7 +122,7 @@ self.addEventListener('push', (event) => {
   try {
     data = event.data ? event.data.json() : {};
   } catch {
-    data = { title: 'على بابك', body: event.data ? event.data.text() : '' };
+    data = { title: 'وياك', body: event.data ? event.data.text() : '' };
   }
 
   const title = data.title || 'على بابك';

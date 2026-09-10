@@ -147,7 +147,7 @@ export default function StoreReviewsSection({ store }) {
             <div className="space-y-1">
               <h3 className="text-lg font-black text-slate-900">تقييمات وآراء العملاء</h3>
               <p className="text-xs text-slate-500">
-                إجمالي {totalReviews} تقييم حقيقي من مستخدمي تطبيق على بابك
+                إجمالي {totalReviews} تقييم حقيقي من مستخدمي تطبيق وياك
               </p>
               {!showForm && (
                 <button

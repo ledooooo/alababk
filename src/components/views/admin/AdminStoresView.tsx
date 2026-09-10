@@ -194,7 +194,7 @@ export default function AdminStoresView() {
       slug: newStoreName.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now().toString(36),
       owner_id: selectedOwner.id,
       category_id: newStoreCategoryId,
-      description: 'متجر مسجل في منصة على بابك',
+      description: 'متجر مسجل في منصة وياك',
       // مفيش شعار افتراضي وهمي هنا عمدًا — صاحب المتجر أو الأدمن يرفع
       // شعار حقيقي لاحقًا من StoreSettingsView (فيه ImageUploadField فعلي).
       logo_url: '',
