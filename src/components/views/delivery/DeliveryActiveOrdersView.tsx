@@ -1,14 +1,19 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { StorageRepo } from '../../../lib/storage';
 import { updateSupabaseOrderLocation } from '../../../lib/supabase';
 import { Order } from '../../../types/domain';
 import { formatCurrency, formatDateArabic } from '../../../lib/formatters';
-import { Loader2, MapPin, Truck, Clock, CheckCircle2, Navigation, AlertCircle, MessageCircle, StickyNote } from 'lucide-react';
+import { Loader2, MapPin, Truck, Clock, CheckCircle2, Navigation, AlertCircle, MessageCircle } from 'lucide-react';
 import OrderChatPanel from '../../shared/OrderChatPanel';
 
 interface DeliveryActiveOrdersViewProps {
   onNavigate: (tab: string) => void;
 }
+
+// أقل فاصل زمني (بالمللي ثانية) بين إرسالتين لموقع نفس المندوب —
+// يمنع الإرسال لقاعدة البيانات مع كل نبضة GPS (ممكن توصل كذا مرة في
+// الثانية)، من غير ما يأثر على دقة التتبع الفعلية للعميل.
+const LOCATION_UPDATE_THROTTLE_MS = 8000;
 
 export default function DeliveryActiveOrdersView({ onNavigate }) {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -18,6 +23,19 @@ export default function DeliveryActiveOrdersView({ onNavigate }) {
   const [locationError, setLocationError] = useState<string | null>(null);
   const [lastLocation, setLastLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [chatOrderId, setChatOrderId] = useState<string | null>(null);
+
+  // قيمة orders الأحدث دايمًا — بيقرأها الـcallback بتاع watchPosition
+  // وقت التنفيذ الفعلي، بدل ما يعتمد على orders وقت تسجيل الـeffect
+  // (اللي كان بيخليه يسجّل watchPosition من جديد تمامًا مع كل تحديث
+  // لقائمة الطلبات — استهلاك بطارية غير ضروري وفجوات في التتبع أثناء
+  // إعادة التسجيل).
+  const ordersRef = useRef<Order[]>(orders);
+  useEffect(() => {
+    ordersRef.current = orders;
+  }, [orders]);
+
+  // آخر وقت اتبعت فيه تحديث موقع لكل طلب — للـthrottle الفعلي
+  const lastSentAtRef = useRef<Record<string, number>>({});
 
   const loadOrders = async () => {
     try {
@@ -40,6 +58,8 @@ export default function DeliveryActiveOrdersView({ onNavigate }) {
   };
 
   // ===== تحديث موقع المندوب =====
+  // بيتسجل مرة واحدة بس عند فتح الشاشة (deps: []) — مش مع كل تحديث
+  // لقائمة الطلبات زي ما كان يحصل قبل كده.
   useEffect(() => {
     if (!('geolocation' in navigator)) {
       setLocationError('المتصفح لا يدعم تحديد الموقع');
@@ -52,14 +72,22 @@ export default function DeliveryActiveOrdersView({ onNavigate }) {
         setLastLocation({ lat: latitude, lng: longitude });
         setLocationError(null);
 
-        // إرسال الموقع للطلبات النشطة (بـ throttle)
-        const activeOrders = orders.filter(
+        const now = Date.now();
+        const activeOrders = ordersRef.current.filter(
           (o) => ['assigned', 'picked_up', 'on_the_way'].includes(o.status)
         );
+
         activeOrders.forEach((order) => {
-          updateSupabaseOrderLocation(order.id, latitude, longitude).catch((err) =>
-            console.warn('Failed to update location for order', order.id, err)
-          );
+          const lastSentAt = lastSentAtRef.current[order.id] || 0;
+          if (now - lastSentAt < LOCATION_UPDATE_THROTTLE_MS) return;
+          lastSentAtRef.current[order.id] = now;
+
+          updateSupabaseOrderLocation(order.id, latitude, longitude).catch((err) => {
+            console.warn('Failed to update location for order', order.id, err);
+            // فشل الإرسال؟ نسمح بمحاولة تانية في النبضة الجاية بدل ما
+            // نستنى فترة الـthrottle كاملة على محاولة فشلت أصلًا
+            delete lastSentAtRef.current[order.id];
+          });
         });
       },
       (err) => {
@@ -79,11 +107,12 @@ export default function DeliveryActiveOrdersView({ onNavigate }) {
         navigator.geolocation.clearWatch(watchId);
       }
     };
-  }, [orders]);
+  }, []);
 
   useEffect(() => {
     loadOrders();
   }, []);
+
 
   // ===== تحديث حالة الطلب =====
   const updateOrderStatus = async (orderId: string, status: 'picked_up' | 'on_the_way' | 'delivered') => {
@@ -179,13 +208,6 @@ export default function DeliveryActiveOrdersView({ onNavigate }) {
                 <span className="mr-1">{order.delivery_address.address_line}</span>
               </div>
             </div>
-
-            {order.customer_notes && (
-              <div className="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-[11px] text-amber-800 font-bold flex items-start gap-1.5">
-                <StickyNote className="w-3.5 h-3.5 text-amber-600 mt-0.5 shrink-0" />
-                <span>ملاحظة العميل: {order.customer_notes}</span>
-              </div>
-            )}
 
             <button
               onClick={() => setChatOrderId(order.id)}

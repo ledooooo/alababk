@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
-import { subscribeSupabase } from '../../../lib/supabase';
+import { subscribeSupabase, fetchSupabaseOrders } from '../../../lib/supabase';
 import { Order, Product, Store } from '../../../types/domain';
 import { formatCurrency } from '../../../lib/formatters';
-import { TrendingUp, ShoppingBag, DollarSign, Award, Calendar, BarChart2, Loader2, Store as StoreIcon } from 'lucide-react';
+import { TrendingUp, ShoppingBag, DollarSign, Award, Calendar, BarChart2, Loader2, Store as StoreIcon, AlertCircle } from 'lucide-react';
 import {
   ResponsiveContainer,
   LineChart,
@@ -22,61 +22,100 @@ interface StoreAnalyticsViewProps {
 export default function StoreAnalyticsView({ onNavigate }) {
   const [store, setStore] = useState<Store | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [timeRange, setTimeRange] = useState<'7days' | '14days' | '30days'>('7days');
 
-  const loadData = async () => {
-    setLoading(true);
+  // يحمّل بيانات المتجر والمنتجات (كاش محلي عادي — حجمها محدود بطبيعتها).
+  // الطلبات لوحدها بتتجاب مباشرة من الخادم مفلترة بـstore_id (خطوة
+  // منفصلة تحت)، مش من StorageRepo.getOrders() اللي بيحمّل آخر 500
+  // طلب على مستوى المنصة كلها ويفلتر محليًا — ده كان بيخلي إحصائيات
+  // متجر أقل نشاطًا من غيره تطلع ناقصة/غلط بصمت مع نمو المنصة.
+  const loadStoreAndProducts = async () => {
     const myStore = await StorageRepo.getMyStore();
     setStore(myStore);
-    if (myStore) {
-      const storeOrders = StorageRepo.getOrders().filter((o) => o.store_id === myStore.id);
+    setProducts(myStore ? StorageRepo.getProducts(myStore.id) : []);
+    return myStore;
+  };
+
+  const loadOrders = async (storeId: string, showBadge = false) => {
+    if (showBadge) setIsRefreshing(true);
+    try {
+      const storeOrders = await fetchSupabaseOrders({ store_id: storeId });
       setOrders(storeOrders);
-      const storeProds = StorageRepo.getProducts(myStore.id);
-      setProducts(storeProds);
-    } else {
-      setOrders([]);
-      setProducts([]);
+      setError(null);
+    } catch (err: any) {
+      console.error('Failed to fetch store orders for analytics:', err);
+      setError('تعذر تحميل طلبات المتجر من الخادم.');
+    } finally {
+      setIsRefreshing(false);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
-    loadData();
+    setLoading(true);
+    loadStoreAndProducts().then((myStore) => {
+      if (myStore) {
+        loadOrders(myStore.id).finally(() => setLoading(false));
+      } else {
+        setOrders([]);
+        setLoading(false);
+      }
+    });
 
-    const RELEVANT_TYPES = new Set(['order', 'product', 'store']);
+    const RELEVANT_TYPES = new Set(['product', 'store']);
     const unsubscribeStorage = subscribeToStorageChange((detail) => {
-      if (RELEVANT_TYPES.has(detail.entityType)) loadData();
+      if (RELEVANT_TYPES.has(detail.entityType)) loadStoreAndProducts();
     });
 
     const currentUser = StorageRepo.getCurrentUser();
-    const filter = currentUser ? `owner_id=eq.${currentUser.id}` : undefined;
+    const ownerFilter = currentUser ? `owner_id=eq.${currentUser.id}` : undefined;
     const unsubscribeRealtimeStore = subscribeSupabase<Store>(
       'stores',
-      () => { loadData(); },
-      filter
-    );
-
-    const unsubscribeRealtimeOrders = subscribeSupabase<Order>(
-      'orders',
-      () => { loadData(); },
-      store ? `store_id=eq.${store.id}` : undefined
-    );
-
-    const unsubscribeRealtimeProducts = subscribeSupabase<Product>(
-      'products',
-      () => { loadData(); },
-      store ? `store_id=eq.${store.id}` : undefined
+      () => { loadStoreAndProducts(); },
+      ownerFilter
     );
 
     return () => {
       unsubscribeStorage();
       unsubscribeRealtimeStore();
+    };
+  }, []);
+
+  // اشتراكات realtime الخاصة بالطلبات/المنتجات لازم تتسجل من جديد كل
+  // ما معرّف المتجر (store?.id) يتغيّر فعليًا — قبل كده كانت بتتسجل
+  // مرة واحدة بس عند mount وقيمة store لسه null، فكانت فلاتر
+  // store_id بتتسجل فاضية (undefined) بشكل دائم.
+  useEffect(() => {
+    if (!store?.id) return;
+
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedReloadOrders = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => loadOrders(store.id, true), 1200);
+    };
+
+    const unsubscribeRealtimeOrders = subscribeSupabase<Order>(
+      'orders',
+      debouncedReloadOrders,
+      `store_id=eq.${store.id}`
+    );
+
+    const unsubscribeRealtimeProducts = subscribeSupabase<Product>(
+      'products',
+      () => setProducts(StorageRepo.getProducts(store.id)),
+      `store_id=eq.${store.id}`
+    );
+
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
       unsubscribeRealtimeOrders();
       unsubscribeRealtimeProducts();
     };
-  }, []);
+  }, [store?.id]);
+
 
   const deliveredOrders = orders.filter((o) => o.status === 'delivered');
   const totalRevenue = deliveredOrders.reduce((sum, o) => sum + o.subtotal, 0);
@@ -191,6 +230,18 @@ export default function StoreAnalyticsView({ onNavigate }) {
 
   return (
     <div className="space-y-6 dir-rtl pb-16">
+      {isRefreshing && (
+        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-800 border border-amber-200 rounded-xl text-xs font-bold w-fit">
+          <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600" />
+          <span>يتم تحديث بيانات الطلبات...</span>
+        </div>
+      )}
+      {error && (
+        <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs font-bold text-rose-800 flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl font-black text-slate-900 flex items-center gap-2">
