@@ -7,6 +7,7 @@ import { getStoreOpenStatus, StoreOpenStatus } from '../../../lib/store-hours';
 import { formatCurrency } from '../../../lib/formatters';
 import { useCartStore } from '../../../stores/cart-store';
 import { LeafletMap } from '../../shared/LeafletMap';
+import { fetchPlatformSettings, createPaymobCheckoutSession } from '../../../lib/supabase';
 import { ZoneStatusBadge, ZoneStatus } from '../../shared/ZoneStatusBadge';
 import {
   ArrowRight,
@@ -36,6 +37,8 @@ export default function CustomerCheckoutView({
   const { items, storeId, storeName, getSubtotal, clearCart } = useCartStore();
   const [addresses, setAddresses] = useState<CustomerAddress[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string>('');
+  const [onlinePaymentAvailable, setOnlinePaymentAvailable] = useState(false);
+const [isRedirectingToPayment, setIsRedirectingToPayment] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { showToast } = useToast();
@@ -169,7 +172,17 @@ export default function CustomerCheckoutView({
       setQuoteLoading(false);
     }
   };
-
+useEffect(() => {
+  if (!storeId) return;
+  let cancelled = false;
+  Promise.all([fetchPlatformSettings(), fetchStoreById(storeId)])
+    .then(([platformSettings, store]) => {
+      if (cancelled) return;
+      setOnlinePaymentAvailable(!!platformSettings.online_payment_enabled && !!store?.online_payment_enabled);
+    })
+    .catch((err) => console.warn('fetch online payment availability error:', err));
+  return () => { cancelled = true; };
+}, [storeId]);
   // التأثيرات
   useEffect(() => {
     loadAddresses();
@@ -360,6 +373,25 @@ export default function CustomerCheckoutView({
       });
 
       clearCart();
+
+      if (paymentMethod === 'online') {
+        setIsRedirectingToPayment(true);
+        try {
+          const checkoutUrl = await createPaymobCheckoutSession(result.order_id);
+          window.location.href = checkoutUrl; // توجيه كامل لصفحة Paymob الآمنة لإتمام الدفع
+          return; // ما تكملش الكود اللي تحت، إحنا مغادرين الصفحة
+        } catch (payErr: any) {
+          showToast({
+            type: 'error',
+            title: 'تعذر فتح صفحة الدفع',
+            message: `${payErr.message || 'خطأ غير متوقع'} — الطلب #${result.code} اتسجل، وممكن تدفع كاش عند الاستلام أو تتواصل مع الدعم.`,
+          });
+          setIsRedirectingToPayment(false);
+          onOrderPlaced(result.order_id);
+          return;
+        }
+      }
+
       showToast({
         type: 'success',
         title: 'تم الطلب',
@@ -681,12 +713,20 @@ export default function CustomerCheckoutView({
               كاش عند الاستلام
             </button>
             <button
-              disabled
-              className="flex-1 p-3 border rounded-xl text-sm font-bold flex items-center justify-center gap-2 bg-slate-100 text-slate-400 cursor-not-allowed"
-              title="قريباً"
+              onClick={() => onlinePaymentAvailable && setPaymentMethod('online')}
+              disabled={!onlinePaymentAvailable}
+              className={`flex-1 p-3 border rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+                !onlinePaymentAvailable
+                  ? 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                  : paymentMethod === 'online'
+                    ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
+                    : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+              }`}
+              title={onlinePaymentAvailable ? '' : 'غير متاح لهذا المتجر حاليًا'}
             >
               <CreditCard className="w-4 h-4" />
-              دفع إلكتروني <span className="text-[10px] bg-slate-200 px-1.5 rounded-full">قريباً</span>
+              دفع إلكتروني
+              {!onlinePaymentAvailable && <span className="text-[10px] bg-slate-200 px-1.5 rounded-full">غير متاح</span>}
             </button>
           </div>
         </div>
@@ -723,7 +763,12 @@ export default function CustomerCheckoutView({
           />
         </div>
       </div>
-
+{isRedirectingToPayment && (
+  <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl text-blue-800 text-sm font-bold flex items-center gap-2">
+    <Loader2 className="w-5 h-5 animate-spin" />
+    <span>جاري تحويلك لصفحة الدفع الآمنة...</span>
+  </div>
+)}
       {/* زر التأكيد */}
       <button
         onClick={handleSubmitOrder}

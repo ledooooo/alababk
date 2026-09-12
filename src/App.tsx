@@ -69,6 +69,7 @@ const AdminStoreQRCodesView = lazy(() => import('./components/views/admin/AdminS
 const AdminCouponsView = lazy(() => import('./components/views/admin/AdminCouponsView'));
 const AdminCategoriesView = lazy(() => import('./components/views/admin/AdminCategoriesView'));
 const AdminPromotionsView = lazy(() => import('./components/views/admin/AdminPromotionsView'));
+const AdminPaymentSettingsView = lazy(() => import('./components/views/admin/AdminPaymentSettingsView'));
 const AdminPayoutsView = lazy(() => import('./components/views/admin/AdminPayoutsView'));
 const AdminReviewsView = lazy(() => import('./components/views/admin/AdminReviewsView'));
 const AdminNotificationsView = lazy(() => import('./components/views/admin/AdminNotificationsView'));
@@ -154,6 +155,7 @@ const TAB_TO_PATH: Record<string, string> = {
   'admin-customers': '/admin/customers',
   'admin-orders': '/admin/orders',
   'admin-zones': '/admin/zones',
+  'admin-payment-settings': '/admin/payment-settings',
   'admin-support': '/admin/support',
   'admin-store-qr-codes': '/admin/store-qr-codes',
   'admin-coupons': '/admin/coupons',
@@ -628,6 +630,7 @@ export default function App() {
               <Route path="/admin/customers" element={<ProtectedRoute allowedRoles={['admin']}><AdminCustomersView /></ProtectedRoute>} />
               <Route path="/admin/orders" element={<ProtectedRoute allowedRoles={['admin']}><AdminOrdersView /></ProtectedRoute>} />
               <Route path="/admin/zones" element={<ProtectedRoute allowedRoles={['admin']}><AdminZonesView /></ProtectedRoute>} />
+              <Route path="/admin/payment-settings" element={<ProtectedRoute allowedRoles={['admin']}><AdminPaymentSettingsView /></ProtectedRoute>} />
               <Route path="/admin/support" element={<ProtectedRoute allowedRoles={['admin']}><AdminSupportTicketsView /></ProtectedRoute>} />
               <Route path="/admin/store-qr-codes" element={<ProtectedRoute allowedRoles={['admin']}><AdminStoreQRCodesView /></ProtectedRoute>} />
               <Route path="/admin/coupons" element={<ProtectedRoute allowedRoles={['admin']}><AdminCouponsView /></ProtectedRoute>} />

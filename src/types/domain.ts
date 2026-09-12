@@ -176,6 +176,7 @@ export interface Store {
   reviews_count?: number | null;
   commission_rate: number; // e.g. 10 (%)
   min_order_amount: number;
+  online_payment_enabled?: boolean;
   // ملاحظة: لا يوجد عمود delivery_fee ثابت في جدول stores — رسوم التوصيل
   // تُحسَب ديناميكيًا حسب منطقة العميل عبر calculate_delivery_fee/quote_order_secure.
   // هذا الحقل اختياري ويُستخدم فقط كقيمة عرض تقريبية (تبدأ من...) عند توفرها.

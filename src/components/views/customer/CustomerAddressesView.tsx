@@ -5,7 +5,8 @@ import { LeafletMap } from '../../shared/LeafletMap';
 import { ZoneStatusBadge, ZoneStatus } from '../../shared/ZoneStatusBadge';
 import { DEFAULT_LAT, DEFAULT_LNG } from '../../../lib/constants';
 import { checkPointInZone, checkAddressZone } from '../../../lib/supabase/customer-insights';
-import { MapPin, Plus, Trash2, Check, Home, Building, PlusCircle } from 'lucide-react';
+import { useCartStore } from '../../../stores/cart-store';
+import { MapPin, Plus, Trash2, Check, Home, Building, PlusCircle, Star } from 'lucide-react';
 import { useToast } from '../../shared/Toast';
 import { useConfirm } from '../../shared/ConfirmDialog';
 
@@ -141,6 +142,39 @@ export default function CustomerAddressesView() {
         }
       },
     });
+  };
+
+  // تعيين عنوان موجود كافتراضي. لو في سلة فيها طلبات من متجر حاليًا،
+  // نتأكد الأول إن العنوان الجديد جوه نطاق توصيل نفس المتجر — لو
+  // برّه النطاق، نحذّر العميل بوضوح قبل ما يكمل (بدل ما يتفاجئ وقت
+  // الدفع بعد ما يكون خلاص غيّر عنوانه الافتراضي).
+  const handleSetDefault = async (addr: CustomerAddress) => {
+    const applyDefault = async () => {
+      try {
+        await StorageRepo.saveAddress({ ...addr, is_default: true });
+        showToast({ type: 'success', title: 'تم', message: `"${addr.title}" بقى عنوانك الافتراضي` });
+        setAddresses(StorageRepo.getAddresses(currentUser?.id));
+      } catch (err: any) {
+        showToast({ type: 'error', title: 'خطأ', message: err?.message || 'تعذر تحديث العنوان الافتراضي' });
+      }
+    };
+
+    const cart = useCartStore.getState();
+    if (cart.items.length > 0 && cart.storeId) {
+      const zone = await checkAddressZone(addr.id, cart.storeId);
+      if (!zone) {
+        showConfirm({
+          title: 'العنوان خارج نطاق توصيل سلتك الحالية',
+          message: `عندك سلة فيها طلبات من "${cart.storeName || 'متجر'}"، والعنوان ده برّه نطاق توصيل المتجر ده. لو كملت، هتحتاج تختار عنوان تاني وقت الدفع عشان تقدر تكمل الطلب. تحب تكمل التعيين برضه؟`,
+          variant: 'warning',
+          confirmLabel: 'تعيين كافتراضي برضه',
+          onConfirm: applyDefault,
+        });
+        return;
+      }
+    }
+
+    await applyDefault();
   };
 
   return (
@@ -305,13 +339,24 @@ export default function CustomerAddressesView() {
               </div>
             </div>
 
-            <button
-              onClick={() => handleDelete(addr.id)}
-              className="p-2 text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
-              title="حذف العنوان"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {!addr.is_default && (
+                <button
+                  onClick={() => handleSetDefault(addr)}
+                  className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-colors"
+                  title="تعيين كافتراضي"
+                >
+                  <Star className="w-4 h-4" />
+                </button>
+              )}
+              <button
+                onClick={() => handleDelete(addr.id)}
+                className="p-2 text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
+                title="حذف العنوان"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         ))}
       </div>
