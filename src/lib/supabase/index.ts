@@ -22,6 +22,7 @@ export * from './payouts';
 export * from './storage-upload';
 export * from './chat';
 export * from './realtime';
+export * from './account';
 export * from './payment';
 export * from './admin';     // يحتوي على checkSupabaseConnection
 export * from './stats';     // يحتوي على fetchAgentStats, fetchStoreStats, fetchFinanceSummary

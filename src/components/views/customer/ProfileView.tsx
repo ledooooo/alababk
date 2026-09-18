@@ -3,7 +3,7 @@ import { StorageRepo, subscribeToStorageChange } from '../../../lib/storage';
 import { Store, Product } from '../../../types/domain';
 import { StoreCard } from '../../store/StoreCard';
 import { ProductCard } from '../../product/ProductCard';
-import { User, Phone, Mail, Camera, ShieldCheck, MapPin, ShoppingBag, LogOut, CheckCircle2, Heart, Store as StoreIcon, Package, Trash2, Bell, BellOff, BellRing } from 'lucide-react';
+import { User, Phone, Mail, Camera, ShieldCheck, MapPin, ShoppingBag, Settings, LogOut, CheckCircle2, Heart, Store as StoreIcon, Package, Trash2, Bell, BellOff, BellRing } from 'lucide-react';
 import { useToast } from '../../shared/Toast';
 import { isPushSupported, getPushSubscriptionStatus, subscribeToPush, unsubscribeFromPush } from '../../../lib/push';
 import { createSupabaseNotification } from '../../../lib/supabase';
@@ -135,6 +135,18 @@ export default function ProfileView({ onNavigate, onLogout }) {
           >
             <Camera className="w-3.5 h-3.5" />
           </button>
+          <button
+  onClick={() => onNavigate('/settings')}
+  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all ${
+    isActive('/settings') ? theme.bgActive : 'text-slate-700 hover:bg-slate-100'
+  }`}
+>
+  <div className="flex items-center gap-2.5">
+    <Settings className="w-4 h-4" />
+    <span>إعدادات التطبيق</span>
+  </div>
+  <ChevronLeft className="w-4 h-4 opacity-60" />
+</button>
         </div>
 
         <div className="text-center sm:text-right space-y-1 flex-1">

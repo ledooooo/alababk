@@ -18,6 +18,7 @@ const CustomerStoresView = lazy(() => import('./components/views/customer/Custom
 const CustomerStoreDetailView = lazy(() => import('./components/views/customer/CustomerStoreDetailView'));
 const CustomerCheckoutView = lazy(() => import('./components/views/customer/CustomerCheckoutView'));
 const CustomerOrdersView = lazy(() => import('./components/views/customer/CustomerOrdersView'));
+const CustomerSettingsView = lazy(() => import('./components/views/customer/CustomerSettingsView'));
 const CustomerOrderDetailView = lazy(() => import('./components/views/customer/CustomerOrderDetailView'));
 const CustomerAddressesView = lazy(() => import('./components/views/customer/CustomerAddressesView'));
 const CustomerSupportView = lazy(() => import('./components/views/customer/CustomerSupportView'));
@@ -118,6 +119,7 @@ const TAB_TO_PATH: Record<string, string> = {
   'customer-orders': '/orders',
   profile: '/profile',
   'customer-addresses': '/addresses',
+    'customer-settings': '/settings',
   'customer-support': '/support',
   notifications: '/notifications',
 
@@ -390,6 +392,23 @@ function ProfileRoute() {
   );
 }
 
+function SettingsRoute() {
+  const navigate = useNavigate();
+  return (
+    <CustomerSettingsView
+      onLogout={async () => {
+        try {
+          await supabase.auth.signOut();
+        } catch (err) {
+          console.warn('Sign out notice:', err);
+        }
+        StorageRepo.logout();
+        navigate('/');
+      }}
+    />
+  );
+}
+
 function NotificationsRoute() {
   const navigate = useNavigate();
   return <NotificationsView onNavigate={(tab, param) => navigate(mapTabToPath(tab, param))} />;
@@ -590,6 +609,7 @@ export default function App() {
               <Route path="/orders/:orderId" element={<OrderDetailRoute />} />
               <Route path="/order-confirmation/:orderId" element={<OrderConfirmationRoute />} />
               <Route path="/profile" element={<ProfileRoute />} />
+              <Route path="/settings" element={<SettingsRoute />} />
               <Route path="/addresses" element={<CustomerAddressesView />} />
               <Route path="/support" element={<CustomerSupportView />} />
               <Route path="/notifications" element={<NotificationsRoute />} />
